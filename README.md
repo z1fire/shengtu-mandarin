@@ -4,16 +4,18 @@ Shēngtú is a speaking-first HSK 3.0 Level 1 learning platform. It follows the 
 
 ## What is included
 
-- Complete 300-word Level 1 vocabulary bank with pinyin, English glosses, audio playback, search, and mastery tracking
+- Complete 300-word Level 1 vocabulary bank with examples, collocations, usage notes, audio playback, search, and scheduled review
 - All 246 Level 1 recognition characters
-- Twenty high-yield lessons covering the official 70 grammar targets
-- Listening comprehension, active-recall flashcards, sentence building, and speech-recognition practice
-- Twelve real-life missions across a six-week fast-track path
-- On-device streak, XP, time, vocabulary, and mission progress
-- Current HSK 3.0 Level 1 trial-exam structure and rollout note
+- All 70 grammar targets, each with a formula, example, audio, and recall check
+- Real spaced repetition with a bounded daily queue, four review grades, and due dates
+- Twenty listening drills, sixteen sentence challenges, and twelve tone/sound pronunciation drills
+- Twelve real-life missions, evenly distributed across a six-week path
+- Timed 40-question HSK 1 practice mock with scoring and wrong-answer review
+- Accurate local-date streaks, automatic daily resets, one-time XP, and per-task minute tracking
+- Export/import progress backups plus an installable, offline-ready app shell
 - Responsive, keyboard-accessible interface with reduced-motion support
 
-Progress is stored only in the browser with `localStorage`; there is no account or analytics layer.
+Progress is stored in the browser with `localStorage` and can be exported as a portable JSON backup. There is no account or analytics layer.
 
 ## Development
 

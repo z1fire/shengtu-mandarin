@@ -8,15 +8,17 @@ export async function generateMetadata(): Promise<Metadata> {
   const protocol = requestHeaders.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
   const origin = `${protocol}://${host}`;
   const title = "Shēngtú — HSK 1 Mandarin Sprint";
-  const description = "A speaking-first, interactive HSK 3.0 Level 1 learning platform built around the official 2025 syllabus.";
+  const description = "A guided, speaking-first HSK 3.0 Level 1 course with spaced repetition, pronunciation training, and a full mock exam.";
 
   return {
     title,
     description,
     metadataBase: new URL(origin),
+    manifest: "/manifest.webmanifest",
     icons: { icon: "/favicon.svg", shortcut: "/favicon.svg" },
     openGraph: { title, description, type: "website", url: origin, images: [{ url: `${origin}/og.png`, width: 1732, height: 904, alt: "Shēngtú — Stop studying Mandarin. Start using it." }] },
     twitter: { card: "summary_large_image", title, description, images: [`${origin}/og.png`] },
+    appleWebApp: { capable: true, title: "Shēngtú", statusBarStyle: "black-translucent" },
   };
 }
 

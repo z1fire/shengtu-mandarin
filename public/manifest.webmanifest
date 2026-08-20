@@ -1,0 +1,13 @@
+{
+  "name": "Shēngtú Mandarin — HSK 1",
+  "short_name": "Shēngtú",
+  "description": "A guided, speaking-first HSK 3.0 Level 1 Mandarin course.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f3f0e8",
+  "theme_color": "#18201d",
+  "icons": [
+    { "src": "./favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

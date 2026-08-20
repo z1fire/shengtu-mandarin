@@ -1,91 +1,102 @@
 import assert from "node:assert/strict";
-import { access, readFile, readdir } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import test from "node:test";
-
-const developmentPreviewMeta =
-  /<meta(?=[^>]*\bname=["']codex-preview["'])(?=[^>]*\bcontent=["']development["'])[^>]*>/i;
-const templateRoot = new URL("../", import.meta.url);
-const previewRoot = new URL("../app/_sites-preview/", import.meta.url);
+import {
+  activate,
+  buildDailyQueue,
+  completeDailyStep,
+  earnOnce,
+  makeStarterProgress,
+  normalizeProgress,
+  scheduleReview,
+  similarityScore,
+} from "../src/learning-engine.ts";
+import {
+  grammarPoints,
+  listeningQuestions,
+  mockExamQuestions,
+  recognitionCharacters,
+  sentenceChallenges,
+  vocabulary,
+} from "../src/hsk-data.ts";
 
 async function render() {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
   workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
   const { default: worker } = await import(workerUrl.href);
-
   return worker.fetch(
-    new Request("http://localhost/", {
-      headers: { accept: "text/html" },
-    }),
-    {
-      ASSETS: {
-        fetch: async () => new Response("Not found", { status: 404 }),
-      },
-    },
-    {
-      waitUntil() {},
-      passThroughOnException() {},
-    },
+    new Request("http://localhost/", { headers: { accept: "text/html" } }),
+    { ASSETS: { fetch: async () => new Response("Not found", { status: 404 }) } },
+    { waitUntil() {}, passThroughOnException() {} },
   );
 }
 
-test("server-renders the starter loading skeleton", async () => {
+test("server-renders the finished Mandarin course", async () => {
   const response = await render();
   assert.equal(response.status, 200);
   assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
-
   const html = await response.text();
-  assert.match(html, developmentPreviewMeta);
-  assert.match(html, /<title>Your site is taking shape<\/title>/i);
-  assert.match(html, /Building your site/);
-  assert.match(html, /Your site is taking shape/);
-  assert.match(
-    html,
-    /Your first version will appear here automatically when it’s ready\./,
-  );
-  assert.doesNotMatch(html, /Codex/);
-  assert.match(html, /react-loading-skeleton/);
-  assert.match(html, /role="status"/);
+  assert.match(html, /Shēngtú — HSK 1 Mandarin Sprint/i);
+  assert.match(html, /Stop studying Mandarin/);
+  assert.match(html, /TODAY’S GUIDED LESSON/);
+  assert.match(html, /ALL 70 GRAMMAR TARGETS/);
+  assert.match(html, /manifest\.webmanifest/);
+  assert.doesNotMatch(html, /codex-preview|Your site is taking shape|react-loading-skeleton/i);
 });
 
-test("keeps the loading skeleton scoped and disposable", async () => {
-  const [preview, css, page, layout, packageJson, files] = await Promise.all([
-    readFile(new URL("SkeletonPreview.tsx", previewRoot), "utf8"),
-    readFile(new URL("preview.css", previewRoot), "utf8"),
-    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../package.json", import.meta.url), "utf8"),
-    readdir(previewRoot),
+test("ships the complete Level 1 curriculum and practice pools", () => {
+  assert.equal(vocabulary.length, 300);
+  assert.equal(recognitionCharacters.length, 246);
+  assert.equal(grammarPoints.length, 70);
+  assert.equal(listeningQuestions.length, 20);
+  assert.equal(sentenceChallenges.length, 16);
+  assert.equal(mockExamQuestions.length, 40);
+  assert.equal(mockExamQuestions.filter((question) => question.section === "Listening").length, 20);
+  assert.equal(mockExamQuestions.filter((question) => question.section === "Reading").length, 20);
+  assert.ok(vocabulary.every((word) => word.example && word.collocation));
+});
+
+test("builds a bounded daily queue and schedules reviews by recall quality", () => {
+  const progress = { ...makeStarterProgress("2026-08-20"), dailyNew: 8 };
+  assert.equal(buildDailyQueue(progress, 300, 0).length, 8);
+  assert.equal(scheduleReview(undefined, "again", 0).dueAt, 60_000);
+  assert.equal(scheduleReview(undefined, "hard", 0).intervalDays, 1);
+  assert.equal(scheduleReview(undefined, "good", 0).intervalDays, 2);
+  assert.equal(scheduleReview(undefined, "easy", 0).intervalDays, 7);
+});
+
+test("resets daily work, calculates real streaks, and prevents repeat rewards", () => {
+  const starter = makeStarterProgress("2026-08-18");
+  const firstDay = activate(starter, "2026-08-18");
+  const nextDay = activate(firstDay, "2026-08-19");
+  const afterGap = activate(nextDay, "2026-08-21");
+  assert.equal(firstDay.streak, 1);
+  assert.equal(nextDay.streak, 2);
+  assert.equal(afterGap.streak, 1);
+
+  const once = earnOnce(starter, "word:1", 5, "2026-08-18");
+  assert.equal(earnOnce(once, "word:1", 5, "2026-08-18").xp, 5);
+  assert.equal(completeDailyStep(once, "review", 5, "2026-08-18").minutes, 5);
+
+  const stale = { ...once, daily: ["review"], dailyDate: "2026-08-18", listeningDone: ["l01"] };
+  const normalized = normalizeProgress(stale, 300, "2026-08-19");
+  assert.deepEqual(normalized.daily, []);
+  assert.deepEqual(normalized.listeningDone, []);
+});
+
+test("scores speech transcripts by the full target instead of two hardcoded phrases", () => {
+  assert.equal(similarityScore("你好我叫安娜", "你好我叫安娜"), 100);
+  assert.ok(similarityScore("我想喝一杯茶", "我想喝茶") >= 60);
+  assert.ok(similarityScore("我想喝一杯茶", "今天天气很好") < 50);
+});
+
+test("static Pages build has absolute social metadata and offline assets", async () => {
+  const html = await readFile(new URL("../docs/index.html", import.meta.url), "utf8");
+  assert.match(html, /https:\/\/z1fire\.github\.io\/shengtu-mandarin\/og\.png/);
+  assert.match(html, /manifest\.webmanifest/);
+  await Promise.all([
+    access(new URL("../docs/sw.js", import.meta.url)),
+    access(new URL("../docs/manifest.webmanifest", import.meta.url)),
+    access(new URL("../docs/favicon.svg", import.meta.url)),
   ]);
-
-  assert.deepEqual(files.sort(), ["SkeletonPreview.tsx", "preview.css"]);
-  assert.match(preview, /from "react-loading-skeleton"/);
-  assert.match(preview, /baseColor="#eceae7"/);
-  assert.match(preview, /highlightColor="#f9f8f6"/);
-  assert.match(preview, /duration=\{2\.8\}/);
-  assert.match(preview, /sites-skeleton-search-placeholder/);
-  assert.match(packageJson, /"react-loading-skeleton": "3\.5\.0"/);
-
-  const shellIndex = preview.indexOf('className="sites-skeleton-shell"');
-  const statusIndex = preview.indexOf('className="sites-skeleton-status"');
-  assert.ok(shellIndex >= 0 && statusIndex > shellIndex);
-  assert.match(css, /position:\s*fixed/);
-  assert.match(css, /inset:\s*0/);
-  assert.match(css, /opacity:\s*0\.52/);
-  assert.match(css, /prefers-reduced-motion:\s*reduce/);
-  assert.doesNotMatch(css, /#020617|canvas|pets|progress/i);
-  assert.doesNotMatch(
-    preview,
-    /loading-spinner|status-mark|status-progress|canvas|cookie|random/i,
-  );
-
-  assert.match(page, /export const metadata:\s*Metadata/);
-  assert.match(page, /"codex-preview": "development"/);
-  assert.match(page, /<SkeletonPreview \/>/);
-  assert.match(layout, /title:\s*"Starter Project"/);
-  assert.doesNotMatch(layout, /codex-preview|_sites-preview|themeColor|\bViewport\b/);
-  assert.doesNotMatch(css, /(^|\s)(html|body)\s*\{/m);
-
-  await assert.rejects(
-    access(new URL("public/_sites-preview", templateRoot)),
-  );
 });
