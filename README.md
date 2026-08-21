@@ -8,6 +8,7 @@ Shēngtú is a speaking-first HSK 3.0 Level 1 learning platform. It follows the 
 - All 246 Level 1 recognition characters
 - All 70 grammar targets, each with a formula, example, audio, and recall check
 - Real spaced repetition with a bounded daily queue, four review grades, and due dates
+- Mobile-first app navigation with a Today dashboard, one-step lesson flow, and focused Course, Library, Mock, and Progress views
 - Twenty listening drills, sixteen sentence challenges, and twelve tone/sound pronunciation drills
 - Twelve real-life missions, evenly distributed across a six-week path
 - Timed 40-question HSK 1 practice mock with scoring and wrong-answer review

@@ -38,10 +38,30 @@ test("server-renders the finished Mandarin course", async () => {
   const html = await response.text();
   assert.match(html, /Shēngtú — HSK 1 Mandarin Sprint/i);
   assert.match(html, /Stop studying Mandarin/);
-  assert.match(html, /TODAY’S GUIDED LESSON/);
-  assert.match(html, /ALL 70 GRAMMAR TARGETS/);
+  assert.match(html, /Continue:[\s\S]{0,40}Recall/);
+  assert.match(html, /aria-label="App navigation"/);
+  assert.match(html, />Today<\/button>/);
+  assert.match(html, />Course<\/button>/);
+  assert.match(html, />Library<\/button>/);
   assert.match(html, /manifest\.webmanifest/);
   assert.doesNotMatch(html, /codex-preview|Your site is taking shape|react-loading-skeleton/i);
+});
+
+test("uses focused app views instead of one scrolling curriculum page", async () => {
+  const source = await readFile(new URL("../src/MandarinApp.tsx", import.meta.url), "utf8");
+  const css = await readFile(new URL("../src/mandarin.css", import.meta.url), "utf8");
+  assert.match(source, /type AppView = "today" \| "course" \| "library" \| "exam" \| "progress"/);
+  assert.match(source, /todayScreen === "plan"/);
+  assert.match(source, /todayScreen === "lesson"/);
+  assert.match(source, /appView === "course"/);
+  assert.match(source, /libraryView === "grammar"/);
+  assert.match(source, /className="mobile-nav"/);
+  assert.match(source, /className="lesson-next-bar"/);
+  assert.match(source, /function appRouteFromHash/);
+  assert.match(source, /window\.history\.pushState/);
+  assert.match(source, /addEventListener\("popstate"/);
+  assert.match(css, /\.mobile-nav\s*\{[^}]*display:\s*none/s);
+  assert.match(css, /@media \(max-width:\s*850px\)[\s\S]*\.mobile-nav\s*\{[^}]*display:\s*grid/s);
 });
 
 test("ships the complete Level 1 curriculum and practice pools", () => {

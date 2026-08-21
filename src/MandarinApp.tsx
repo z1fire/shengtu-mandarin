@@ -27,6 +27,8 @@ import {
 import "./mandarin.css";
 
 type PracticeMode = "flashcards" | "listening" | "builder" | "speaking";
+type AppView = "today" | "course" | "library" | "exam" | "progress";
+type LibraryView = "words" | "characters" | "grammar";
 
 const STORAGE_KEY = "shengtu-hsk1-progress";
 const today = localDate();
@@ -59,10 +61,23 @@ function dueLabel(grade: ReviewGrade, reviewDays: number) {
   return reviewDays ? `${Math.max(7, Math.round(reviewDays * 3.2))} days` : "7 days";
 }
 
+function appRouteFromHash(hash: string): { view: AppView; library?: LibraryView; lesson?: boolean } {
+  const route = hash.replace(/^#/, "");
+  if (route === "course" || route === "exam" || route === "progress") return { view: route };
+  if (route.startsWith("library/")) {
+    const library = route.split("/")[1];
+    return { view: "library", library: library === "characters" || library === "grammar" ? library : "words" };
+  }
+  return { view: "today", lesson: route === "today/lesson" };
+}
+
 export default function MandarinApp() {
   const [progress, setProgress] = useState<Progress>(() => makeStarterProgress(today));
   const [ready, setReady] = useState(false);
   const [onboardingGoal, setOnboardingGoal] = useState(8);
+  const [appView, setAppView] = useState<AppView>("today");
+  const [todayScreen, setTodayScreen] = useState<"plan" | "lesson">("plan");
+  const [libraryView, setLibraryView] = useState<LibraryView>("words");
   const [practice, setPractice] = useState<PracticeMode>("flashcards");
   const [cardRevealed, setCardRevealed] = useState(false);
   const [search, setSearch] = useState("");
@@ -93,7 +108,6 @@ export default function MandarinApp() {
   const [examRemaining, setExamRemaining] = useState(40 * 60);
   const [examResult, setExamResult] = useState<{ correct: number; score: number } | null>(null);
   const [toast, setToast] = useState("");
-  const todayRef = useRef<HTMLElement>(null);
   const importRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -107,10 +121,26 @@ export default function MandarinApp() {
       } catch {
         setProgress(normalizeProgress(null, vocabulary.length, today));
       }
+      const route = appRouteFromHash(window.location.hash);
+      setAppView(route.view);
+      if (route.library) setLibraryView(route.library);
+      if (route.lesson) setTodayScreen("lesson");
       setReady(true);
     }, 0);
     if ("serviceWorker" in navigator) navigator.serviceWorker.register(new URL("./sw.js", window.location.href).pathname).catch(() => undefined);
     return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    const handleHistory = () => {
+      const route = appRouteFromHash(window.location.hash);
+      setAppView(route.view);
+      setTodayScreen(route.lesson ? "lesson" : "plan");
+      if (route.library) setLibraryView(route.library);
+      window.scrollTo({ top: 0 });
+    };
+    window.addEventListener("popstate", handleHistory);
+    return () => window.removeEventListener("popstate", handleHistory);
   }, []);
 
   useEffect(() => {
@@ -175,14 +205,33 @@ export default function MandarinApp() {
     { id: "speak", mode: "speaking" as const, time: 8, title: "Pronunciation gym", detail: `${Math.min(progress.pronunciationDone.length, 3)}/3 drills completed`, accent: "jade" },
     { id: "build", mode: "builder" as const, time: 8, title: "Build from memory", detail: `${Math.min(progress.builderDone.length, 4)}/4 sentences built`, accent: "yellow" },
   ];
+  const practiceOrder: PracticeMode[] = ["flashcards", "listening", "speaking", "builder"];
+  const practiceLabels: Record<PracticeMode, string> = { flashcards: "Recall", listening: "Listening", speaking: "Pronunciation", builder: "Sentence lab" };
+  const nextRecommended = dailySteps.find((step) => !progress.daily.includes(step.id))?.mode ?? "flashcards";
+  const nextPractice = practiceOrder[(practiceOrder.indexOf(practice) + 1) % practiceOrder.length];
 
-  function scrollTo(id: string) {
-    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  function navigate(view: AppView) {
+    const hash = view === "today" ? "#today" : `#${view}`;
+    if (window.location.hash !== hash) window.history.pushState(null, "", hash);
+    setAppView(view);
+    if (view === "today") setTodayScreen("plan");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function openLibrary(view: LibraryView) {
+    const hash = `#library/${view}`;
+    if (window.location.hash !== hash) window.history.pushState(null, "", hash);
+    setAppView("library");
+    setLibraryView(view);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function goToPractice(mode: PracticeMode) {
+    if (window.location.hash !== "#today/lesson") window.history.pushState(null, "", "#today/lesson");
+    setAppView("today");
+    setTodayScreen("lesson");
     setPractice(mode);
-    window.setTimeout(() => todayRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function startCourse() {
@@ -408,17 +457,25 @@ export default function MandarinApp() {
   return (
     <main className="site-shell">
       <header className="topbar">
-        <button className="brand" onClick={() => scrollTo("top")} aria-label="Shengtu home"><span className="brand-mark">声</span><span><strong>SHĒNGTÚ</strong><small>MANDARIN, IN MOTION</small></span></button>
-        <nav className="nav-links" aria-label="Primary navigation"><button onClick={() => scrollTo("path")}>Path</button><button onClick={() => scrollTo("vocabulary")}>Words</button><button onClick={() => scrollTo("grammar")}>Grammar</button><button onClick={() => scrollTo("exam")}>Mock exam</button><button onClick={() => scrollTo("progress")}>Progress</button></nav>
+        <button className="brand" onClick={() => navigate("today")} aria-label="Open today"><span className="brand-mark">声</span><span><strong>SHĒNGTÚ</strong><small>MANDARIN, IN MOTION</small></span></button>
+        <nav className="nav-links" aria-label="Primary navigation">
+          <button className={appView === "today" ? "active" : ""} onClick={() => navigate("today")}>Today</button>
+          <button className={appView === "course" ? "active" : ""} onClick={() => navigate("course")}>Course</button>
+          <button className={appView === "library" ? "active" : ""} onClick={() => openLibrary("words")}>Library</button>
+          <button className={appView === "exam" ? "active" : ""} onClick={() => navigate("exam")}>Mock exam</button>
+          <button className={appView === "progress" ? "active" : ""} onClick={() => navigate("progress")}>Progress</button>
+        </nav>
         <div className="header-actions"><span className="streak-pill"><span>火</span> {progress.streak} day streak</span><button className="round-button" onClick={() => setProgress((current) => ({ ...current, showPinyin: !current.showPinyin }))} title="Toggle pinyin">{progress.showPinyin ? "PĪN" : "汉"}</button></div>
       </header>
 
+      <div className="app-content">
+      {appView === "today" && todayScreen === "plan" && <>
       <section className="hero" id="top">
         <div className="hero-copy">
           <div className="eyebrow"><span>HSK 3.0</span> LEVEL 1 · CURRENT SYLLABUS</div>
           <h1>Stop studying Mandarin.<br /><em>Start using it.</em></h1>
           <p className="hero-lede">A guided, speaking-first HSK 1 course that schedules the right words each day—never all 300 at once.</p>
-          <div className="hero-actions"><button className="primary-button" onClick={() => goToPractice("flashcards")}>Continue today’s lesson <span>→</span></button><button className="text-button" onClick={() => scrollTo("path")}><span className="play-dot">▶</span> See the 6-week path</button></div>
+          <div className="hero-actions"><button className="primary-button" onClick={() => goToPractice(nextRecommended)}>Continue: {practiceLabels[nextRecommended]} <span>→</span></button><button className="text-button" onClick={() => navigate("course")}><span className="play-dot">▶</span> See the 6-week path</button></div>
           <div className="hero-proof"><div><strong>300</strong><span>core words</span></div><div><strong>246</strong><span>recognition characters</span></div><div><strong>70</strong><span>grammar targets</span></div><div><strong>40m</strong><span>full mock exam</span></div></div>
         </div>
 
@@ -433,10 +490,13 @@ export default function MandarinApp() {
       </section>
 
       <section className="method-strip" aria-label="Learning method"><span className="strip-title">THE FAST-FLUENCY LOOP</span><div><b>01</b><span>Notice<small>meaning first</small></span></div><span className="strip-arrow">→</span><div><b>02</b><span>Hear<small>Mandarin model</small></span></div><span className="strip-arrow">→</span><div><b>03</b><span>Say<small>out loud</small></span></div><span className="strip-arrow">→</span><div><b>04</b><span>Recall<small>on schedule</small></span></div></section>
+      </>}
 
-      <section className="section practice-section" id="practice" ref={todayRef}>
-        <div className="section-heading two-column-heading"><div><span className="section-kicker">TODAY’S GUIDED LESSON</span><h2>Train the skill,<br /><em>not the illusion.</em></h2></div><p>Complete each target once. The checklist updates automatically, rewards cannot be farmed, and difficult material returns sooner.</p></div>
-        <div className="practice-tabs" role="tablist" aria-label="Practice modes">{([ ["flashcards", "01", "Recall"], ["listening", "02", "Listening"], ["builder", "03", "Sentence lab"], ["speaking", "04", "Pronunciation"] ] as [PracticeMode, string, string][]).map(([mode, number, label]) => <button key={mode} className={practice === mode ? "active" : ""} onClick={() => setPractice(mode)} role="tab" aria-selected={practice === mode}><span>{number}</span>{label}</button>)}</div>
+      {appView === "today" && todayScreen === "lesson" && (
+      <section className="section practice-section" id="practice">
+        <div className="lesson-toolbar"><button onClick={() => navigate("today")}>← Today’s plan</button><span>Step {practiceOrder.indexOf(practice) + 1} of 4</span></div>
+        <div className="section-heading two-column-heading"><div><span className="section-kicker">TODAY’S GUIDED LESSON</span><h2>{practiceLabels[practice]}</h2></div><p>Focus on one step. Your plan updates automatically when you hit today’s target.</p></div>
+        <div className="practice-tabs" role="tablist" aria-label="Today’s lesson steps">{([ ["flashcards", "01", "Recall"], ["listening", "02", "Listening"], ["speaking", "03", "Pronunciation"], ["builder", "04", "Sentence lab"] ] as [PracticeMode, string, string][]).map(([mode, number, label]) => { const step = dailySteps.find((item) => item.mode === mode); const done = step ? progress.daily.includes(step.id) : false; return <button key={mode} className={`${practice === mode ? "active" : ""} ${done ? "complete" : ""}`} onClick={() => setPractice(mode)} role="tab" aria-selected={practice === mode}><span>{done ? "✓" : number}</span>{label}</button>; })}</div>
 
         <div className="practice-stage">
           {practice === "flashcards" && (
@@ -452,21 +512,74 @@ export default function MandarinApp() {
 
           {practice === "speaking" && <div className="speaking-lab pronunciation-lab"><div className="lab-instructions"><span className="micro-label">TONE & SOUND GYM · {pronunciationIndex + 1} / {pronunciationDrills.length}</span><h3>Train the sound, not just the word.</h3><p>{activePronunciation.cue}</p><div className="tone-map" aria-label="Mandarin tone contours"><span>1 ˉ<small>high</small></span><span>2 ˊ<small>rise</small></span><span>3 ˇ<small>dip</small></span><span>4 ˋ<small>fall</small></span><span>·<small>light</small></span></div></div><div><div className="pronunciation-picker">{pronunciationDrills.map((drill, index) => <button key={drill.id} className={index === pronunciationIndex ? "active" : ""} onClick={() => { setPronunciationIndex(index); setSpeechScore(null); setSpeechText("Listen, shadow, then record the line."); }}>{drill.focus}</button>)}</div><div className="speech-console"><button className="speaker-orb" onClick={() => speak(activePronunciation.hanzi, 0.7)} aria-label="Play phrase">声<span>▶ MODEL</span></button><strong>{activePronunciation.hanzi}</strong>{progress.showPinyin && <p>{activePronunciation.pinyin}</p>}<button className={`record-button ${isListening ? "recording" : ""}`} onClick={startSpeechCheck}><span>●</span>{isListening ? "Listening…" : "Record my line"}</button><div className="speech-feedback">{speechText}</div>{speechScore !== null && <div className="speech-meter"><i style={{ width: `${speechScore}%` }} /></div>}<div className="self-checks"><button onClick={() => completePronunciation("Pronunciation drill recorded · +12 XP")}>Tone contour felt accurate</button><button onClick={() => { setSpeechText("Replay slowly and exaggerate the contour once, then repeat naturally."); speak(activePronunciation.hanzi, 0.58); }}>Needs another round</button></div><small className="speech-honesty">Browser recognition checks the words, not pitch. Use the tone cue and an honest self-check.</small></div></div></div>}
         </div>
+        <div className="lesson-next-bar"><button onClick={() => navigate("today")}>Save & return to plan</button><div><span>UP NEXT</span><strong>{practiceLabels[nextPractice]}</strong></div><button className="next-step-button" onClick={() => setPractice(nextPractice)}>Continue →</button></div>
       </section>
+      )}
 
-      <section className="section path-section" id="path"><div className="section-heading path-heading"><div><span className="section-kicker">YOUR 6-WEEK ROUTE</span><h2>Twelve real-life<br /><em>missions.</em></h2></div><div className="route-summary"><strong>{progress.missions.length}/12</strong><span>missions complete</span><div><i style={{ width: `${(progress.missions.length / missions.length) * 100}%` }} /></div></div></div><div className="mission-grid">{missions.map((mission, index) => { const done = progress.missions.includes(index); return <article key={mission.title} className={`mission-card ${done ? "complete" : ""}`}><div className="mission-top"><span>W{mission.week} · {String(index + 1).padStart(2, "0")}</span><button onClick={() => toggleMission(index)}>{done ? "✓ DONE" : "+ MARK"}</button></div><h3>{mission.title}</h3><p>{mission.subtitle}</p><div className="mission-words">{mission.words}</div><button className="mission-phrase" onClick={() => speak(mission.phrase)}><span>▶</span><strong>{mission.phrase}</strong>{progress.showPinyin && <small>{mission.pinyin}</small>}</button></article>; })}</div></section>
+      {appView === "course" && (
+        <section className="section path-section app-view" id="path">
+          <div className="view-intro"><span className="view-icon">路</span><div><span className="section-kicker">COURSE</span><h1>Your 6-week route</h1><p>Two real-life missions per week. Work from the top and mark a mission complete when you can say its key phrase without help.</p></div></div>
+          <div className="section-heading path-heading"><div><h2>Twelve real-life<br /><em>missions.</em></h2></div><div className="route-summary"><strong>{progress.missions.length}/12</strong><span>missions complete</span><div><i style={{ width: `${(progress.missions.length / missions.length) * 100}%` }} /></div></div></div>
+          <div className="mission-grid">{missions.map((mission, index) => { const done = progress.missions.includes(index); return <article key={mission.title} className={`mission-card ${done ? "complete" : ""}`}><div className="mission-top"><span>W{mission.week} · {String(index + 1).padStart(2, "0")}</span><button onClick={() => toggleMission(index)}>{done ? "✓ DONE" : "+ MARK"}</button></div><h3>{mission.title}</h3><p>{mission.subtitle}</p><div className="mission-words">{mission.words}</div><button className="mission-phrase" onClick={() => speak(mission.phrase)}><span>▶</span><strong>{mission.phrase}</strong>{progress.showPinyin && <small>{mission.pinyin}</small>}</button></article>; })}</div>
+        </section>
+      )}
 
-      <section className="section vocabulary-section" id="vocabulary"><div className="section-heading vocabulary-heading"><div><span className="section-kicker">COMPLETE HSK 1 WORD BANK</span><h2>All 300 words.<br /><em>With context.</em></h2></div><div className="vocab-tools"><label><span>⌕</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search 汉字, pinyin, English, or examples" aria-label="Search vocabulary" /></label><button onClick={() => setProgress((current) => ({ ...current, showPinyin: !current.showPinyin }))}>{progress.showPinyin ? "Hide pinyin" : "Show pinyin"}</button></div></div><div className="vocab-status"><span><b>{progress.mastered.length}</b> stable words</span><div><i style={{ width: `${coursePercent}%` }} /></div><span>{coursePercent}%</span></div><div className="word-grid">{visibleWords.map((word) => { const originalIndex = vocabulary.indexOf(word); const mastered = progress.mastered.includes(originalIndex); const learned = Boolean(progress.reviews[originalIndex]); return <article key={`${word.hanzi}-${originalIndex}`} className={mastered ? "mastered" : ""}><button className="word-audio" onClick={() => speak(word.hanzi)} aria-label={`Play ${word.hanzi}`}>▶</button><strong>{word.hanzi}</strong>{progress.showPinyin && <span>{word.pinyin}</span>}<p>{word.meaning}</p><div className="word-context"><b>{word.example}</b><small>{word.collocation}</small>{word.note && <em>{word.note}</em>}</div><button className="master-button" onClick={() => studyWord(originalIndex)}>{mastered ? "✓ Stable · review now" : learned ? "Learning · review now" : "+ Add to today"}</button></article>; })}</div>{!search && <button className="load-more" onClick={() => setShowAllWords((value) => !value)}>{showAllWords ? "Show the focused set" : `Explore all ${vocabulary.length} words`} <span>↓</span></button>}<div className="character-bank"><div><span className="section-kicker">CHARACTER RECOGNITION</span><h3>Recognize all 246.</h3><p>HSK 1 tests listening and reading—not handwriting. Tap a character to hear a syllabus word that uses it.</p></div><div className="character-grid">{(showAllCharacters ? recognitionCharacters : recognitionCharacters.slice(0, 80)).map((character, index) => { const sample = vocabulary.find((word) => word.hanzi.includes(character)); return <button key={`${character}-${index}`} onClick={() => speak(sample?.hanzi ?? character)} title={sample ? `${sample.hanzi} · ${sample.meaning}` : character}>{character}</button>; })}<button className="character-more" onClick={() => setShowAllCharacters((value) => !value)}>{showAllCharacters ? "−" : `+${recognitionCharacters.length - 80}`}</button></div></div></section>
+      {appView === "library" && libraryView !== "grammar" && (
+        <section className="section vocabulary-section app-view" id="vocabulary">
+          <div className="view-intro light-view"><span className="view-icon">库</span><div><span className="section-kicker">LIBRARY</span><h1>Explore the syllabus</h1><p>Reference material lives here. Your required work is always waiting under Today.</p></div></div>
+          <div className="library-tabs" role="tablist" aria-label="Library sections">
+            <button className={libraryView === "words" ? "active" : ""} onClick={() => openLibrary("words")}>300 Words</button>
+            <button className={libraryView === "characters" ? "active" : ""} onClick={() => openLibrary("characters")}>246 Characters</button>
+            <button onClick={() => openLibrary("grammar")}>70 Grammar</button>
+          </div>
+          {libraryView === "words" && <>
+            <div className="section-heading vocabulary-heading"><div><span className="section-kicker">COMPLETE HSK 1 WORD BANK</span><h2>All 300 words.<br /><em>With context.</em></h2></div><div className="vocab-tools"><label><span>⌕</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search 汉字, pinyin, English, or examples" aria-label="Search vocabulary" /></label><button onClick={() => setProgress((current) => ({ ...current, showPinyin: !current.showPinyin }))}>{progress.showPinyin ? "Hide pinyin" : "Show pinyin"}</button></div></div>
+            <div className="vocab-status"><span><b>{progress.mastered.length}</b> stable words</span><div><i style={{ width: `${coursePercent}%` }} /></div><span>{coursePercent}%</span></div>
+            <div className="word-grid">{visibleWords.map((word) => { const originalIndex = vocabulary.indexOf(word); const mastered = progress.mastered.includes(originalIndex); const learned = Boolean(progress.reviews[originalIndex]); return <article key={`${word.hanzi}-${originalIndex}`} className={mastered ? "mastered" : ""}><button className="word-audio" onClick={() => speak(word.hanzi)} aria-label={`Play ${word.hanzi}`}>▶</button><strong>{word.hanzi}</strong>{progress.showPinyin && <span>{word.pinyin}</span>}<p>{word.meaning}</p><div className="word-context"><b>{word.example}</b><small>{word.collocation}</small>{word.note && <em>{word.note}</em>}</div><button className="master-button" onClick={() => studyWord(originalIndex)}>{mastered ? "✓ Stable · review now" : learned ? "Learning · review now" : "+ Add to today"}</button></article>; })}</div>
+            {!search && <button className="load-more" onClick={() => setShowAllWords((value) => !value)}>{showAllWords ? "Show the focused set" : `Explore all ${vocabulary.length} words`} <span>↓</span></button>}
+          </>}
+          {libraryView === "characters" && <div className="character-bank standalone"><div><span className="section-kicker">CHARACTER RECOGNITION</span><h3>Recognize all 246.</h3><p>HSK 1 tests listening and reading—not handwriting. Tap a character to hear a syllabus word that uses it.</p></div><div className="character-grid">{(showAllCharacters ? recognitionCharacters : recognitionCharacters.slice(0, 80)).map((character, index) => { const sample = vocabulary.find((word) => word.hanzi.includes(character)); return <button key={`${character}-${index}`} onClick={() => speak(sample?.hanzi ?? character)} title={sample ? `${sample.hanzi} · ${sample.meaning}` : character}>{character}</button>; })}<button className="character-more" onClick={() => setShowAllCharacters((value) => !value)}>{showAllCharacters ? "−" : `+${recognitionCharacters.length - 80}`}</button></div></div>}
+        </section>
+      )}
 
-      <section className="section grammar-section" id="grammar"><div className="section-heading grammar-heading"><div><span className="section-kicker">ALL 70 GRAMMAR TARGETS</span><h2>Patterns you can<br /><em>retrieve today.</em></h2></div><p>Every target has a usable frame, syllabus-level example, audio, and a meaning-to-Mandarin recall check.</p></div><div className="filter-row">{["All", "Core", "Questions", "Time", "Place", "Actions"].map((filter) => <button key={filter} className={grammarFilter === filter ? "active" : ""} onClick={() => { setGrammarFilter(filter); setShowAllGrammar(filter !== "All"); }}>{filter}</button>)}</div>{grammarPractice !== null && <div className="grammar-drill"><button className="close-drill" onClick={() => setGrammarPractice(null)} aria-label="Close grammar practice">×</button><span className="micro-label">RECALL CHECK · TARGET {grammarPractice + 1}</span><h3>Which Mandarin sentence means “{grammarPoints[grammarPractice].translation}”?</h3><div>{grammarOptions.map((option) => <button key={option} onClick={() => answerGrammar(option)}>{option}</button>)}</div>{grammarResult && <p className={grammarResult.startsWith("Correct") ? "correct" : ""}>{grammarResult}</p>}</div>}<div className="grammar-grid">{visibleGrammar.map((point) => { const globalIndex = grammarPoints.indexOf(point); return <article key={`${point.title}-${globalIndex}`}><div className="grammar-card-top"><span>{String(globalIndex + 1).padStart(2, "0")} · {point.label}</span><button onClick={() => speak(point.example)}>▶</button></div><h3>{point.title}</h3><code>{point.formula}</code><div className="grammar-example"><strong>{point.example}</strong>{progress.showPinyin && <span>{point.pinyin}</span>}<small>{point.translation}</small></div><button className="grammar-practice-button" onClick={() => openGrammarPractice(globalIndex)}>Practice this target →</button></article>; })}</div>{grammarFilter === "All" && <button className="grammar-more" onClick={() => setShowAllGrammar((value) => !value)}>{showAllGrammar ? "Show the 20 essential targets" : `Show all ${grammarPoints.length} targets`}</button>}</section>
+      {appView === "library" && libraryView === "grammar" && (
+        <section className="section grammar-section app-view" id="grammar">
+          <div className="view-intro"><span className="view-icon">文</span><div><span className="section-kicker">LIBRARY</span><h1>Grammar patterns</h1><p>Browse or practice any target without losing your place in today’s lesson.</p></div></div>
+          <div className="library-tabs" role="tablist" aria-label="Library sections"><button onClick={() => openLibrary("words")}>300 Words</button><button onClick={() => openLibrary("characters")}>246 Characters</button><button className="active" onClick={() => openLibrary("grammar")}>70 Grammar</button></div>
+          <div className="section-heading grammar-heading"><div><span className="section-kicker">ALL 70 GRAMMAR TARGETS</span><h2>Patterns you can<br /><em>retrieve today.</em></h2></div><p>Every target has a usable frame, syllabus-level example, audio, and a meaning-to-Mandarin recall check.</p></div>
+          <div className="filter-row">{["All", "Core", "Questions", "Time", "Place", "Actions"].map((filter) => <button key={filter} className={grammarFilter === filter ? "active" : ""} onClick={() => { setGrammarFilter(filter); setShowAllGrammar(filter !== "All"); }}>{filter}</button>)}</div>
+          {grammarPractice !== null && <div className="grammar-drill"><button className="close-drill" onClick={() => setGrammarPractice(null)} aria-label="Close grammar practice">×</button><span className="micro-label">RECALL CHECK · TARGET {grammarPractice + 1}</span><h3>Which Mandarin sentence means “{grammarPoints[grammarPractice].translation}”?</h3><div>{grammarOptions.map((option) => <button key={option} onClick={() => answerGrammar(option)}>{option}</button>)}</div>{grammarResult && <p className={grammarResult.startsWith("Correct") ? "correct" : ""}>{grammarResult}</p>}</div>}
+          <div className="grammar-grid">{visibleGrammar.map((point) => { const globalIndex = grammarPoints.indexOf(point); return <article key={`${point.title}-${globalIndex}`}><div className="grammar-card-top"><span>{String(globalIndex + 1).padStart(2, "0")} · {point.label}</span><button onClick={() => speak(point.example)}>▶</button></div><h3>{point.title}</h3><code>{point.formula}</code><div className="grammar-example"><strong>{point.example}</strong>{progress.showPinyin && <span>{point.pinyin}</span>}<small>{point.translation}</small></div><button className="grammar-practice-button" onClick={() => openGrammarPractice(globalIndex)}>Practice this target →</button></article>; })}</div>
+          {grammarFilter === "All" && <button className="grammar-more" onClick={() => setShowAllGrammar((value) => !value)}>{showAllGrammar ? "Show the 20 essential targets" : `Show all ${grammarPoints.length} targets`}</button>}
+        </section>
+      )}
 
-      <section className="section exam-section" id="exam">
+      {appView === "exam" && (
+      <section className="section exam-section app-view" id="exam">
+        <div className="view-intro"><span className="view-icon">考</span><div><span className="section-kicker">MOCK EXAM</span><h1>Test your foundation</h1><p>This is optional assessment—not today’s required lesson. Take it when you want a full readiness check.</p></div></div>
         {!examStarted ? <><div className="exam-card"><div className="exam-copy"><span className="section-kicker light">HSK 3.0 · LEVEL 1 PRACTICE MOCK</span><h2>Know the test.<br /><em>Train beyond it.</em></h2><p>Run a complete 40-question simulation: 20 listening and 20 reading questions in 40 minutes, followed by scoring and wrong-answer explanations.</p><button className="exam-start" onClick={startMockExam}>Start the 40-minute mock →</button><a href="https://www.chinesetest.cn/syllabus" target="_blank" rel="noreferrer">View official HSK 3.0 resources ↗</a></div><div className="exam-structure"><div><span>01</span><strong>Listening</strong><b>20</b><small>questions · play each prompt</small></div><div><span>02</span><strong>Reading</strong><b>20</b><small>questions · meaning and patterns</small></div><div className="exam-total"><span>TOTAL</span><strong>40 questions</strong><b>40 min</b></div></div></div><p className="rollout-note"><strong>Before you register</strong> HSK 3.0 is the current syllabus, but test availability and administration can vary by center. Confirm the format with your chosen test center.</p></> : <div className="mock-shell">{!examResult ? <><div className="mock-top"><div><span className="micro-label">{examQuestion.section.toUpperCase()} · {examIndex + 1} / 40</span><div className="mock-progress"><i style={{ width: `${((examIndex + 1) / 40) * 100}%` }} /></div></div><strong>{examMinutes}:{examSeconds}</strong></div><div className="mock-question">{examQuestion.section === "Listening" ? <><button className="big-listen-button" onClick={() => speak(examQuestion.prompt)}><span>▶</span> Play question</button><p>Choose the meaning you hear.</p></> : <><strong lang="zh-CN">{examQuestion.prompt}</strong><p>Choose the best meaning.</p></>}<div className="mock-options">{(examOptions[examQuestion.id] ?? examQuestion.options).map((option, index) => <button key={option} className={examAnswers[examQuestion.id] === option ? "selected" : ""} onClick={() => setExamAnswers((current) => ({ ...current, [examQuestion.id]: option }))}><span>{String.fromCharCode(65 + index)}</span>{option}</button>)}</div></div><div className="mock-actions"><button onClick={() => setExamIndex((index) => Math.max(0, index - 1))} disabled={examIndex === 0}>← Previous</button>{examIndex < 39 ? <button onClick={() => setExamIndex((index) => index + 1)}>Next →</button> : <button onClick={finishExam}>Submit mock</button>}</div></> : <div className="mock-results"><span className="result-ring">{examResult.score}%</span><h2>{examResult.correct}/40 correct</h2><p>{examResult.score >= 80 ? "Strong result. Review the misses, then keep training speaking beyond the test." : examResult.score >= 60 ? "Foundation reached. Review every miss before your next attempt." : "Keep building the daily loop, then retry after more scheduled review."}</p><h3>Wrong-answer review</h3><div className="wrong-list">{mockExamQuestions.filter((question) => examAnswers[question.id] !== question.answer).map((question) => <article key={question.id}><span>{question.section} · {question.id.toUpperCase()}</span><strong>{question.prompt}</strong><p>Your answer: {examAnswers[question.id] ?? "No answer"}</p><p>Correct: {question.answer}</p><small>{question.explanation}</small></article>)}</div><button className="primary-button" onClick={startMockExam}>Try a fresh attempt <span>→</span></button></div>}</div>}
       </section>
+      )}
 
-      <section className="section progress-section" id="progress"><div className="section-heading progress-heading"><div><span className="section-kicker">YOUR MOMENTUM</span><h2>Small proof,<br /><em>every day.</em></h2></div><div className="progress-tools"><button onClick={exportProgress}>Export backup</button><button onClick={() => importRef.current?.click()}>Import backup</button><button className="danger-link" onClick={resetProgress}>Reset</button><input ref={importRef} type="file" accept="application/json" onChange={(event) => void importProgress(event.target.files?.[0])} hidden /></div></div><div className="stat-grid"><article className="stat-card coral"><span>火</span><strong>{progress.streak}</strong><p>day streak</p><small>Counts practice days, not visits.</small></article><article className="stat-card jade"><span>字</span><strong>{progress.mastered.length}</strong><p>stable words</p><small>Earned after repeated successful reviews.</small></article><article className="stat-card blue"><span>时</span><strong>{progress.minutes}</strong><p>minutes trained</p><small>Uses each task’s real target time.</small></article><article className="stat-card yellow"><span>光</span><strong>{progress.xp}</strong><p>practice XP</p><small>Every reward can be earned only once.</small></article></div><div className="backup-note"><strong>Your progress is protected.</strong><span>It saves automatically on this device. Export a backup before clearing browser data or moving to another device. The app shell also works offline after your first visit.</span></div><div className="level-roadmap"><div><span className="section-kicker">THE LONG GAME</span><h3>HSK 1 is the launchpad—not fluency.</h3><p>Finish this foundation, then keep the same speak-first loop through every level.</p></div><ol>{[1, 2, 3, 4, 5, 6, "7–9"].map((level, index) => <li key={String(level)} className={index === 0 ? "current" : "locked"}><span>{index === 0 ? "NOW" : "LOCKED"}</span><strong>HSK {level}</strong><small>{index === 0 ? "Daily life basics" : index < 3 ? "Everyday independence" : index < 6 ? "Work & study fluency" : "Professional mastery"}</small></li>)}</ol></div></section>
+      {appView === "progress" && (
+        <section className="section progress-section app-view" id="progress">
+          <div className="view-intro"><span className="view-icon">我</span><div><span className="section-kicker">PROGRESS</span><h1>Your learning record</h1><p>See momentum, protect your data, and understand where HSK 1 fits in the longer journey.</p></div></div>
+          <div className="section-heading progress-heading"><div><span className="section-kicker">YOUR MOMENTUM</span><h2>Small proof,<br /><em>every day.</em></h2></div><div className="progress-tools"><button onClick={exportProgress}>Export backup</button><button onClick={() => importRef.current?.click()}>Import backup</button><button className="danger-link" onClick={resetProgress}>Reset</button><input ref={importRef} type="file" accept="application/json" onChange={(event) => void importProgress(event.target.files?.[0])} hidden /></div></div>
+          <div className="stat-grid"><article className="stat-card coral"><span>火</span><strong>{progress.streak}</strong><p>day streak</p><small>Counts practice days, not visits.</small></article><article className="stat-card jade"><span>字</span><strong>{progress.mastered.length}</strong><p>stable words</p><small>Earned after repeated successful reviews.</small></article><article className="stat-card blue"><span>时</span><strong>{progress.minutes}</strong><p>minutes trained</p><small>Uses each task’s real target time.</small></article><article className="stat-card yellow"><span>光</span><strong>{progress.xp}</strong><p>practice XP</p><small>Every reward can be earned only once.</small></article></div>
+          <div className="backup-note"><strong>Your progress is protected.</strong><span>It saves automatically on this device. Export a backup before clearing browser data or moving to another device. The app shell also works offline after your first visit.</span></div>
+          <div className="level-roadmap"><div><span className="section-kicker">THE LONG GAME</span><h3>HSK 1 is the launchpad—not fluency.</h3><p>Finish this foundation, then keep the same speak-first loop through every level.</p></div><ol>{[1, 2, 3, 4, 5, 6, "7–9"].map((level, index) => <li key={String(level)} className={index === 0 ? "current" : "locked"}><span>{index === 0 ? "NOW" : "LOCKED"}</span><strong>HSK {level}</strong><small>{index === 0 ? "Daily life basics" : index < 3 ? "Everyday independence" : index < 6 ? "Work & study fluency" : "Professional mastery"}</small></li>)}</ol></div>
+          <div className="app-about"><div><span className="brand-mark">声</span><div><strong>SHĒNGTÚ</strong><p>Hear it. Say it. Own it.</p></div></div><div><span>SOURCES</span><a href="https://www.chinesetest.cn/syllabus" target="_blank" rel="noreferrer">Official HSK 3.0 ↗</a><a href="https://hsk.cn-bj.ufileos.com/3.0/%E6%96%B0%E7%89%88HSK%E8%80%83%E8%AF%95%E5%A4%A7%E7%BA%B2%EF%BC%88%E8%AF%8D%E6%B1%87%E3%80%81%E6%B1%89%E5%AD%97%E3%80%81%E8%AF%AD%E6%B3%95%EF%BC%89.pdf" target="_blank" rel="noreferrer">2025 syllabus PDF ↗</a></div><small>Independent learning tool. Not affiliated with Chinese Test International.</small></div>
+        </section>
+      )}
+      </div>
 
-      <footer><div className="footer-brand"><span className="brand-mark">声</span><div><strong>SHĒNGTÚ</strong><p>Hear it. Say it. Own it.</p></div></div><div><span>CURRICULUM</span><a href="#path">6-week path</a><a href="#vocabulary">300 words</a><a href="#grammar">70 grammar targets</a><a href="#exam">Full mock exam</a></div><div><span>SOURCES</span><a href="https://www.chinesetest.cn/syllabus" target="_blank" rel="noreferrer">Official HSK 3.0</a><a href="https://hsk.cn-bj.ufileos.com/3.0/%E6%96%B0%E7%89%88HSK%E8%80%83%E8%AF%95%E5%A4%A7%E7%BA%B2%EF%BC%88%E8%AF%8D%E6%B1%87%E3%80%81%E6%B1%89%E5%AD%97%E3%80%81%E8%AF%AD%E6%B3%95%EF%BC%89.pdf" target="_blank" rel="noreferrer">2025 syllabus PDF</a></div><p className="footer-note">Independent learning tool. Not affiliated with Chinese Test International. Installable and offline-ready; progress stays on your device unless you export it.</p></footer>
+      <nav className="mobile-nav" aria-label="App navigation">
+        <button className={appView === "today" ? "active" : ""} onClick={() => navigate("today")}><span>今</span>Today</button>
+        <button className={appView === "course" ? "active" : ""} onClick={() => navigate("course")}><span>路</span>Course</button>
+        <button className={appView === "library" ? "active" : ""} onClick={() => openLibrary(libraryView)}><span>库</span>Library</button>
+        <button className={appView === "exam" ? "active" : ""} onClick={() => navigate("exam")}><span>考</span>Mock</button>
+        <button className={appView === "progress" ? "active" : ""} onClick={() => navigate("progress")}><span>我</span>Me</button>
+      </nav>
 
       {ready && !progress.onboarded && <div className="onboarding-backdrop" role="dialog" aria-modal="true" aria-labelledby="onboarding-title"><div className="onboarding-card"><span className="brand-mark">声</span><span className="section-kicker">YOUR FIRST TWO MINUTES</span><h2 id="onboarding-title">Set a pace you can repeat.</h2><p>You will not recall all 300 words daily. Shēngtú gives you a small new set plus only the reviews that are due.</p><div className="goal-options">{[5, 8, 10].map((goal) => <button key={goal} className={onboardingGoal === goal ? "active" : ""} onClick={() => setOnboardingGoal(goal)}><strong>{goal}</strong><span>new words/day</span><small>{goal === 5 ? "gentle · ~22 min" : goal === 8 ? "recommended · ~28 min" : "fast · ~35 min"}</small></button>)}</div><ul><li>Keep pinyin on for the first 1–2 weeks, then toggle it off.</li><li>Say every answer before revealing it.</li><li>Finish the four daily targets; stop when the queue is done.</li></ul><button className="primary-button" onClick={startCourse}>Start my first lesson <span>→</span></button></div></div>}
       {toast && <div className="toast" role="status">{toast}</div>}
