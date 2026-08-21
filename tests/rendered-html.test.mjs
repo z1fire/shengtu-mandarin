@@ -9,6 +9,8 @@ import {
   earnOnce,
   makeStarterProgress,
   normalizeProgress,
+  recordStudyDay,
+  recordStudyDayReplay,
   scheduleReview,
   similarityScore,
   switchProgressLevel,
@@ -88,8 +90,14 @@ test("uses focused app views instead of one scrolling curriculum page", async ()
   assert.match(source, /function appRouteFromHash/);
   assert.match(source, /window\.history\.pushState/);
   assert.match(source, /addEventListener\("popstate"/);
+  assert.match(source, /Study history/);
+  assert.match(source, /function startStudyDayReplay/);
+  assert.match(source, /Repeating \{studyDayLabel/);
+  assert.match(source, /today’s course position is unchanged/);
   assert.match(css, /\.mobile-nav\s*\{[^}]*display:\s*none/s);
   assert.match(css, /@media \(max-width:\s*850px\)[\s\S]*\.mobile-nav\s*\{[^}]*display:\s*grid/s);
+  assert.match(css, /\.history-sheet/);
+  assert.match(css, /\.replay-banner/);
 });
 
 test("ships the complete Level 1 curriculum and practice pools", () => {
@@ -195,10 +203,55 @@ test("resets daily work, calculates real streaks, and prevents repeat rewards", 
   assert.deepEqual(normalized.listeningDone, []);
 
   const legacyMissionProgress = normalizeProgress({ ...stale, version: 2, missions: [0, 1], missionSteps: undefined }, 300, 70, "2026-08-19");
-  assert.equal(legacyMissionProgress.version, 5);
+  assert.equal(legacyMissionProgress.version, 6);
   assert.deepEqual(legacyMissionProgress.missionSteps, ["0:0", "0:1", "0:2", "1:0", "1:1", "1:2"]);
   assert.equal(legacyMissionProgress.missionSessionCount, 6);
   assert.equal(legacyMissionProgress.grammarQueue.at(-1), 0);
+});
+
+test("archives exact study days and preserves repeat counts across dates", () => {
+  const studied = recordStudyDay({
+    ...makeStarterProgress("2026-08-18"),
+    onboarded: true,
+    daily: ["review", "grammar", "listen", "build", "speak"],
+    dailyQueue: [2, 4, 2, 8],
+    dailyQueueDate: "2026-08-18",
+    grammarQueue: [1, 3],
+    grammarQueueDate: "2026-08-18",
+    missionSessionCount: 1,
+  }, "2026-08-18");
+  const day = studied.studyHistory["1"].find((item) => item.date === "2026-08-18");
+  assert.deepEqual(day.vocabularyQueue, [2, 4, 8]);
+  assert.deepEqual(day.grammarQueue, [1, 3]);
+  assert.equal(day.missionIndex, 0);
+  assert.equal(day.missionPhase, 0);
+  assert.deepEqual(day.completedSteps, ["review", "grammar", "listen", "build", "speak"]);
+
+  const replayed = recordStudyDayReplay(studied, "1", "2026-08-18");
+  assert.equal(replayed.studyHistory["1"][0].replayCount, 1);
+
+  const migrated = normalizeProgress({
+    ...makeStarterProgress("2026-08-18"),
+    onboarded: true,
+    dailyDate: "2026-08-18",
+    dailyQueueDate: "2026-08-18",
+    dailyQueue: [5, 9],
+    grammarQueueDate: "2026-08-18",
+    grammarQueue: [2],
+    earned: [
+      "2026-08-17:review:7",
+      "2026-08-17:daily-grammar:4",
+      "2026-08-17:mission-listen:1:2",
+      "2026-08-17:mission-build:1:2",
+      "2026-08-17:mission-checkpoint:0:1:2",
+    ],
+  }, 300, 70, "2026-08-19");
+  const recovered = migrated.studyHistory["1"].find((item) => item.date === "2026-08-17");
+  assert.deepEqual(recovered.vocabularyQueue, [7]);
+  assert.deepEqual(recovered.grammarQueue, [4]);
+  assert.equal(recovered.missionIndex, 1);
+  assert.equal(recovered.missionPhase, 2);
+  assert.ok(recovered.completedSteps.includes("speak"));
 });
 
 test("keeps spaced-repetition and mission progress separate by HSK level", () => {

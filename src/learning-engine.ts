@@ -17,6 +17,16 @@ export type ExamAttempt = {
 
 export type HskLevel = "1" | "2" | "3" | "4" | "5" | "6" | "7-9";
 
+export type StudyDay = {
+  date: string;
+  vocabularyQueue: number[];
+  grammarQueue: number[];
+  missionIndex: number;
+  missionPhase: number;
+  completedSteps: string[];
+  replayCount: number;
+};
+
 export type LevelArchive = {
   mastered: number[];
   grammarMastered: number[];
@@ -41,9 +51,10 @@ export type LevelArchive = {
 };
 
 export type Progress = {
-  version: 5;
+  version: 6;
   selectedLevel: HskLevel;
   levelArchives: Partial<Record<HskLevel, LevelArchive>>;
+  studyHistory: Partial<Record<HskLevel, StudyDay[]>>;
   startedAt: string;
   streak: number;
   xp: number;
@@ -75,6 +86,8 @@ export type Progress = {
 };
 
 export const DAY_MS = 86_400_000;
+const HSK_LEVELS: HskLevel[] = ["1", "2", "3", "4", "5", "6", "7-9"];
+const STUDY_HISTORY_LIMIT = 120;
 
 export function localDate(date = new Date()) {
   const year = date.getFullYear();
@@ -91,9 +104,10 @@ export function daysBetween(from: string, to: string) {
 
 export function makeStarterProgress(date = localDate()): Progress {
   return {
-    version: 5,
+    version: 6,
     selectedLevel: "1",
     levelArchives: {},
+    studyHistory: {},
     startedAt: date,
     streak: 0,
     xp: 0,
@@ -123,6 +137,124 @@ export function makeStarterProgress(date = localDate()): Progress {
     pronunciationDone: [],
     examHistory: [],
   };
+}
+
+function cleanIndexList(value: unknown) {
+  return Array.isArray(value)
+    ? [...new Set(value.filter((index): index is number => Number.isInteger(index) && index >= 0))]
+    : [];
+}
+
+function cleanStudyDay(value: unknown): StudyDay | null {
+  if (!value || typeof value !== "object") return null;
+  const day = value as Partial<StudyDay>;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(day.date))) return null;
+  return {
+    date: String(day.date),
+    vocabularyQueue: cleanIndexList(day.vocabularyQueue),
+    grammarQueue: cleanIndexList(day.grammarQueue),
+    missionIndex: Math.max(0, Math.min(11, Number(day.missionIndex) || 0)),
+    missionPhase: Math.max(0, Math.min(2, Number(day.missionPhase) || 0)),
+    completedSteps: Array.isArray(day.completedSteps)
+      ? [...new Set(day.completedSteps.filter((step): step is string => ["review", "grammar", "listen", "build", "speak"].includes(String(step))))]
+      : [],
+    replayCount: Math.max(0, Number(day.replayCount) || 0),
+  };
+}
+
+function mergeStudyDays(...groups: StudyDay[][]) {
+  const merged = new Map<string, StudyDay>();
+  for (const day of groups.flat()) {
+    const prior = merged.get(day.date);
+    merged.set(day.date, prior ? {
+      ...prior,
+      ...day,
+      vocabularyQueue: [...new Set([...prior.vocabularyQueue, ...day.vocabularyQueue])],
+      grammarQueue: [...new Set([...prior.grammarQueue, ...day.grammarQueue])],
+      completedSteps: [...new Set([...prior.completedSteps, ...day.completedSteps])],
+      replayCount: Math.max(prior.replayCount, day.replayCount),
+    } : day);
+  }
+  return [...merged.values()].sort((a, b) => a.date.localeCompare(b.date)).slice(-STUDY_HISTORY_LIMIT);
+}
+
+function inferStudyDays(earned: unknown) {
+  if (!Array.isArray(earned)) return [];
+  const days = new Map<string, StudyDay>();
+  const getDay = (date: string) => {
+    const existing = days.get(date);
+    if (existing) return existing;
+    const created: StudyDay = { date, vocabularyQueue: [], grammarQueue: [], missionIndex: 0, missionPhase: 0, completedSteps: [], replayCount: 0 };
+    days.set(date, created);
+    return created;
+  };
+  for (const key of earned) {
+    if (typeof key !== "string") continue;
+    const dated = key.match(/^(\d{4}-\d{2}-\d{2}):(.*)$/);
+    if (!dated) continue;
+    const [, date, action] = dated;
+    const review = action.match(/^review:(\d+)$/);
+    const grammar = action.match(/^daily-grammar:(\d+)$/);
+    const mission = action.match(/^mission-(listen|build):(\d+):(\d+)$/);
+    const checkpoint = action.match(/^mission-checkpoint:(\d+):(\d+):(\d+)$/);
+    if (!review && !grammar && !mission && !checkpoint) continue;
+    const day = getDay(date);
+    if (review) {
+      day.vocabularyQueue.push(Number(review[1]));
+      if (!day.completedSteps.includes("review")) day.completedSteps.push("review");
+    } else if (grammar) {
+      day.grammarQueue.push(Number(grammar[1]));
+      if (!day.completedSteps.includes("grammar")) day.completedSteps.push("grammar");
+    } else if (mission) {
+      day.missionIndex = Number(mission[2]);
+      day.missionPhase = Number(mission[3]);
+      const step = mission[1] === "listen" ? "listen" : "build";
+      if (!day.completedSteps.includes(step)) day.completedSteps.push(step);
+    } else if (checkpoint) {
+      day.missionIndex = Number(checkpoint[2]);
+      day.missionPhase = Number(checkpoint[3]);
+      if (!day.completedSteps.includes("speak")) day.completedSteps.push("speak");
+    }
+  }
+  return [...days.values()].map((day) => ({
+    ...day,
+    vocabularyQueue: [...new Set(day.vocabularyQueue)],
+    grammarQueue: [...new Set(day.grammarQueue)],
+  }));
+}
+
+function studyDayFromSession(progress: Progress, date: string): StudyDay {
+  const completedMission = progress.daily.includes("speak");
+  const missionSequenceIndex = Math.max(0, progress.missionSessionCount - (completedMission ? 1 : 0));
+  const missionCyclePosition = missionSequenceIndex % 36;
+  return {
+    date,
+    vocabularyQueue: cleanIndexList(progress.dailyQueue),
+    grammarQueue: cleanIndexList(progress.grammarQueue),
+    missionIndex: Math.min(11, Math.floor(missionCyclePosition / 3)),
+    missionPhase: missionCyclePosition % 3,
+    completedSteps: [...progress.daily],
+    replayCount: progress.studyHistory[progress.selectedLevel]?.find((day) => day.date === date)?.replayCount ?? 0,
+  };
+}
+
+export function recordStudyDay(progress: Progress, date = progress.dailyDate || localDate()): Progress {
+  if (!progress.onboarded || (!progress.dailyQueue.length && !progress.grammarQueue.length && !progress.daily.length)) return progress;
+  const levelDays = progress.studyHistory[progress.selectedLevel] ?? [];
+  const studyHistory = {
+    ...progress.studyHistory,
+    [progress.selectedLevel]: mergeStudyDays(levelDays, [studyDayFromSession(progress, date)]),
+  };
+  return { ...progress, studyHistory };
+}
+
+export function recordStudyDayReplay(progress: Progress, level: HskLevel, date: string): Progress {
+  const levelDays = progress.studyHistory[level] ?? [];
+  const studyHistory = {
+    ...progress.studyHistory,
+    [level]: levelDays.map((day) => day.date === date ? { ...day, replayCount: day.replayCount + 1 } : day),
+  };
+  return { ...progress, studyHistory };
 }
 
 export function buildDailyQueue(progress: Progress, vocabularySize: number, now = Date.now()) {
@@ -165,6 +297,15 @@ export function normalizeProgress(raw: unknown, vocabularySize: number, grammarS
     : Array.from({ length: (legacy.missions?.length ?? 0) * 3 }, (_, index) => `${Math.floor(index / 3)}:${index % 3}`);
   const reviews = { ...(legacy.reviews ?? {}) };
   const grammarReviews = { ...(legacy.grammarReviews ?? {}) };
+  const rawHistory = legacy.studyHistory && typeof legacy.studyHistory === "object" ? legacy.studyHistory : {};
+  const studyHistory: Partial<Record<HskLevel, StudyDay[]>> = {};
+  for (const level of HSK_LEVELS) {
+    const savedDays = Array.isArray(rawHistory[level])
+      ? rawHistory[level].map(cleanStudyDay).filter((day): day is StudyDay => Boolean(day))
+      : [];
+    const levelEarned = level === (legacy.selectedLevel ?? "1") ? legacy.earned : legacy.levelArchives?.[level]?.earned;
+    studyHistory[level] = mergeStudyDays(savedDays, inferStudyDays(levelEarned));
+  }
   for (const index of legacy.mastered ?? []) {
     if (!reviews[index]) {
       reviews[index] = {
@@ -180,9 +321,10 @@ export function normalizeProgress(raw: unknown, vocabularySize: number, grammarS
   const progress: Progress = {
     ...starter,
     ...legacy,
-    version: 5,
-    selectedLevel: ["1", "2", "3", "4", "5", "6", "7-9"].includes(String(legacy.selectedLevel)) ? legacy.selectedLevel as HskLevel : "1",
+    version: 6,
+    selectedLevel: HSK_LEVELS.includes(legacy.selectedLevel as HskLevel) ? legacy.selectedLevel as HskLevel : "1",
     levelArchives: legacy.levelArchives && typeof legacy.levelArchives === "object" ? legacy.levelArchives : {},
+    studyHistory,
     reviews,
     grammarReviews,
     grammarMastered: Array.isArray(legacy.grammarMastered) ? legacy.grammarMastered : [],
@@ -214,7 +356,20 @@ export function normalizeProgress(raw: unknown, vocabularySize: number, grammarS
     progress.grammarQueue = legacy.grammarQueue.filter((index) => Number.isInteger(index) && index >= 0 && index < grammarSize);
     progress.grammarPosition = Math.min(Number(legacy.grammarPosition) || 0, progress.grammarQueue.length);
   }
-  return progress;
+  if (legacy.dailyDate && Array.isArray(legacy.dailyQueue)) {
+    const legacySession = {
+      ...progress,
+      daily: Array.isArray(legacy.daily) ? legacy.daily : [],
+      dailyQueue: legacy.dailyQueue,
+      grammarQueue: Array.isArray(legacy.grammarQueue) ? legacy.grammarQueue : [],
+      missionSessionCount: Number(legacy.missionSessionCount) || 0,
+    };
+    progress.studyHistory[progress.selectedLevel] = mergeStudyDays(
+      progress.studyHistory[progress.selectedLevel] ?? [],
+      [studyDayFromSession(legacySession, legacy.dailyDate)],
+    );
+  }
+  return recordStudyDay(progress, date);
 }
 
 function captureLevel(progress: Progress): LevelArchive {
@@ -268,8 +423,9 @@ function emptyLevel(date: string): LevelArchive {
 }
 
 export function switchProgressLevel(progress: Progress, selectedLevel: HskLevel, vocabularySize: number, grammarSize: number, date = localDate()): Progress {
-  if (selectedLevel === progress.selectedLevel) return progress;
-  const levelArchives = { ...progress.levelArchives, [progress.selectedLevel]: captureLevel(progress) };
+  const recorded = recordStudyDay(progress, date);
+  if (selectedLevel === recorded.selectedLevel) return recorded;
+  const levelArchives = { ...recorded.levelArchives, [recorded.selectedLevel]: captureLevel(recorded) };
   const saved = { ...emptyLevel(date), ...(levelArchives[selectedLevel] ?? {}) };
   const active: LevelArchive = {
     ...saved,
@@ -285,7 +441,7 @@ export function switchProgressLevel(progress: Progress, selectedLevel: HskLevel,
     builderDone: saved.dailyDate === date ? saved.builderDone : [],
     pronunciationDone: saved.dailyDate === date ? saved.pronunciationDone : [],
   };
-  let switched: Progress = { ...progress, ...active, selectedLevel, levelArchives };
+  let switched: Progress = { ...recorded, ...active, selectedLevel, levelArchives };
   if (active.dailyQueueDate !== date) {
     switched = {
       ...switched,
@@ -308,7 +464,7 @@ export function switchProgressLevel(progress: Progress, selectedLevel: HskLevel,
     switched.grammarQueue = active.grammarQueue.filter((index) => Number.isInteger(index) && index >= 0 && index < grammarSize);
     switched.grammarPosition = Math.min(active.grammarPosition, switched.grammarQueue.length);
   }
-  return switched;
+  return recordStudyDay(switched, date);
 }
 
 export function activate(progress: Progress, date = localDate()): Progress {
