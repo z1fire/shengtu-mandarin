@@ -3,6 +3,7 @@ import { access, readFile } from "node:fs/promises";
 import test from "node:test";
 import {
   activate,
+  buildDailyGrammarQueue,
   buildDailyQueue,
   completeDailyStep,
   earnOnce,
@@ -50,7 +51,7 @@ test("server-renders the finished Mandarin course", async () => {
   assert.match(html, /Stop studying Mandarin/);
   assert.match(html, /Continue:[\s\S]{0,40}Recall/);
   assert.match(html, /MISSION[\s\S]{0,30}01[\s\S]{0,30}DAY[\s\S]{0,30}1[\s\S]{0,20}\/ 3/);
-  assert.match(html, /Grammar focus/);
+  assert.match(html, /Grammar coverage/);
   assert.match(html, /0[\s\S]{0,20}\/5 complete/);
   assert.match(html, /aria-label="App navigation"/);
   assert.match(html, />Today<\/button>/);
@@ -76,6 +77,9 @@ test("uses focused app views instead of one scrolling curriculum page", async ()
   assert.match(source, /grammarPoints\.length.*Grammar/);
   assert.match(source, /showLevelPicker/);
   assert.match(source, /function chooseLevel/);
+  assert.match(source, /FULL-SYLLABUS GRAMMAR/);
+  assert.match(source, /grammarMastered/);
+  assert.match(source, /promptLengthClass/);
   assert.match(source, /aria-label="Search characters"/);
   assert.match(source, /aria-label="Search grammar"/);
   assert.match(source, /className="mobile-nav"/);
@@ -105,11 +109,13 @@ test("ships every official HSK level with cumulative searchable inventories", ()
   assert.deepEqual(levelOrder, ["1", "2", "3", "4", "5", "6", "7-9"]);
   for (const level of levelOrder) {
     assert.equal(getStudyVocabulary(level).length, expectedWords[level]);
+    assert.ok(getStudyVocabulary(level).every((word) => word.meaning.length <= 135));
     assert.equal(getStudyCharacters(level).length, expectedCharacters[level]);
     assert.equal(getLibraryGrammar(level).length, levelMeta[level].grammarTargets);
   }
   assert.equal(getCumulativeVocabulary("7-9").length, 11000);
   assert.equal(getCumulativeCharacters("7-9").length, 3088);
+  assert.equal(getStudyVocabulary("3").find((word) => word.hanzi === "除了")?.meaning, "apart from; besides; in addition to");
 });
 
 test("builds a bounded daily queue and schedules reviews by recall quality", () => {
@@ -119,6 +125,43 @@ test("builds a bounded daily queue and schedules reviews by recall quality", () 
   assert.equal(scheduleReview(undefined, "hard", 0).intervalDays, 1);
   assert.equal(scheduleReview(undefined, "good", 0).intervalDays, 2);
   assert.equal(scheduleReview(undefined, "easy", 0).intervalDays, 7);
+});
+
+test("guarantees a new grammar target while retaining due reviews", () => {
+  const progress = {
+    ...makeStarterProgress("2026-08-20"),
+    grammarReviews: {
+      0: { dueAt: 0, intervalDays: 2, repetitions: 1, lapses: 0, lastReviewedAt: 0 },
+      1: { dueAt: 10_000, intervalDays: 2, repetitions: 1, lapses: 0, lastReviewedAt: 1 },
+    },
+  };
+  assert.deepEqual(buildDailyGrammarQueue(progress, 70, 0), [0, 2]);
+  const fullyIntroduced = {
+    ...progress,
+    grammarReviews: Object.fromEntries(Array.from({ length: 3 }, (_, index) => [index, { dueAt: 99_000, intervalDays: 7, repetitions: 2, lapses: 0, lastReviewedAt: index }])),
+  };
+  assert.deepEqual(buildDailyGrammarQueue(fullyIntroduced, 3, 0), [0]);
+});
+
+test("eventually introduces every word and grammar target when daily queues are completed", () => {
+  let progress = { ...makeStarterProgress("2026-08-20"), dailyNew: 5 };
+  for (let day = 0; day < 40; day += 1) {
+    const wordQueue = buildDailyQueue(progress, 200, 0);
+    const grammarQueue = buildDailyGrammarQueue(progress, 25, 0);
+    progress = {
+      ...progress,
+      reviews: {
+        ...progress.reviews,
+        ...Object.fromEntries(wordQueue.map((index) => [index, { dueAt: Number.MAX_SAFE_INTEGER, intervalDays: 7, repetitions: 1, lapses: 0, lastReviewedAt: day }])),
+      },
+      grammarReviews: {
+        ...progress.grammarReviews,
+        ...Object.fromEntries(grammarQueue.map((index) => [index, { dueAt: Number.MAX_SAFE_INTEGER, intervalDays: 7, repetitions: 1, lapses: 0, lastReviewedAt: day }])),
+      },
+    };
+  }
+  assert.equal(Object.keys(progress.reviews).length, 200);
+  assert.equal(Object.keys(progress.grammarReviews).length, 25);
 });
 
 test("resets daily work, calculates real streaks, and prevents repeat rewards", () => {
@@ -135,28 +178,35 @@ test("resets daily work, calculates real streaks, and prevents repeat rewards", 
   assert.equal(completeDailyStep(once, "review", 5, "2026-08-18").minutes, 5);
 
   const stale = { ...once, daily: ["review"], dailyDate: "2026-08-18", listeningDone: ["l01"] };
-  const normalized = normalizeProgress(stale, 300, "2026-08-19");
+  const normalized = normalizeProgress(stale, 300, 70, "2026-08-19");
   assert.deepEqual(normalized.daily, []);
   assert.deepEqual(normalized.listeningDone, []);
 
-  const legacyMissionProgress = normalizeProgress({ ...stale, version: 2, missions: [0, 1], missionSteps: undefined }, 300, "2026-08-19");
-  assert.equal(legacyMissionProgress.version, 4);
+  const legacyMissionProgress = normalizeProgress({ ...stale, version: 2, missions: [0, 1], missionSteps: undefined }, 300, 70, "2026-08-19");
+  assert.equal(legacyMissionProgress.version, 5);
   assert.deepEqual(legacyMissionProgress.missionSteps, ["0:0", "0:1", "0:2", "1:0", "1:1", "1:2"]);
+  assert.equal(legacyMissionProgress.missionSessionCount, 6);
+  assert.equal(legacyMissionProgress.grammarQueue.at(-1), 0);
 });
 
 test("keeps spaced-repetition and mission progress separate by HSK level", () => {
   const level1 = {
     ...makeStarterProgress("2026-08-20"),
     mastered: [1, 2],
+    grammarMastered: [0],
     missions: [0],
     reviews: { 1: scheduleReview(undefined, "good", 0) },
+    grammarReviews: { 0: scheduleReview(undefined, "good", 0) },
   };
-  const level2 = switchProgressLevel(level1, "2", 200, "2026-08-20");
+  const level2 = switchProgressLevel(level1, "2", 200, 75, "2026-08-20");
   assert.equal(level2.selectedLevel, "2");
   assert.deepEqual(level2.mastered, []);
+  assert.deepEqual(level2.grammarMastered, []);
   assert.deepEqual(level2.levelArchives["1"].mastered, [1, 2]);
-  const restored = switchProgressLevel({ ...level2, mastered: [3], missions: [1] }, "1", 300, "2026-08-20");
+  assert.deepEqual(level2.levelArchives["1"].grammarMastered, [0]);
+  const restored = switchProgressLevel({ ...level2, mastered: [3], missions: [1] }, "1", 300, 70, "2026-08-20");
   assert.deepEqual(restored.mastered, [1, 2]);
+  assert.deepEqual(restored.grammarMastered, [0]);
   assert.deepEqual(restored.missions, [0]);
   assert.deepEqual(restored.levelArchives["2"].mastered, [3]);
 });

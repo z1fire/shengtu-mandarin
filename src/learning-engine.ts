@@ -19,15 +19,21 @@ export type HskLevel = "1" | "2" | "3" | "4" | "5" | "6" | "7-9";
 
 export type LevelArchive = {
   mastered: number[];
+  grammarMastered: number[];
   missions: number[];
   missionSteps: string[];
+  missionSessionCount: number;
   daily: string[];
   dailyDate: string;
   reviews: Record<string, ReviewState>;
+  grammarReviews: Record<string, ReviewState>;
   earned: string[];
   dailyQueue: number[];
   dailyQueueDate: string;
   cardPosition: number;
+  grammarQueue: number[];
+  grammarQueueDate: string;
+  grammarPosition: number;
   listeningDone: string[];
   builderDone: string[];
   pronunciationDone: string[];
@@ -35,7 +41,7 @@ export type LevelArchive = {
 };
 
 export type Progress = {
-  version: 4;
+  version: 5;
   selectedLevel: HskLevel;
   levelArchives: Partial<Record<HskLevel, LevelArchive>>;
   startedAt: string;
@@ -43,12 +49,15 @@ export type Progress = {
   xp: number;
   minutes: number;
   mastered: number[];
+  grammarMastered: number[];
   missions: number[];
   missionSteps: string[];
+  missionSessionCount: number;
   daily: string[];
   dailyDate: string;
   lastActive: string;
   reviews: Record<string, ReviewState>;
+  grammarReviews: Record<string, ReviewState>;
   earned: string[];
   dailyNew: number;
   showPinyin: boolean;
@@ -56,6 +65,9 @@ export type Progress = {
   dailyQueue: number[];
   dailyQueueDate: string;
   cardPosition: number;
+  grammarQueue: number[];
+  grammarQueueDate: string;
+  grammarPosition: number;
   listeningDone: string[];
   builderDone: string[];
   pronunciationDone: string[];
@@ -79,7 +91,7 @@ export function daysBetween(from: string, to: string) {
 
 export function makeStarterProgress(date = localDate()): Progress {
   return {
-    version: 4,
+    version: 5,
     selectedLevel: "1",
     levelArchives: {},
     startedAt: date,
@@ -87,12 +99,15 @@ export function makeStarterProgress(date = localDate()): Progress {
     xp: 0,
     minutes: 0,
     mastered: [],
+    grammarMastered: [],
     missions: [],
     missionSteps: [],
+    missionSessionCount: 0,
     daily: [],
     dailyDate: date,
     lastActive: "",
     reviews: {},
+    grammarReviews: {},
     earned: [],
     dailyNew: 8,
     showPinyin: true,
@@ -100,6 +115,9 @@ export function makeStarterProgress(date = localDate()): Progress {
     dailyQueue: [],
     dailyQueueDate: "",
     cardPosition: 0,
+    grammarQueue: [],
+    grammarQueueDate: "",
+    grammarPosition: 0,
     listeningDone: [],
     builderDone: [],
     pronunciationDone: [],
@@ -121,7 +139,24 @@ export function buildDailyQueue(progress: Progress, vocabularySize: number, now 
   return [...due, ...unseen];
 }
 
-export function normalizeProgress(raw: unknown, vocabularySize: number, date = localDate()): Progress {
+export function buildDailyGrammarQueue(progress: Progress, grammarSize: number, now = Date.now()) {
+  const due = Object.entries(progress.grammarReviews)
+    .filter(([, review]) => review.dueAt <= now)
+    .sort((a, b) => a[1].dueAt - b[1].dueAt)
+    .slice(0, 2)
+    .map(([index]) => Number(index));
+  const dueSet = new Set(due);
+  const nextUnseen = Array.from({ length: grammarSize }, (_, index) => index)
+    .find((index) => !progress.grammarReviews[index] && !dueSet.has(index));
+  if (nextUnseen !== undefined) return [...due, nextUnseen];
+  if (due.length) return due;
+  const maintenance = Object.entries(progress.grammarReviews)
+    .filter(([index]) => Number(index) >= 0 && Number(index) < grammarSize)
+    .sort((a, b) => a[1].lastReviewedAt - b[1].lastReviewedAt)[0];
+  return maintenance ? [Number(maintenance[0])] : [];
+}
+
+export function normalizeProgress(raw: unknown, vocabularySize: number, grammarSize: number, date = localDate()): Progress {
   const starter = makeStarterProgress(date);
   if (!raw || typeof raw !== "object") return starter;
   const legacy = raw as Partial<Progress> & { lastVisit?: string };
@@ -129,6 +164,7 @@ export function normalizeProgress(raw: unknown, vocabularySize: number, date = l
     ? legacy.missionSteps
     : Array.from({ length: (legacy.missions?.length ?? 0) * 3 }, (_, index) => `${Math.floor(index / 3)}:${index % 3}`);
   const reviews = { ...(legacy.reviews ?? {}) };
+  const grammarReviews = { ...(legacy.grammarReviews ?? {}) };
   for (const index of legacy.mastered ?? []) {
     if (!reviews[index]) {
       reviews[index] = {
@@ -144,11 +180,14 @@ export function normalizeProgress(raw: unknown, vocabularySize: number, date = l
   const progress: Progress = {
     ...starter,
     ...legacy,
-    version: 4,
+    version: 5,
     selectedLevel: ["1", "2", "3", "4", "5", "6", "7-9"].includes(String(legacy.selectedLevel)) ? legacy.selectedLevel as HskLevel : "1",
     levelArchives: legacy.levelArchives && typeof legacy.levelArchives === "object" ? legacy.levelArchives : {},
     reviews,
+    grammarReviews,
+    grammarMastered: Array.isArray(legacy.grammarMastered) ? legacy.grammarMastered : [],
     missionSteps: migratedMissionSteps,
+    missionSessionCount: Math.max(Number(legacy.missionSessionCount) || 0, migratedMissionSteps.length),
     daily: legacy.dailyDate === date ? legacy.daily ?? [] : [],
     dailyDate,
     listeningDone: legacy.dailyDate === date ? legacy.listeningDone ?? [] : [],
@@ -167,21 +206,35 @@ export function normalizeProgress(raw: unknown, vocabularySize: number, date = l
     progress.dailyQueue = legacy.dailyQueue.filter((index) => Number.isInteger(index) && index >= 0 && index < vocabularySize);
     progress.cardPosition = Math.min(Number(legacy.cardPosition) || 0, progress.dailyQueue.length);
   }
+  if (legacy.grammarQueueDate !== date || !Array.isArray(legacy.grammarQueue)) {
+    progress.grammarQueue = buildDailyGrammarQueue(progress, grammarSize);
+    progress.grammarQueueDate = date;
+    progress.grammarPosition = 0;
+  } else {
+    progress.grammarQueue = legacy.grammarQueue.filter((index) => Number.isInteger(index) && index >= 0 && index < grammarSize);
+    progress.grammarPosition = Math.min(Number(legacy.grammarPosition) || 0, progress.grammarQueue.length);
+  }
   return progress;
 }
 
 function captureLevel(progress: Progress): LevelArchive {
   return {
     mastered: progress.mastered,
+    grammarMastered: progress.grammarMastered,
     missions: progress.missions,
     missionSteps: progress.missionSteps,
+    missionSessionCount: progress.missionSessionCount,
     daily: progress.daily,
     dailyDate: progress.dailyDate,
     reviews: progress.reviews,
+    grammarReviews: progress.grammarReviews,
     earned: progress.earned,
     dailyQueue: progress.dailyQueue,
     dailyQueueDate: progress.dailyQueueDate,
     cardPosition: progress.cardPosition,
+    grammarQueue: progress.grammarQueue,
+    grammarQueueDate: progress.grammarQueueDate,
+    grammarPosition: progress.grammarPosition,
     listeningDone: progress.listeningDone,
     builderDone: progress.builderDone,
     pronunciationDone: progress.pronunciationDone,
@@ -192,15 +245,21 @@ function captureLevel(progress: Progress): LevelArchive {
 function emptyLevel(date: string): LevelArchive {
   return {
     mastered: [],
+    grammarMastered: [],
     missions: [],
     missionSteps: [],
+    missionSessionCount: 0,
     daily: [],
     dailyDate: date,
     reviews: {},
+    grammarReviews: {},
     earned: [],
     dailyQueue: [],
     dailyQueueDate: "",
     cardPosition: 0,
+    grammarQueue: [],
+    grammarQueueDate: "",
+    grammarPosition: 0,
     listeningDone: [],
     builderDone: [],
     pronunciationDone: [],
@@ -208,12 +267,18 @@ function emptyLevel(date: string): LevelArchive {
   };
 }
 
-export function switchProgressLevel(progress: Progress, selectedLevel: HskLevel, vocabularySize: number, date = localDate()): Progress {
+export function switchProgressLevel(progress: Progress, selectedLevel: HskLevel, vocabularySize: number, grammarSize: number, date = localDate()): Progress {
   if (selectedLevel === progress.selectedLevel) return progress;
   const levelArchives = { ...progress.levelArchives, [progress.selectedLevel]: captureLevel(progress) };
-  const saved = levelArchives[selectedLevel] ?? emptyLevel(date);
+  const saved = { ...emptyLevel(date), ...(levelArchives[selectedLevel] ?? {}) };
   const active: LevelArchive = {
     ...saved,
+    grammarMastered: saved.grammarMastered ?? [],
+    missionSessionCount: Math.max(saved.missionSessionCount ?? 0, saved.missionSteps?.length ?? 0),
+    grammarReviews: saved.grammarReviews ?? {},
+    grammarQueue: saved.grammarQueue ?? [],
+    grammarQueueDate: saved.grammarQueueDate ?? "",
+    grammarPosition: saved.grammarPosition ?? 0,
     daily: saved.dailyDate === date ? saved.daily : [],
     dailyDate: date,
     listeningDone: saved.dailyDate === date ? saved.listeningDone : [],
@@ -231,6 +296,17 @@ export function switchProgressLevel(progress: Progress, selectedLevel: HskLevel,
   } else {
     switched.dailyQueue = active.dailyQueue.filter((index) => Number.isInteger(index) && index >= 0 && index < vocabularySize);
     switched.cardPosition = Math.min(active.cardPosition, switched.dailyQueue.length);
+  }
+  if (active.grammarQueueDate !== date) {
+    switched = {
+      ...switched,
+      grammarQueue: buildDailyGrammarQueue(switched, grammarSize),
+      grammarQueueDate: date,
+      grammarPosition: 0,
+    };
+  } else {
+    switched.grammarQueue = active.grammarQueue.filter((index) => Number.isInteger(index) && index >= 0 && index < grammarSize);
+    switched.grammarPosition = Math.min(active.grammarPosition, switched.grammarQueue.length);
   }
   return switched;
 }

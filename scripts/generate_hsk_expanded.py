@@ -60,6 +60,13 @@ POS_FALLBACKS = {
 }
 
 MANUAL_GLOSSES = {
+    "除了": "apart from; besides; in addition to",
+    "笔": "pen; pencil; writing brush; stroke",
+    "办": "to handle; to manage; to organize; to set up",
+    "郊区": "suburbs; outskirts; suburban district",
+    "城区": "urban area; city proper",
+    "生态": "ecology; ecological state; ecosystem",
+    "偏偏": "unexpectedly; contrary to expectations; stubbornly; precisely",
     "新能源": "new energy; alternative energy sources",
     "不予": "to not grant; to deny; to refrain from",
     "精彩纷呈": "brilliant and varied; highlights appearing one after another",
@@ -229,6 +236,31 @@ def fallback_meaning(part_of_speech: str) -> str:
     return ", ".join(dict.fromkeys(meanings)) or "official HSK term"
 
 
+def concise_definition(definition: str, limit: int = 130) -> str:
+    definition = re.sub(r"\s+", " ", definition).strip()
+    if len(definition) <= limit:
+        return definition
+    compact = definition
+    previous = ""
+    while compact != previous:
+        previous = compact
+        compact = re.sub(r"\s*\([^()]*\)", "", compact).strip()
+    parts = [part.strip(" ;,") for part in compact.split(";") if part.strip(" ;,")]
+    selected: list[str] = []
+    for part in parts:
+        candidate = "; ".join([*selected, part])
+        if selected and len(candidate) > limit:
+            break
+        selected.append(part)
+        if len(candidate) >= limit:
+            break
+    result = "; ".join(selected) or compact
+    if len(result) > limit:
+        clipped = result[: limit - 1].rsplit(" ", 1)[0].rstrip(" ;,")
+        result = f"{clipped}…"
+    return result
+
+
 def add_meanings(vocabulary: dict[str, list[dict]], cedict: dict[str, list[str]]) -> tuple[int, int]:
     found = 0
     total = 0
@@ -242,8 +274,9 @@ def add_meanings(vocabulary: dict[str, list[dict]], cedict: dict[str, list[str]]
             definitions = cedict.get(row["hanzi"], [])
             cleaned: list[str] = []
             for definition in definitions:
-                definition = re.sub(r"\s+", " ", definition).strip()
-                if definition and definition not in cleaned:
+                definition = concise_definition(definition)
+                candidate = "; ".join([*cleaned, definition])
+                if definition and definition not in cleaned and (not cleaned or len(candidate) <= 135):
                     cleaned.append(definition)
                 if len(cleaned) == 3:
                     break

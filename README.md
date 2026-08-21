@@ -12,13 +12,13 @@ the full official inventories and level-appropriate guided practice.
 
 ## What is included
 
-- All 11,000 official vocabulary entries with pinyin, English glosses, audio playback, search, and scheduled review
+- All 11,000 official vocabulary entries with pinyin, concise English learning glosses, audio playback, search, and guaranteed first-time scheduling
 - All 3,088 incremental recognition-character targets across HSK 1–9
-- Complete official grammar inventories for every level, plus guided daily grammar retrieval
+- Complete official grammar inventories for every level, with at least one unseen target scheduled daily plus due spaced reviews
 - Real spaced repetition with a bounded daily queue, four review grades, and due dates
 - Mobile-first app navigation with a Today dashboard, five-step guided daily lesson, and focused Course, Library, Mock, and Progress views
 - Twenty listening drills, sixteen sentence challenges, and twelve tone/sound pronunciation drills
-- Twelve real-life missions per level, each integrated into a three-session sequence with daily grammar, mission listening, sentence building, and a speaking checkpoint
+- Twelve real-life missions per level, each integrated into a three-session sequence, followed by rotating fluency loops so daily practice never stalls on the final mission
 - A searchable Library that can show the active level or the full cumulative syllabus through that level
 - Timed 40-question HSK 1 practice mock plus vocabulary readiness checkpoints for HSK 2–9
 - Accurate local-date streaks, automatic daily resets, one-time XP, and per-task minute tracking
