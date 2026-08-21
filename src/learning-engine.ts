@@ -15,8 +15,29 @@ export type ExamAttempt = {
   total: number;
 };
 
+export type HskLevel = "1" | "2" | "3" | "4" | "5" | "6" | "7-9";
+
+export type LevelArchive = {
+  mastered: number[];
+  missions: number[];
+  missionSteps: string[];
+  daily: string[];
+  dailyDate: string;
+  reviews: Record<string, ReviewState>;
+  earned: string[];
+  dailyQueue: number[];
+  dailyQueueDate: string;
+  cardPosition: number;
+  listeningDone: string[];
+  builderDone: string[];
+  pronunciationDone: string[];
+  examHistory: ExamAttempt[];
+};
+
 export type Progress = {
-  version: 3;
+  version: 4;
+  selectedLevel: HskLevel;
+  levelArchives: Partial<Record<HskLevel, LevelArchive>>;
   startedAt: string;
   streak: number;
   xp: number;
@@ -58,7 +79,9 @@ export function daysBetween(from: string, to: string) {
 
 export function makeStarterProgress(date = localDate()): Progress {
   return {
-    version: 3,
+    version: 4,
+    selectedLevel: "1",
+    levelArchives: {},
     startedAt: date,
     streak: 0,
     xp: 0,
@@ -121,7 +144,9 @@ export function normalizeProgress(raw: unknown, vocabularySize: number, date = l
   const progress: Progress = {
     ...starter,
     ...legacy,
-    version: 3,
+    version: 4,
+    selectedLevel: ["1", "2", "3", "4", "5", "6", "7-9"].includes(String(legacy.selectedLevel)) ? legacy.selectedLevel as HskLevel : "1",
+    levelArchives: legacy.levelArchives && typeof legacy.levelArchives === "object" ? legacy.levelArchives : {},
     reviews,
     missionSteps: migratedMissionSteps,
     daily: legacy.dailyDate === date ? legacy.daily ?? [] : [],
@@ -143,6 +168,71 @@ export function normalizeProgress(raw: unknown, vocabularySize: number, date = l
     progress.cardPosition = Math.min(Number(legacy.cardPosition) || 0, progress.dailyQueue.length);
   }
   return progress;
+}
+
+function captureLevel(progress: Progress): LevelArchive {
+  return {
+    mastered: progress.mastered,
+    missions: progress.missions,
+    missionSteps: progress.missionSteps,
+    daily: progress.daily,
+    dailyDate: progress.dailyDate,
+    reviews: progress.reviews,
+    earned: progress.earned,
+    dailyQueue: progress.dailyQueue,
+    dailyQueueDate: progress.dailyQueueDate,
+    cardPosition: progress.cardPosition,
+    listeningDone: progress.listeningDone,
+    builderDone: progress.builderDone,
+    pronunciationDone: progress.pronunciationDone,
+    examHistory: progress.examHistory,
+  };
+}
+
+function emptyLevel(date: string): LevelArchive {
+  return {
+    mastered: [],
+    missions: [],
+    missionSteps: [],
+    daily: [],
+    dailyDate: date,
+    reviews: {},
+    earned: [],
+    dailyQueue: [],
+    dailyQueueDate: "",
+    cardPosition: 0,
+    listeningDone: [],
+    builderDone: [],
+    pronunciationDone: [],
+    examHistory: [],
+  };
+}
+
+export function switchProgressLevel(progress: Progress, selectedLevel: HskLevel, vocabularySize: number, date = localDate()): Progress {
+  if (selectedLevel === progress.selectedLevel) return progress;
+  const levelArchives = { ...progress.levelArchives, [progress.selectedLevel]: captureLevel(progress) };
+  const saved = levelArchives[selectedLevel] ?? emptyLevel(date);
+  const active: LevelArchive = {
+    ...saved,
+    daily: saved.dailyDate === date ? saved.daily : [],
+    dailyDate: date,
+    listeningDone: saved.dailyDate === date ? saved.listeningDone : [],
+    builderDone: saved.dailyDate === date ? saved.builderDone : [],
+    pronunciationDone: saved.dailyDate === date ? saved.pronunciationDone : [],
+  };
+  let switched: Progress = { ...progress, ...active, selectedLevel, levelArchives };
+  if (active.dailyQueueDate !== date) {
+    switched = {
+      ...switched,
+      dailyQueue: buildDailyQueue(switched, vocabularySize),
+      dailyQueueDate: date,
+      cardPosition: 0,
+    };
+  } else {
+    switched.dailyQueue = active.dailyQueue.filter((index) => Number.isInteger(index) && index >= 0 && index < vocabularySize);
+    switched.cardPosition = Math.min(active.cardPosition, switched.dailyQueue.length);
+  }
+  return switched;
 }
 
 export function activate(progress: Progress, date = localDate()): Progress {

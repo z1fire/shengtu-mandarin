@@ -10,6 +10,7 @@ import {
   normalizeProgress,
   scheduleReview,
   similarityScore,
+  switchProgressLevel,
 } from "../src/learning-engine.ts";
 import {
   grammarPoints,
@@ -19,6 +20,15 @@ import {
   sentenceChallenges,
   vocabulary,
 } from "../src/hsk-data.ts";
+import {
+  getCumulativeCharacters,
+  getCumulativeVocabulary,
+  getLibraryGrammar,
+  getStudyCharacters,
+  getStudyVocabulary,
+  levelMeta,
+  levelOrder,
+} from "../src/level-content.ts";
 
 async function render() {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
@@ -61,9 +71,11 @@ test("uses focused app views instead of one scrolling curriculum page", async ()
   assert.match(source, /type PracticeMode = "flashcards" \| "grammar" \| "listening" \| "builder" \| "speaking"/);
   assert.match(source, /function completeMissionCheckpoint/);
   assert.match(source, /missionSteps/);
-  assert.match(source, /300 Words/);
-  assert.match(source, /246 Characters/);
-  assert.match(source, /70 Grammar/);
+  assert.match(source, /libraryVocabulary\.length\.toLocaleString\(\).*Words/);
+  assert.match(source, /recognitionCharacters\.length\.toLocaleString\(\).*Characters/);
+  assert.match(source, /grammarPoints\.length.*Grammar/);
+  assert.match(source, /showLevelPicker/);
+  assert.match(source, /function chooseLevel/);
   assert.match(source, /aria-label="Search characters"/);
   assert.match(source, /aria-label="Search grammar"/);
   assert.match(source, /className="mobile-nav"/);
@@ -85,6 +97,19 @@ test("ships the complete Level 1 curriculum and practice pools", () => {
   assert.equal(mockExamQuestions.filter((question) => question.section === "Listening").length, 20);
   assert.equal(mockExamQuestions.filter((question) => question.section === "Reading").length, 20);
   assert.ok(vocabulary.every((word) => word.example && word.collocation));
+});
+
+test("ships every official HSK level with cumulative searchable inventories", () => {
+  const expectedWords = { "1": 300, "2": 200, "3": 500, "4": 1000, "5": 1600, "6": 1800, "7-9": 5600 };
+  const expectedCharacters = { "1": 246, "2": 125, "3": 284, "4": 441, "5": 431, "6": 413, "7-9": 1148 };
+  assert.deepEqual(levelOrder, ["1", "2", "3", "4", "5", "6", "7-9"]);
+  for (const level of levelOrder) {
+    assert.equal(getStudyVocabulary(level).length, expectedWords[level]);
+    assert.equal(getStudyCharacters(level).length, expectedCharacters[level]);
+    assert.equal(getLibraryGrammar(level).length, levelMeta[level].grammarTargets);
+  }
+  assert.equal(getCumulativeVocabulary("7-9").length, 11000);
+  assert.equal(getCumulativeCharacters("7-9").length, 3088);
 });
 
 test("builds a bounded daily queue and schedules reviews by recall quality", () => {
@@ -115,8 +140,25 @@ test("resets daily work, calculates real streaks, and prevents repeat rewards", 
   assert.deepEqual(normalized.listeningDone, []);
 
   const legacyMissionProgress = normalizeProgress({ ...stale, version: 2, missions: [0, 1], missionSteps: undefined }, 300, "2026-08-19");
-  assert.equal(legacyMissionProgress.version, 3);
+  assert.equal(legacyMissionProgress.version, 4);
   assert.deepEqual(legacyMissionProgress.missionSteps, ["0:0", "0:1", "0:2", "1:0", "1:1", "1:2"]);
+});
+
+test("keeps spaced-repetition and mission progress separate by HSK level", () => {
+  const level1 = {
+    ...makeStarterProgress("2026-08-20"),
+    mastered: [1, 2],
+    missions: [0],
+    reviews: { 1: scheduleReview(undefined, "good", 0) },
+  };
+  const level2 = switchProgressLevel(level1, "2", 200, "2026-08-20");
+  assert.equal(level2.selectedLevel, "2");
+  assert.deepEqual(level2.mastered, []);
+  assert.deepEqual(level2.levelArchives["1"].mastered, [1, 2]);
+  const restored = switchProgressLevel({ ...level2, mastered: [3], missions: [1] }, "1", 300, "2026-08-20");
+  assert.deepEqual(restored.mastered, [1, 2]);
+  assert.deepEqual(restored.missions, [0]);
+  assert.deepEqual(restored.levelArchives["2"].mastered, [3]);
 });
 
 test("scores speech transcripts by the full target instead of two hardcoded phrases", () => {

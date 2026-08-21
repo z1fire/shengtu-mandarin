@@ -50,6 +50,9 @@ button { color: inherit; }
 .nav-links button { border: 0; background: transparent; cursor: pointer; text-transform: uppercase; letter-spacing: .12em; font-size: 11px; font-weight: 800; color: #4f5550; padding: 12px 0; }
 .nav-links button:hover, .nav-links button:focus-visible { color: var(--coral); }
 .header-actions { display: flex; align-items: center; gap: 12px; }
+.level-switch { min-width: 76px; padding: 7px 11px; display: flex; flex-direction: column; align-items: flex-start; border: 1px solid var(--ink); background: var(--yellow); cursor: pointer; box-shadow: 3px 3px 0 var(--ink); }
+.level-switch span { font-size: 11px; font-weight: 950; }
+.level-switch small { margin-top: 2px; font-size: 7px; color: #555b56; text-transform: uppercase; letter-spacing: .08em; }
 .streak-pill { display: inline-flex; align-items: center; gap: 8px; padding: 9px 14px; border: 1px solid var(--line); background: rgba(255,255,255,.45); border-radius: 999px; font-weight: 750; font-size: 12px; }
 .streak-pill span { color: var(--coral); font-family: "Noto Sans SC", sans-serif; font-size: 16px; }
 .round-button { width: 40px; height: 40px; border: 1px solid var(--ink); border-radius: 50%; background: var(--ink); color: white; cursor: pointer; font-size: 10px; font-weight: 900; letter-spacing: .04em; }
@@ -275,6 +278,7 @@ button { color: inherit; }
 .word-grid article p { color: #aeb5af; font-size: 11px; line-height: 1.35; margin: 8px 0 14px; }
 .master-button { margin-top: auto; align-self: flex-start; border: 0; background: transparent; color: #7c8780; font-size: 8px; text-transform: uppercase; letter-spacing: .1em; font-weight: 900; padding: 0; cursor: pointer; }
 .mastered .master-button { color: #69caa9; }
+.master-button:disabled { color: #69736d; cursor: default; }
 .word-context { margin: 2px 0 16px; padding-top: 11px; border-top: 1px solid rgba(255,255,255,.12); display: flex; flex-direction: column; gap: 5px; }
 .word-context b { font-family: "Noto Sans SC", "Microsoft YaHei", sans-serif; font-size: 12px; font-weight: 650; }
 .word-context small { color: var(--yellow); font-size: 9px; }
@@ -304,6 +308,7 @@ button { color: inherit; }
 .grammar-example span { color: var(--jade); font-size: 10px; }
 .grammar-example small { color: var(--muted); font-size: 9px; }
 .grammar-practice-button { margin-top: 18px; border: 0; border-bottom: 1px solid var(--ink); background: transparent; padding: 4px 0; cursor: pointer; font-size: 9px; font-weight: 900; }
+.official-target-note { display: block; margin-top: 24px; padding-top: 15px; border-top: 1px solid var(--line); color: var(--muted); font-size: 9px; line-height: 1.5; }
 .grammar-more { width: 100%; border: 1px solid var(--line); border-top: 0; background: var(--ink); color: white; padding: 18px; cursor: pointer; font-weight: 850; }
 
 .exam-section { padding-top: 20px; }
@@ -344,8 +349,10 @@ button { color: inherit; }
 .level-roadmap h3 { font-family: Georgia, serif; font-size: 32px; line-height: 1.1; margin: 7px 0 14px; }
 .level-roadmap > div p { color: var(--muted); font-size: 13px; line-height: 1.6; }
 .level-roadmap ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(7, 1fr); border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
-.level-roadmap li { min-height: 165px; padding: 15px; display: flex; flex-direction: column; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
-.level-roadmap li > span { color: var(--muted); font-size: 7px; letter-spacing: .12em; font-weight: 900; }
+.level-roadmap li { min-height: 165px; display: flex; flex-direction: column; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); transition: background .18s, color .18s; }
+.level-roadmap li.available:hover { background: white; }
+.level-roadmap li > button { flex: 1; padding: 15px; display: flex; flex-direction: column; border: 0; background: transparent; text-align: left; cursor: pointer; }
+.level-roadmap li > button > span { color: var(--muted); font-size: 7px; letter-spacing: .12em; font-weight: 900; }
 .level-roadmap li strong { margin-top: auto; font-family: Georgia, serif; font-size: 21px; }
 .level-roadmap li small { color: var(--muted); font-size: 8px; line-height: 1.4; margin-top: 4px; }
 .level-roadmap li.current { background: var(--coral); color: white; }
@@ -429,6 +436,21 @@ button { color: inherit; }
 .goal-options span { font-weight: 850; }
 .goal-options small { margin-top: 7px; color: var(--muted); }
 .onboarding-card ul { margin: 22px 0; padding-left: 20px; color: #4e554f; line-height: 1.7; font-size: 12px; }
+.level-picker-backdrop { place-items: start center; }
+.level-picker-card { width: min(100%, 1050px); margin: 20px 0; }
+.picker-top { display: grid; grid-template-columns: 1fr auto; gap: 24px; }
+.picker-top h2 { margin-top: 8px; }
+.picker-top p { max-width: 650px; color: var(--muted); line-height: 1.55; }
+.picker-close { width: 42px; height: 42px; border: 1px solid var(--ink); border-radius: 50%; background: transparent; cursor: pointer; font-size: 24px; }
+.level-picker-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 9px; margin-top: 26px; }
+.level-picker-grid > button { min-height: 205px; padding: 18px; display: flex; flex-direction: column; align-items: flex-start; border: 1px solid var(--line); background: white; text-align: left; cursor: pointer; }
+.level-picker-grid > button.active { border: 3px solid var(--coral); background: #fff4ef; }
+.level-picker-grid span { color: var(--coral); font-size: 7px; font-weight: 950; letter-spacing: .13em; }
+.level-picker-grid strong { margin-top: 14px; font: 30px Georgia, serif; }
+.level-picker-grid b { margin-top: 5px; font-size: 10px; }
+.level-picker-grid p { margin: 13px 0; color: var(--muted); font-size: 10px; line-height: 1.45; }
+.level-picker-grid small { margin-top: auto; color: var(--jade); font-size: 8px; font-weight: 850; }
+.picker-note { margin: 22px 0 0 !important; padding: 14px 18px; border-left: 4px solid var(--yellow); background: #e9e5dc; font-size: 10px; }
 
 /* App navigation and focused views */
 .topbar { position: sticky; top: 0; z-index: 80; background: rgba(243,240,232,.94); backdrop-filter: blur(16px); }
@@ -450,6 +472,14 @@ button { color: inherit; }
 .vocabulary-section .view-icon { background: var(--coral); }
 
 .library-tabs { display: grid; grid-template-columns: repeat(3, 1fr); margin: -35px 0 55px; border: 1px solid currentColor; }
+.library-scope { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: -30px 0 22px; }
+.library-scope > span { margin-right: 3px; color: var(--muted); font-size: 8px; font-weight: 950; letter-spacing: .13em; }
+.library-scope button { padding: 8px 12px; border: 1px solid var(--line); border-radius: 999px; background: transparent; cursor: pointer; font-size: 9px; font-weight: 850; }
+.library-scope button.active { border-color: var(--coral); background: var(--coral); color: white; }
+.vocabulary-section .library-scope > span { color: #8e9992; }
+.vocabulary-section .library-scope button { border-color: rgba(255,255,255,.35); color: white; }
+.vocabulary-section .library-scope button.active { border-color: var(--yellow); background: var(--yellow); color: var(--ink); }
+.library-scope + .library-tabs { margin-top: 0; }
 .library-tabs button { min-height: 48px; border: 0; border-right: 1px solid currentColor; background: transparent; color: inherit; cursor: pointer; font-size: 11px; font-weight: 900; }
 .library-tabs button:last-child { border-right: 0; }
 .library-tabs button.active { background: var(--coral); color: white; }
@@ -458,6 +488,7 @@ button { color: inherit; }
 .library-search > span { font-size: 18px; }
 .library-search input { width: 100%; border: 0; outline: 0; padding: 14px 7px; background: transparent; font-size: 12px; }
 .library-search:focus-within { border-color: var(--coral); box-shadow: 0 0 0 2px rgba(243,85,61,.16); }
+.result-limit-note { margin: 15px 0 0; padding: 14px 18px; border: 1px solid rgba(255,255,255,.2); color: #aeb5af; font-size: 10px; line-height: 1.5; }
 .character-bank.standalone { margin-top: 15px; min-height: 55vh; }
 
 .lesson-toolbar { display: flex; align-items: center; justify-content: space-between; margin: -62px 0 45px; padding-bottom: 18px; border-bottom: 1px solid var(--line); }
@@ -509,6 +540,7 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
   .topbar { height: 70px; }
   .nav-links { display: none; }
   .streak-pill { font-size: 10px; }
+  .level-picker-grid { grid-template-columns: repeat(2, 1fr); }
   .hero { grid-template-columns: 1fr; padding-top: 50px; }
   .hero-copy { max-width: 670px; }
   .today-card { max-width: 650px; width: 100%; justify-self: center; }
@@ -547,6 +579,7 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
   .view-intro h1 { font-size: 31px; }
   .view-intro p { font-size: 10px; }
   .library-tabs { position: sticky; top: 70px; z-index: 45; margin: -15px 0 35px; background: inherit; }
+  .library-scope + .library-tabs { margin-top: 0; }
   .library-tabs button { min-height: 44px; font-size: 9px; }
   .lesson-toolbar { margin: -21px 0 22px; }
   .practice-section .section-heading { margin-bottom: 24px; }
@@ -564,7 +597,11 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
   .topbar { padding: 0 18px; }
   .brand small { display: none; }
   .brand-mark { width: 36px; height: 36px; font-size: 18px; }
-  .streak-pill { padding: 7px 9px; }
+  .streak-pill { display: none; }
+  .header-actions { gap: 8px; }
+  .level-switch { min-width: 65px; padding: 6px 8px; box-shadow: 2px 2px 0 var(--ink); }
+  .level-switch span { font-size: 10px; }
+  .level-switch small { font-size: 6px; }
   .round-button { display: none; }
   .hero { padding: 25px 20px 42px; }
   .hero::before { display: none; }
@@ -622,6 +659,11 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
   .mock-top > strong { font-size: 23px; }
   .backup-note { flex-direction: column; gap: 5px; }
   .onboarding-card { padding: 28px 20px; }
+  .level-picker-card { margin: 0; }
+  .picker-top h2 { font-size: 38px; }
+  .level-picker-grid { grid-template-columns: 1fr; }
+  .level-picker-grid > button { min-height: 155px; }
+  .library-scope { margin-top: -20px; }
   .goal-options { grid-template-columns: 1fr; }
   .goal-options button { min-height: 90px; }
   .self-checks { flex-direction: column; }
