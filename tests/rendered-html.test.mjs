@@ -34,6 +34,11 @@ import {
   levelMeta,
   levelOrder,
 } from "../src/level-content.ts";
+import {
+  buildGrammarMixerFrame,
+  initialMixerSelections,
+  mixerExpectedTokens,
+} from "../src/grammar-mixer.ts";
 
 async function render() {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
@@ -91,6 +96,10 @@ test("uses focused app views instead of one scrolling curriculum page", async ()
   assert.match(source, /The pattern and model stay hidden until you answer correctly/);
   assert.match(source, /Why this works/);
   assert.match(source, /grammarChoicePool/);
+  assert.match(source, /function GrammarPatternMixer/);
+  assert.match(source, /MIX &amp; MATCH PATTERN LAB/);
+  assert.match(source, /Build with vocabulary/);
+  assert.match(source, /Hear my sentence/);
   assert.doesNotMatch(source, /Try again\. Match the target to:|Try again\. Build:/);
   assert.match(source, /promptLengthClass/);
   assert.match(source, /aria-label="Search characters"/);
@@ -161,6 +170,24 @@ test("ships every official HSK level with cumulative searchable inventories", ()
   assert.equal(getCumulativeVocabulary("7-9").length, 11000);
   assert.equal(getCumulativeCharacters("7-9").length, 3088);
   assert.equal(getStudyVocabulary("3").find((word) => word.hanzi === "除了")?.meaning, "apart from; besides; in addition to");
+});
+
+test("builds a vocabulary pattern mixer for every HSK grammar target", () => {
+  for (const level of levelOrder) {
+    const words = getCumulativeVocabulary(level);
+    const fallbackFormula = getCourseMissions(level)[0].grammarFormula;
+    for (const point of getLibraryGrammar(level, false)) {
+      const frame = buildGrammarMixerFrame(point, fallbackFormula, words);
+      const slots = frame.parts.filter((part) => part.type === "slot");
+      assert.ok(slots.length > 0, `${level} ${point.title} has no vocabulary slots`);
+      assert.ok(slots.every((slot) => slot.options.length >= 3), `${level} ${point.title} has too few word choices`);
+      const tokens = mixerExpectedTokens(frame, initialMixerSelections(frame));
+      assert.ok(tokens.length >= 2, `${level} ${point.title} has too few sentence pieces`);
+      assert.doesNotMatch(tokens.join(""), /subject|object|noun|verb|adjective|content|predicate/i, `${level} ${point.title} leaks a placeholder`);
+    }
+  }
+  const identity = buildGrammarMixerFrame(getLibraryGrammar("1", false)[0], "subject + 是 + noun", getCumulativeVocabulary("1"));
+  assert.deepEqual(mixerExpectedTokens(identity, initialMixerSelections(identity)), ["我", "是", "学生"]);
 });
 
 test("provides complete pinyin with no Chinese-character leakage for every mission", () => {

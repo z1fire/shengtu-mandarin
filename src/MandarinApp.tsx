@@ -38,6 +38,12 @@ import {
   type Progress,
   type StudyDay,
 } from "./learning-engine";
+import {
+  buildGrammarMixerFrame,
+  initialMixerSelections,
+  mixerExpectedTokens,
+  type MixerSlotPart,
+} from "./grammar-mixer";
 import "./mandarin.css";
 
 type PracticeMode = "flashcards" | "grammar" | "listening" | "builder" | "speaking";
@@ -153,6 +159,90 @@ function speak(text: string, rate = 0.82) {
   const chineseVoice = voices.find((voice) => voice.lang.toLowerCase().startsWith("zh"));
   if (chineseVoice) utterance.voice = chineseVoice;
   window.speechSynthesis.speak(utterance);
+}
+
+type MixerTile = { id: string; text: string };
+
+function mixerTiles(tokens: string[]): MixerTile[] {
+  return tokens.map((text, index) => ({ id: `${index}-${text}`, text }));
+}
+
+function scrambleMixerTiles(tiles: MixerTile[]) {
+  const scrambled = shuffle(tiles);
+  if (scrambled.length > 1 && scrambled.every((tile, index) => tile.id === tiles[index].id)) {
+    return [...scrambled.slice(1), scrambled[0]];
+  }
+  return scrambled;
+}
+
+function GrammarPatternMixer({ point, fallbackFormula, words }: { point: GrammarPoint; fallbackFormula: string; words: LevelVocabularyWord[] }) {
+  const frame = useMemo(() => buildGrammarMixerFrame(point, fallbackFormula, words), [fallbackFormula, point, words]);
+  const defaults = initialMixerSelections(frame);
+  const initialExpected = mixerTiles(mixerExpectedTokens(frame, defaults));
+  const [selections, setSelections] = useState<Record<string, number>>(defaults);
+  const [activeExpected, setActiveExpected] = useState<MixerTile[]>(initialExpected);
+  const [bank, setBank] = useState<MixerTile[]>(() => scrambleMixerTiles(initialExpected));
+  const [built, setBuilt] = useState<MixerTile[]>([]);
+  const [result, setResult] = useState("");
+  const [needsMix, setNeedsMix] = useState(false);
+  const slots = frame.parts.filter((part): part is MixerSlotPart => part.type === "slot")
+    .filter((part, index, items) => items.findIndex((item) => item.id === part.id) === index);
+  const sentence = activeExpected.map((tile) => tile.text).join("");
+
+  function selectWord(slot: MixerSlotPart, optionIndex: number) {
+    setSelections((current) => ({ ...current, [slot.id]: optionIndex }));
+    setNeedsMix(true);
+    setResult("Selection changed · mix the new words before rebuilding.");
+  }
+
+  function mixSelectedWords() {
+    const expected = mixerTiles(mixerExpectedTokens(frame, selections));
+    setActiveExpected(expected);
+    setBank(scrambleMixerTiles(expected));
+    setBuilt([]);
+    setNeedsMix(false);
+    setResult("");
+  }
+
+  function addMixerTile(tileIndex: number) {
+    if (needsMix || result.startsWith("Correct")) return;
+    const tile = bank[tileIndex];
+    if (!tile) return;
+    setBuilt((placed) => [...placed, tile]);
+    setBank((current) => current.filter((_, index) => index !== tileIndex));
+    setResult("");
+  }
+
+  function removeMixerTile(tileIndex: number) {
+    if (result.startsWith("Correct")) return;
+    const tile = built[tileIndex];
+    if (!tile) return;
+    setBank((available) => [...available, tile]);
+    setBuilt((current) => current.filter((_, index) => index !== tileIndex));
+    setResult("");
+  }
+
+  function resetMixerOrder() {
+    setBank(scrambleMixerTiles(activeExpected));
+    setBuilt([]);
+    setResult("");
+  }
+
+  function checkMixerOrder() {
+    const correct = built.length === activeExpected.length && built.every((tile, index) => tile.text === activeExpected[index].text);
+    setResult(correct ? "Correct pattern · your vocabulary fits the required word order." : "Not yet · compare your order with the formula and move the tiles again.");
+  }
+
+  return <div className="grammar-pattern-mixer">
+    <div className="mixer-heading"><span>MIX &amp; MATCH PATTERN LAB</span><strong>Build with vocabulary</strong><p>{frame.usesMissionPattern ? "This target is a form inventory, so the lab uses today’s compositional mission pattern for the sentence round. The checker tests grammar order; choose words whose meanings also fit together." : "Choose vocabulary for each replaceable slot, then rebuild the sentence in the pattern’s required order. The checker tests grammar order, so also choose words whose meanings fit together."}</p></div>
+    <code>{frame.sourceFormula}</code>
+    <div className="mixer-selectors">{slots.map((slot) => <label key={slot.id}><span>{slot.label}</span><select value={selections[slot.id] ?? 0} onChange={(event) => selectWord(slot, Number(event.target.value))} aria-label={`Choose vocabulary for ${slot.label}`}>{slot.options.map((word, index) => <option key={`${word.level}-${word.sequence}-${word.hanzi}`} value={index}>{word.hanzi} · {word.pinyin} · {word.meaning}</option>)}</select></label>)}</div>
+    <button className="mixer-mix-button" onClick={mixSelectedWords}>{needsMix ? "Mix my new choices →" : "Reshuffle this sentence ↻"}</button>
+    <div className="mixer-sentence-line" aria-label="Your grammar sentence">{built.length ? built.map((tile, index) => <button key={tile.id} onClick={() => removeMixerTile(index)}>{tile.text}</button>) : <span>Tap the scrambled pieces below to build the sentence.</span>}</div>
+    <div className="mixer-tile-bank">{bank.map((tile, index) => <button key={tile.id} onClick={() => addMixerTile(index)} disabled={needsMix}>{tile.text}</button>)}</div>
+    <div className="mixer-actions"><button onClick={resetMixerOrder} disabled={needsMix}>Reset order</button><button className="check-button" onClick={checkMixerOrder} disabled={needsMix || bank.length > 0}>Check pattern</button></div>
+    {result && <div className={`mixer-result ${result.startsWith("Correct") ? "correct" : ""}`}><span>{result}</span>{result.startsWith("Correct") && <button onClick={() => speak(sentence, 0.72)}>▶ Hear my sentence</button>}</div>}
+  </div>;
 }
 
 function appRouteFromHash(hash: string): { view: AppView; library?: LibraryView; lesson?: boolean } {
@@ -1123,6 +1213,7 @@ export default function MandarinApp() {
                 <code>{dailyGrammar.formula}</code>
                 <div className="grammar-notice"><strong>What to notice</strong><p>This target teaches {grammarConcept(dailyGrammar)}. Read the structure from left to right: keep the fixed Chinese markers in place and substitute your own words into the descriptive slots.</p></div>
                 {dailyGrammar.example ? <button className="grammar-model" onClick={() => speak(dailyGrammar.example)}><span>▶</span><strong>{dailyGrammar.example}</strong>{progress.showPinyin && <small>{dailyGrammar.pinyin}</small>}<em>{dailyGrammar.translation}</em></button> : <div className="formula-explainer"><strong>Pattern-only target</strong><p>Say the fixed Chinese pieces aloud. Then cover this card and identify the complete structure from similar alternatives.</p></div>}
+                <GrammarPatternMixer key={`daily-${selectedLevel}-${dailyGrammarIndex}-${activeMissionIndex}`} point={dailyGrammar} fallbackFormula={activeMission.grammarFormula} words={cumulativeVocabulary} />
                 <div className="grammar-study-steps"><span><b>1</b> Read the pattern</span><span><b>2</b> {dailyGrammar.example ? "Listen and shadow" : "Say the fixed pieces"}</span><span><b>3</b> Recall without looking</span></div>
                 <button className="grammar-recall-start" onClick={beginDailyGrammarRecall}>Hide the lesson &amp; start recall →</button>
               </> : <>
@@ -1186,7 +1277,7 @@ export default function MandarinApp() {
           <div className="section-heading grammar-heading"><div><span className="section-kicker">OFFICIAL GRAMMAR INVENTORY</span><h2>{grammarPoints.length} searchable<br /><em>grammar targets.</em></h2></div><p>Every target in your active level now enters Today automatically: first as a taught item, then again when its review is due.</p></div>
           <label className="library-search"><span>⌕</span><input value={grammarSearch} onChange={(event) => setGrammarSearch(event.target.value)} placeholder="Search pattern, example, pinyin, or meaning" aria-label="Search grammar" /></label>
           <div className="filter-row">{["All", "Core", "Questions", "Time", "Place", "Actions"].map((filter) => <button key={filter} className={grammarFilter === filter ? "active" : ""} onClick={() => { setGrammarFilter(filter); setShowAllGrammar(filter !== "All"); }}>{filter}</button>)}</div>
-          {grammarPractice !== null && <div className={`grammar-drill grammar-drill-${grammarPracticeStage}`}><button className="close-drill" onClick={() => setGrammarPractice(null)} aria-label="Close grammar practice">×</button><div className="grammar-stage-track light" aria-label="Grammar practice stages"><span className={grammarPracticeStage === "learn" ? "active" : "complete"}><b>1</b> Learn</span><i>→</i><span className={grammarPracticeStage === "recall" ? "active" : ""}><b>2</b> Recall</span></div>{grammarPracticeStage === "learn" ? <div className="library-grammar-learn"><span className="micro-label">PATTERN STUDY · TARGET {grammarPractice + 1}</span><h3>{grammarPoints[grammarPractice].title}</h3><code>{grammarPoints[grammarPractice].formula}</code><p>This pattern teaches {grammarConcept(grammarPoints[grammarPractice])}. Notice the fixed Chinese pieces and the slots you can replace.</p>{grammarPoints[grammarPractice].example && <button className="grammar-model" onClick={() => speak(grammarPoints[grammarPractice].example)}><span>▶</span><strong>{grammarPoints[grammarPractice].example}</strong>{progress.showPinyin && <small>{grammarPoints[grammarPractice].pinyin}</small>}<em>{grammarPoints[grammarPractice].translation}</em></button>}<button className="grammar-recall-start" onClick={beginLibraryGrammarRecall}>Hide the lesson &amp; test me →</button></div> : <div className="library-grammar-recall"><span className="micro-label">RECALL CHECK · LESSON HIDDEN</span><h3>{grammarPoints[grammarPractice].example ? `Which Mandarin sentence expresses “${grammarPoints[grammarPractice].translation}”?` : `Which official structure matches “${grammarPoints[grammarPractice].title}”?`}</h3><p>Retrieve the pattern from memory. The answer stays hidden until you are correct.</p><div className="grammar-drill-choices">{grammarOptions.map((option) => <button key={option} onClick={() => answerGrammar(option)} disabled={grammarResult.startsWith("Correct")}>{option}</button>)}</div>{!grammarResult && <button className="grammar-help-button light" onClick={reopenLibraryGrammarLesson}>Need help? Reopen the lesson</button>}{grammarResult && <div className="library-grammar-feedback"><p className={grammarResult.startsWith("Correct") ? "correct" : ""}>{grammarResult}</p>{!grammarResult.startsWith("Correct") ? <button className="grammar-help-button light" onClick={reopenLibraryGrammarLesson}>Reopen lesson</button> : <div className="grammar-answer-review dark"><strong>Answer explained</strong><code>{grammarPoints[grammarPractice].formula}</code>{grammarPoints[grammarPractice].example && <button className="grammar-model" onClick={() => speak(grammarPoints[grammarPractice].example)}><span>▶</span><strong>{grammarPoints[grammarPractice].example}</strong>{progress.showPinyin && <small>{grammarPoints[grammarPractice].pinyin}</small>}<em>{grammarPoints[grammarPractice].translation}</em></button>}<button className="grammar-next-target" onClick={() => setGrammarPractice(null)}>Choose another target →</button></div>}</div>}</div>}</div>}
+          {grammarPractice !== null && <div className={`grammar-drill grammar-drill-${grammarPracticeStage}`}><button className="close-drill" onClick={() => setGrammarPractice(null)} aria-label="Close grammar practice">×</button><div className="grammar-stage-track light" aria-label="Grammar practice stages"><span className={grammarPracticeStage === "learn" ? "active" : "complete"}><b>1</b> Learn</span><i>→</i><span className={grammarPracticeStage === "recall" ? "active" : ""}><b>2</b> Recall</span></div>{grammarPracticeStage === "learn" ? <div className="library-grammar-learn"><span className="micro-label">PATTERN STUDY · TARGET {grammarPractice + 1}</span><h3>{grammarPoints[grammarPractice].title}</h3><code>{grammarPoints[grammarPractice].formula}</code><p>This pattern teaches {grammarConcept(grammarPoints[grammarPractice])}. Notice the fixed Chinese pieces and the slots you can replace.</p>{grammarPoints[grammarPractice].example && <button className="grammar-model" onClick={() => speak(grammarPoints[grammarPractice].example)}><span>▶</span><strong>{grammarPoints[grammarPractice].example}</strong>{progress.showPinyin && <small>{grammarPoints[grammarPractice].pinyin}</small>}<em>{grammarPoints[grammarPractice].translation}</em></button>}<GrammarPatternMixer key={`library-${selectedLevel}-${grammarPractice}-${activeMissionIndex}`} point={grammarPoints[grammarPractice]} fallbackFormula={activeMission.grammarFormula} words={cumulativeVocabulary} /><button className="grammar-recall-start" onClick={beginLibraryGrammarRecall}>Hide the lesson &amp; test me →</button></div> : <div className="library-grammar-recall"><span className="micro-label">RECALL CHECK · LESSON HIDDEN</span><h3>{grammarPoints[grammarPractice].example ? `Which Mandarin sentence expresses “${grammarPoints[grammarPractice].translation}”?` : `Which official structure matches “${grammarPoints[grammarPractice].title}”?`}</h3><p>Retrieve the pattern from memory. The answer stays hidden until you are correct.</p><div className="grammar-drill-choices">{grammarOptions.map((option) => <button key={option} onClick={() => answerGrammar(option)} disabled={grammarResult.startsWith("Correct")}>{option}</button>)}</div>{!grammarResult && <button className="grammar-help-button light" onClick={reopenLibraryGrammarLesson}>Need help? Reopen the lesson</button>}{grammarResult && <div className="library-grammar-feedback"><p className={grammarResult.startsWith("Correct") ? "correct" : ""}>{grammarResult}</p>{!grammarResult.startsWith("Correct") ? <button className="grammar-help-button light" onClick={reopenLibraryGrammarLesson}>Reopen lesson</button> : <div className="grammar-answer-review dark"><strong>Answer explained</strong><code>{grammarPoints[grammarPractice].formula}</code>{grammarPoints[grammarPractice].example && <button className="grammar-model" onClick={() => speak(grammarPoints[grammarPractice].example)}><span>▶</span><strong>{grammarPoints[grammarPractice].example}</strong>{progress.showPinyin && <small>{grammarPoints[grammarPractice].pinyin}</small>}<em>{grammarPoints[grammarPractice].translation}</em></button>}<button className="grammar-next-target" onClick={() => setGrammarPractice(null)}>Choose another target →</button></div>}</div>}</div>}</div>}
           <div className="grammar-grid">{visibleGrammar.map((point) => { const globalIndex = grammarPoints.indexOf(point); const activeIndex = levelGrammar.findIndex((target) => target.title === point.title && target.formula === point.formula); const introduced = activeIndex >= 0 && Boolean(progress.grammarReviews[activeIndex]); const stable = activeIndex >= 0 && progress.grammarMastered.includes(activeIndex); return <article key={`${point.title}-${globalIndex}`} className={stable ? "mastered" : introduced ? "introduced" : ""}><div className="grammar-card-top"><span>{String(globalIndex + 1).padStart(2, "0")} · {point.label}</span>{point.example && <button onClick={() => speak(point.example)}>▶</button>}</div><h3>{point.title}</h3><code>{point.formula}</code>{point.example ? <div className="grammar-example"><strong>{point.example}</strong>{progress.showPinyin && <span>{point.pinyin}</span>}<small>{point.translation}</small></div> : <span className="official-target-note">{stable ? "✓ Stable in your review schedule" : introduced ? "Learning · future review scheduled" : activeIndex >= 0 ? "Not taught yet · automatically scheduled in Today" : "Foundation target from an earlier level"}</span>}<button className="grammar-practice-button" onClick={() => openGrammarPractice(globalIndex)}>{stable ? "Practice stable target →" : introduced ? "Review this target →" : "Preview this target →"}</button></article>; })}</div>
           {grammarFilter === "All" && !grammarSearch && <button className="grammar-more" onClick={() => setShowAllGrammar((value) => !value)}>{showAllGrammar ? "Show the 20 essential targets" : `Show all ${grammarPoints.length} targets`}</button>}
         </section>

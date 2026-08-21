@@ -249,6 +249,30 @@ button { color: inherit; }
 .grammar-answer-review.dark { border-color: rgba(255,255,255,.25); background: rgba(255,255,255,.06); }
 .grammar-answer-review.dark > code, .grammar-answer-review.dark > p { color: white; }
 .grammar-next-target { width: 100%; border: 0; background: var(--jade); color: white; padding: 12px 15px; cursor: pointer; font-weight: 900; }
+.grammar-pattern-mixer { margin-top: 15px; padding: 16px; border: 1px solid #c6b85e; background: #fffbed; color: var(--ink); }
+.mixer-heading > span { color: var(--coral); font-size: 8px; font-weight: 900; letter-spacing: .13em; }
+.mixer-heading > strong { display: block; margin-top: 4px; font: 20px Georgia, serif; }
+.mixer-heading > p { margin: 5px 0 12px; color: var(--muted); font-size: 10px; line-height: 1.45; }
+.grammar-pattern-mixer > code { display: block; margin-bottom: 12px; padding: 9px 11px; background: var(--ink); color: var(--yellow); white-space: normal; font: 11px ui-monospace, monospace; }
+.mixer-selectors { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.mixer-selectors label { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.mixer-selectors label > span { color: var(--jade); font-size: 8px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+.mixer-selectors select { width: 100%; min-height: 38px; border: 1px solid var(--line); background: white; color: var(--ink); padding: 7px 9px; font-size: 10px; }
+.mixer-mix-button { width: 100%; margin-top: 9px; border: 1px solid var(--coral); background: transparent; color: var(--coral); padding: 9px 12px; cursor: pointer; font-size: 9px; font-weight: 900; }
+.mixer-sentence-line { min-height: 58px; margin-top: 11px; padding: 10px; display: flex; align-items: center; flex-wrap: wrap; gap: 7px; border-bottom: 2px solid var(--ink); background: white; }
+.mixer-sentence-line > span { color: var(--muted); font-size: 10px; }
+.mixer-sentence-line button, .mixer-tile-bank button { min-height: 36px; border: 1px solid var(--ink); background: white; color: var(--ink); padding: 7px 10px; cursor: pointer; font: 15px "Noto Sans SC", "Microsoft YaHei", sans-serif; }
+.mixer-sentence-line button { background: var(--jade); border-color: var(--jade); color: white; }
+.mixer-tile-bank { min-height: 53px; padding: 10px 0; display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
+.mixer-tile-bank button:hover:not(:disabled) { border-color: var(--coral); color: var(--coral); }
+.mixer-tile-bank button:disabled { opacity: .35; cursor: default; }
+.mixer-actions { display: flex; justify-content: space-between; gap: 8px; }
+.mixer-actions button { border: 0; background: transparent; color: var(--muted); padding: 9px; cursor: pointer; font-size: 9px; font-weight: 900; }
+.mixer-actions .check-button { background: var(--ink); color: white; padding: 9px 14px; }
+.mixer-actions button:disabled { opacity: .35; cursor: default; }
+.mixer-result { margin-top: 8px; padding: 10px 11px; display: flex; align-items: center; justify-content: space-between; gap: 12px; background: #f9d5cf; color: #7e2b20; font-size: 10px; font-weight: 800; }
+.mixer-result.correct { background: #cce8df; color: #155845; }
+.mixer-result button { border: 0; background: transparent; color: inherit; cursor: pointer; font-size: 9px; font-weight: 900; white-space: nowrap; }
 
 .required-practice-wrap { min-height: 488px; }
 .required-practice-wrap > .listening-lab, .required-practice-wrap > .builder-lab { min-height: 488px; }
@@ -461,6 +485,7 @@ button { color: inherit; }
 .library-grammar-learn > code { display: block; max-width: 760px; margin: -7px 0 16px; padding: 13px 15px; background: rgba(255,255,255,.09); color: var(--yellow); white-space: normal; font: 13px ui-monospace, monospace; }
 .library-grammar-learn > p, .library-grammar-recall > p { max-width: 760px; color: #c7ccc8; font-size: 12px; line-height: 1.55; }
 .library-grammar-learn .grammar-model { max-width: 760px; border: 1px solid rgba(255,255,255,.2); background: #242b27; }
+.library-grammar-learn .grammar-pattern-mixer { max-width: 760px; }
 .library-grammar-learn .grammar-recall-start { max-width: 760px; }
 .grammar-drill-choices { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .grammar-drill-choices button { border: 1px solid rgba(255,255,255,.35); background: transparent; color: white; padding: 15px; cursor: pointer; font-family: "Noto Sans SC", "Microsoft YaHei", sans-serif; font-size: 16px; }
@@ -744,6 +769,9 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
   .sound-gym-toggle { align-items: flex-start; flex-direction: column; }
   .grammar-teach-card, .builder-board { padding: 18px; }
   .grammar-study-steps { grid-template-columns: 1fr; }
+  .mixer-selectors { grid-template-columns: 1fr; }
+  .mixer-actions, .mixer-result { align-items: stretch; flex-direction: column; }
+  .mixer-actions .check-button, .mixer-result button { width: 100%; }
   .extra-practice summary { align-items: flex-start; flex-direction: column; gap: 5px; padding: 16px 18px; }
   .lab-instructions h3 { font-size: 31px; }
   .study-card { min-height: 365px; padding: 0; }
