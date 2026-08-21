@@ -16,13 +16,14 @@ export type ExamAttempt = {
 };
 
 export type Progress = {
-  version: 2;
+  version: 3;
   startedAt: string;
   streak: number;
   xp: number;
   minutes: number;
   mastered: number[];
   missions: number[];
+  missionSteps: string[];
   daily: string[];
   dailyDate: string;
   lastActive: string;
@@ -57,13 +58,14 @@ export function daysBetween(from: string, to: string) {
 
 export function makeStarterProgress(date = localDate()): Progress {
   return {
-    version: 2,
+    version: 3,
     startedAt: date,
     streak: 0,
     xp: 0,
     minutes: 0,
     mastered: [],
     missions: [],
+    missionSteps: [],
     daily: [],
     dailyDate: date,
     lastActive: "",
@@ -100,6 +102,9 @@ export function normalizeProgress(raw: unknown, vocabularySize: number, date = l
   const starter = makeStarterProgress(date);
   if (!raw || typeof raw !== "object") return starter;
   const legacy = raw as Partial<Progress> & { lastVisit?: string };
+  const migratedMissionSteps = Array.isArray(legacy.missionSteps)
+    ? legacy.missionSteps
+    : Array.from({ length: (legacy.missions?.length ?? 0) * 3 }, (_, index) => `${Math.floor(index / 3)}:${index % 3}`);
   const reviews = { ...(legacy.reviews ?? {}) };
   for (const index of legacy.mastered ?? []) {
     if (!reviews[index]) {
@@ -116,8 +121,9 @@ export function normalizeProgress(raw: unknown, vocabularySize: number, date = l
   const progress: Progress = {
     ...starter,
     ...legacy,
-    version: 2,
+    version: 3,
     reviews,
+    missionSteps: migratedMissionSteps,
     daily: legacy.dailyDate === date ? legacy.daily ?? [] : [],
     dailyDate,
     listeningDone: legacy.dailyDate === date ? legacy.listeningDone ?? [] : [],

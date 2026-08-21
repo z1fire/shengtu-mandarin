@@ -39,6 +39,9 @@ test("server-renders the finished Mandarin course", async () => {
   assert.match(html, /Shēngtú — HSK 1 Mandarin Sprint/i);
   assert.match(html, /Stop studying Mandarin/);
   assert.match(html, /Continue:[\s\S]{0,40}Recall/);
+  assert.match(html, /MISSION[\s\S]{0,30}01[\s\S]{0,30}DAY[\s\S]{0,30}1[\s\S]{0,20}\/ 3/);
+  assert.match(html, /Grammar focus/);
+  assert.match(html, /0[\s\S]{0,20}\/5 complete/);
   assert.match(html, /aria-label="App navigation"/);
   assert.match(html, />Today<\/button>/);
   assert.match(html, />Course<\/button>/);
@@ -55,6 +58,14 @@ test("uses focused app views instead of one scrolling curriculum page", async ()
   assert.match(source, /todayScreen === "lesson"/);
   assert.match(source, /appView === "course"/);
   assert.match(source, /libraryView === "grammar"/);
+  assert.match(source, /type PracticeMode = "flashcards" \| "grammar" \| "listening" \| "builder" \| "speaking"/);
+  assert.match(source, /function completeMissionCheckpoint/);
+  assert.match(source, /missionSteps/);
+  assert.match(source, /300 Words/);
+  assert.match(source, /246 Characters/);
+  assert.match(source, /70 Grammar/);
+  assert.match(source, /aria-label="Search characters"/);
+  assert.match(source, /aria-label="Search grammar"/);
   assert.match(source, /className="mobile-nav"/);
   assert.match(source, /className="lesson-next-bar"/);
   assert.match(source, /function appRouteFromHash/);
@@ -102,6 +113,10 @@ test("resets daily work, calculates real streaks, and prevents repeat rewards", 
   const normalized = normalizeProgress(stale, 300, "2026-08-19");
   assert.deepEqual(normalized.daily, []);
   assert.deepEqual(normalized.listeningDone, []);
+
+  const legacyMissionProgress = normalizeProgress({ ...stale, version: 2, missions: [0, 1], missionSteps: undefined }, 300, "2026-08-19");
+  assert.equal(legacyMissionProgress.version, 3);
+  assert.deepEqual(legacyMissionProgress.missionSteps, ["0:0", "0:1", "0:2", "1:0", "1:1", "1:2"]);
 });
 
 test("scores speech transcripts by the full target instead of two hardcoded phrases", () => {
