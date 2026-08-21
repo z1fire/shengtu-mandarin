@@ -96,6 +96,9 @@ test("uses focused app views instead of one scrolling curriculum page", async ()
   assert.match(source, /Repeating \{studyDayLabel/);
   assert.match(source, /today’s course position is unchanged/);
   assert.match(source, /function advanceVocabularyCard/);
+  assert.match(source, /function reviewTodaysRecallAgain/);
+  assert.match(source, /Review today’s cards again/);
+  assert.match(source, /return dates, XP, and completion stay unchanged/);
   assert.match(source, /AUTOMATIC RECALL CADENCE/);
   assert.match(source, /No rating needed/);
   assert.match(source, /EXAMPLE SENTENCE/);
@@ -103,6 +106,8 @@ test("uses focused app views instead of one scrolling curriculum page", async ()
   assert.match(source, /activeWord\.exampleTranslation/);
   assert.match(source, /Play example sentence/);
   assert.doesNotMatch(source, /gradeCard|>Again <|>Hard <|>Good <|>Easy </);
+  const advanceSource = source.slice(source.indexOf("function advanceVocabularyCard"), source.indexOf("function answerListening"));
+  assert.ok(advanceSource.indexOf("currentRecallReplayPosition !== null") < advanceSource.indexOf("scheduleCadenceReview"));
   assert.match(css, /\.mobile-nav\s*\{[^}]*display:\s*none/s);
   assert.match(css, /@media \(max-width:\s*850px\)[\s\S]*\.mobile-nav\s*\{[^}]*display:\s*grid/s);
   assert.match(css, /\.history-sheet/);

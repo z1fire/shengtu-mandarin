@@ -208,6 +208,7 @@ export default function MandarinApp() {
   const [appView, setAppView] = useState<AppView>("today");
   const [todayScreen, setTodayScreen] = useState<"plan" | "lesson">("plan");
   const [replaySession, setReplaySession] = useState<ReplaySession | null>(null);
+  const [currentRecallReplayPosition, setCurrentRecallReplayPosition] = useState<number | null>(null);
   const [showStudyHistory, setShowStudyHistory] = useState(false);
   const [libraryView, setLibraryView] = useState<LibraryView>("words");
   const [practice, setPractice] = useState<PracticeMode>("flashcards");
@@ -343,9 +344,11 @@ export default function MandarinApp() {
   });
   const visibleGrammar = showAllGrammar || grammarFilter !== "All" || grammarSearch ? filteredGrammar : filteredGrammar.slice(0, 20);
   const visibleWords = (showAllWords || search ? filteredWords : filteredWords.slice(0, 24)).slice(0, 200);
+  const repeatingCurrentRecall = !replaySession && currentRecallReplayPosition !== null;
+  const recallIsExtraPractice = Boolean(replaySession) || repeatingCurrentRecall;
   const sessionDaily = replaySession?.completedSteps ?? progress.daily;
   const sessionVocabularyQueue = replaySession?.vocabularyQueue ?? progress.dailyQueue;
-  const sessionCardPosition = replaySession?.cardPosition ?? progress.cardPosition;
+  const sessionCardPosition = replaySession?.cardPosition ?? currentRecallReplayPosition ?? progress.cardPosition;
   const sessionGrammarQueue = replaySession?.grammarQueue ?? progress.grammarQueue;
   const sessionGrammarPosition = replaySession?.grammarPosition ?? progress.grammarPosition;
   const dayPercent = Math.round((sessionDaily.length / 5) * 100);
@@ -457,6 +460,7 @@ export default function MandarinApp() {
       ...(grammarQueue.length ? [] : ["grammar"]),
     ];
     replayCompletionKey.current = "";
+    setCurrentRecallReplayPosition(null);
     setReplaySession({ day, vocabularyQueue, cardPosition: 0, grammarQueue, grammarPosition: 0, completedSteps });
     setShowStudyHistory(false);
     setCardRevealed(false);
@@ -483,6 +487,7 @@ export default function MandarinApp() {
     }
     setProgress((current) => switchProgressLevel(current, level, getStudyVocabulary(level).length, getLibraryGrammar(level, false).length, today));
     setReplaySession(null);
+    setCurrentRecallReplayPosition(null);
     setShowLevelPicker(false);
     setLibraryCumulative(true);
     setSearch("");
@@ -543,6 +548,15 @@ export default function MandarinApp() {
     goToPractice("flashcards");
   }
 
+  function reviewTodaysRecallAgain() {
+    if (!progress.dailyQueue.length) return;
+    setReplaySession(null);
+    setCurrentRecallReplayPosition(0);
+    setCardRevealed(false);
+    setPractice("flashcards");
+    setToast("Extra recall started · return dates and rewards stay unchanged");
+  }
+
   function advanceVocabularyCard() {
     if (activeWordIndex === undefined) return;
     if (replaySession) {
@@ -556,6 +570,12 @@ export default function MandarinApp() {
       });
       setCardRevealed(false);
       setToast("Replay practice logged · automatic schedule unchanged");
+      return;
+    }
+    if (currentRecallReplayPosition !== null) {
+      setCurrentRecallReplayPosition((position) => position === null ? null : position + 1);
+      setCardRevealed(false);
+      setToast("Extra recall logged · automatic schedule unchanged");
       return;
     }
     setProgress((current) => {
@@ -786,6 +806,11 @@ export default function MandarinApp() {
       goToPractice("grammar", true);
       return;
     }
+    if (currentRecallReplayPosition !== null) {
+      setCurrentRecallReplayPosition(null);
+      goToPractice("grammar");
+      return;
+    }
     setProgress((current) => completeDailyStep(current, "review", 0, today));
     goToPractice("grammar");
   }
@@ -914,6 +939,7 @@ export default function MandarinApp() {
   }
 
   function studyWord(index: number) {
+    setCurrentRecallReplayPosition(null);
     setProgress((current) => {
       const remaining = current.dailyQueue.slice(current.cardPosition).includes(index);
       if (remaining) return current;
@@ -1021,7 +1047,7 @@ export default function MandarinApp() {
         <div className="practice-stage">
           {practice === "flashcards" && (
             <div className="flashcard-lab">
-              <div className="lab-instructions"><span className="micro-label">AUTOMATIC RECALL CADENCE · {Math.min(sessionCardPosition + 1, sessionVocabularyQueue.length)} / {sessionVocabularyQueue.length}</span><h3>Say it before you flip it.</h3><p>{replaySession ? `This is extra practice from ${studyDayLabel(replaySession.day.date)}. It does not move the card’s automatic return date.` : `Today mixes ${progress.dailyNew} new words with every card due on its fixed cadence. Reveal each answer and continue—the app handles the timing.`}</p><div className="cadence-preview"><span>THIS CARD’S NEXT STEP</span><strong>{replaySession ? "Schedule unchanged" : `${nextCadenceDays} day${nextCadenceDays === 1 ? "" : "s"}`}</strong><small>{replaySession ? "Replay practice only" : nextCadenceDays === 1 ? "Tomorrow" : `After ${nextCadenceDays} calendar days`}</small></div><div className="lab-progress"><span style={{ width: `${queuePercent}%` }} /></div></div>
+              <div className="lab-instructions"><span className="micro-label">{recallIsExtraPractice ? "EXTRA RECALL PRACTICE" : "AUTOMATIC RECALL CADENCE"} · {Math.min(sessionCardPosition + 1, sessionVocabularyQueue.length)} / {sessionVocabularyQueue.length}</span><h3>Say it before you flip it.</h3><p>{replaySession ? `This is extra practice from ${studyDayLabel(replaySession.day.date)}. It does not move the card’s automatic return date.` : repeatingCurrentRecall ? "You are repeating today’s completed recall queue. Practice as often as you like—return dates, XP, and completion stay unchanged." : `Today mixes ${progress.dailyNew} new words with every card due on its fixed cadence. Reveal each answer and continue—the app handles the timing.`}</p><div className="cadence-preview"><span>THIS CARD’S NEXT STEP</span><strong>{recallIsExtraPractice ? "Schedule unchanged" : `${nextCadenceDays} day${nextCadenceDays === 1 ? "" : "s"}`}</strong><small>{recallIsExtraPractice ? "Extra practice only" : nextCadenceDays === 1 ? "Tomorrow" : `After ${nextCadenceDays} calendar days`}</small></div><div className="lab-progress"><span style={{ width: `${queuePercent}%` }} /></div></div>
               {activeWord ? <>
                 <div className={`study-card ${cardRevealed ? "revealed" : ""}`}>
                   <button className="card-face-button" onClick={() => setCardRevealed((value) => !value)} aria-label="Flip vocabulary card">
@@ -1046,8 +1072,8 @@ export default function MandarinApp() {
                     {activeWord.example && <button className="audio-link" onClick={() => speak(activeWord.example)} aria-label={`Play example sentence ${activeWord.example}`}>▶ Example</button>}
                   </div>}
                 </div>
-                <div className="cadence-action"><span><b>{replaySession ? "EXTRA REP" : `STEP ${nextCadenceDays}`}</b><small>{replaySession ? "The scheduled cadence stays exactly where it is." : `No rating needed · returns in ${nextCadenceDays} day${nextCadenceDays === 1 ? "" : "s"}.`}</small></span><button onClick={advanceVocabularyCard} disabled={!cardRevealed}>{cardRevealed ? "Continue →" : "Reveal the card first"}</button></div>
-              </> : <div className="queue-complete"><span>好</span><h3>{replaySession ? "This day’s recall is complete." : "Today’s recall is complete."}</h3><p>{replaySession ? "You reviewed the same vocabulary again without changing its scheduled cadence." : "Every reviewed card now has its next automatic calendar date. Tomorrow adds new words and every prior card due on step 1, 2, 3, or beyond."}</p><button className="primary-button" onClick={continueAfterRecall}>Continue to grammar <span>→</span></button></div>}
+                <div className="cadence-action"><span><b>{recallIsExtraPractice ? "EXTRA REP" : `STEP ${nextCadenceDays}`}</b><small>{recallIsExtraPractice ? "The scheduled cadence stays exactly where it is." : `No rating needed · returns in ${nextCadenceDays} day${nextCadenceDays === 1 ? "" : "s"}.`}</small></span><button onClick={advanceVocabularyCard} disabled={!cardRevealed}>{cardRevealed ? "Continue →" : "Reveal the card first"}</button></div>
+              </> : <div className="queue-complete"><span>好</span><h3>{replaySession ? "This day’s recall is complete." : repeatingCurrentRecall ? "Extra review complete." : "Today’s recall is complete."}</h3><p>{replaySession ? "You reviewed the same vocabulary again without changing its scheduled cadence." : repeatingCurrentRecall ? "You repeated every card without changing its return date, XP, or today’s completion. You can run the queue again whenever you want." : "Every reviewed card now has its next automatic calendar date. Review this same queue again now, or continue to grammar."}</p><div className="queue-complete-actions">{!replaySession && <button className="repeat-recall-button" onClick={reviewTodaysRecallAgain}>↻ Review today’s cards again</button>}<button className="primary-button" onClick={continueAfterRecall}>Continue to grammar <span>→</span></button></div></div>}
             </div>
           )}
 

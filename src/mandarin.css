@@ -408,7 +408,10 @@ button { color: inherit; }
 .queue-complete > span { width: 70px; height: 70px; margin: 0 auto 18px; border-radius: 50%; display: grid; place-items: center; background: var(--jade); color: white; font: 35px "Noto Sans SC", sans-serif; }
 .queue-complete h3 { margin: 0; font: 31px Georgia, serif; }
 .queue-complete p { color: var(--muted); line-height: 1.55; }
-.queue-complete .primary-button { margin-top: 12px; }
+.queue-complete-actions { margin-top: 18px; display: flex; justify-content: center; align-items: center; gap: 10px; flex-wrap: wrap; }
+.queue-complete .primary-button { margin-top: 0; }
+.repeat-recall-button { min-height: 46px; border: 1px solid var(--jade); background: transparent; color: var(--jade); padding: 11px 16px; font-weight: 900; cursor: pointer; }
+.repeat-recall-button:hover { background: var(--jade); color: white; }
 
 .pronunciation-lab { align-items: start; }
 .pronunciation-lab > div:last-child { min-width: 0; }
@@ -719,6 +722,8 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
   .card-example strong { font-size: 15px; }
   .card-example > span, .card-example em { font-size: 12px; }
   .card-audio-actions { right: 14px; bottom: 14px; }
+  .queue-complete-actions { flex-direction: column; align-items: stretch; }
+  .queue-complete-actions button { width: 100%; }
   .hanzi-prompt.very-long { font-size: 30px; }
   .coverage-pulse { grid-template-columns: 1fr; }
   .coverage-dashboard > div { padding: 21px; }
