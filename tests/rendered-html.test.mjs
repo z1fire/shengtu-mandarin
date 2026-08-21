@@ -98,6 +98,10 @@ test("uses focused app views instead of one scrolling curriculum page", async ()
   assert.match(source, /function advanceVocabularyCard/);
   assert.match(source, /AUTOMATIC RECALL CADENCE/);
   assert.match(source, /No rating needed/);
+  assert.match(source, /EXAMPLE SENTENCE/);
+  assert.match(source, /activeWord\.examplePinyin/);
+  assert.match(source, /activeWord\.exampleTranslation/);
+  assert.match(source, /Play example sentence/);
   assert.doesNotMatch(source, /gradeCard|>Again <|>Hard <|>Good <|>Easy </);
   assert.match(css, /\.mobile-nav\s*\{[^}]*display:\s*none/s);
   assert.match(css, /@media \(max-width:\s*850px\)[\s\S]*\.mobile-nav\s*\{[^}]*display:\s*grid/s);
@@ -114,7 +118,20 @@ test("ships the complete Level 1 curriculum and practice pools", () => {
   assert.equal(mockExamQuestions.length, 40);
   assert.equal(mockExamQuestions.filter((question) => question.section === "Listening").length, 20);
   assert.equal(mockExamQuestions.filter((question) => question.section === "Reading").length, 20);
-  assert.ok(vocabulary.every((word) => word.example && word.collocation));
+  assert.ok(vocabulary.every((word) => word.example && word.examplePinyin && word.exampleTranslation && word.collocation));
+  assert.ok(vocabulary.every((word) => !/\p{Script=Han}/u.test(word.examplePinyin)));
+  assert.deepEqual(
+    vocabulary.find((word) => word.hanzi === "爱"),
+    {
+      hanzi: "爱",
+      pinyin: "ài",
+      meaning: "to love; love",
+      example: "我爱我的家人。",
+      examplePinyin: "Wǒ ài wǒ de jiārén.",
+      exampleTranslation: "I love my family.",
+      collocation: "爱家人",
+    },
+  );
 });
 
 test("ships every official HSK level with cumulative searchable inventories", () => {

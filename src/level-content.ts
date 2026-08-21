@@ -80,6 +80,8 @@ for (const level of levelOrder.slice(1) as Exclude<HskLevel, "1">[]) {
     pinyin: word.p,
     meaning: word.m,
     example: "",
+    examplePinyin: "",
+    exampleTranslation: "",
     collocation: word.pos ? `Official part of speech: ${word.pos}` : `Official syllabus entry ${word.s}`,
     note: `Official syllabus entry ${word.s}`,
     level,

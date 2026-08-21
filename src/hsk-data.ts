@@ -3,6 +3,8 @@ export type VocabularyWord = {
   pinyin: string;
   meaning: string;
   example: string;
+  examplePinyin: string;
+  exampleTranslation: string;
   collocation: string;
   note?: string;
 };
@@ -364,17 +366,72 @@ const wordDetails: Record<string, Pick<VocabularyWord, "example" | "collocation"
   坐: { example: "我坐出租车去医院。", collocation: "请坐 / 坐火车" },
 };
 
+const guidedExamples: Record<string, Pick<VocabularyWord, "examplePinyin" | "exampleTranslation">> = {
+  爱: { examplePinyin: "Wǒ ài wǒ de jiārén.", exampleTranslation: "I love my family." },
+  吧: { examplePinyin: "Wǒmen qù chīfàn ba.", exampleTranslation: "Let’s go eat." },
+  本: { examplePinyin: "Wǒ yǒu sān běn shū.", exampleTranslation: "I have three books." },
+  杯子: { examplePinyin: "Zhè shì wǒ de bēizi.", exampleTranslation: "This is my cup." },
+  不: { examplePinyin: "Wǒ bù hē chá.", exampleTranslation: "I don’t drink tea." },
+  菜: { examplePinyin: "Zhège cài hěn hǎochī.", exampleTranslation: "This dish is delicious." },
+  茶: { examplePinyin: "Wǒ xiǎng hē yì bēi chá.", exampleTranslation: "I’d like a cup of tea." },
+  车: { examplePinyin: "Zhè shì wǒ de chē.", exampleTranslation: "This is my car." },
+  吃: { examplePinyin: "Wǒmen zhōngwǔ chī mǐfàn.", exampleTranslation: "We eat rice at noon." },
+  的: { examplePinyin: "Zhè shì wǒ de shū.", exampleTranslation: "This is my book." },
+  点: { examplePinyin: "Xiànzài bā diǎn bàn.", exampleTranslation: "It’s 8:30 now." },
+  对: { examplePinyin: "Nǐ shuō de duì.", exampleTranslation: "What you said is right." },
+  个: { examplePinyin: "Wǒ mǎi le sān ge píngguǒ.", exampleTranslation: "I bought three apples." },
+  给: { examplePinyin: "Wǒ gěi māma dǎ diànhuà.", exampleTranslation: "I’m calling my mom." },
+  和: { examplePinyin: "Wǒ hē chá hé niúnǎi.", exampleTranslation: "I drink tea and milk." },
+  很: { examplePinyin: "Jīntiān tiānqì hěn rè.", exampleTranslation: "The weather is hot today." },
+  会: { examplePinyin: "Wǒ huì shuō Zhōngwén.", exampleTranslation: "I can speak Chinese." },
+  家: { examplePinyin: "Wǒ jiā yǒu sì kǒu rén.", exampleTranslation: "There are four people in my family." },
+  件: { examplePinyin: "Wǒ mǎi le yí jiàn yīfu.", exampleTranslation: "I bought one item of clothing." },
+  了: { examplePinyin: "Wǒ chīfàn le.", exampleTranslation: "I’ve eaten." },
+  两: { examplePinyin: "Wǒ yào liǎng ge bāozi.", exampleTranslation: "I want two steamed buns." },
+  吗: { examplePinyin: "Nǐ shì xuésheng ma?", exampleTranslation: "Are you a student?" },
+  没有: { examplePinyin: "Wǒ méiyǒu qián.", exampleTranslation: "I don’t have any money." },
+  哪: { examplePinyin: "Nǐ xǐhuan nǎ běn shū?", exampleTranslation: "Which book do you like?" },
+  呢: { examplePinyin: "Wǒ hěn hǎo, nǐ ne?", exampleTranslation: "I’m doing well. How about you?" },
+  能: { examplePinyin: "Nǐ néng lái ma?", exampleTranslation: "Can you come?" },
+  请: { examplePinyin: "Qǐng zuò.", exampleTranslation: "Please sit." },
+  去: { examplePinyin: "Wǒ qù xuéxiào shàngkè.", exampleTranslation: "I go to school for class." },
+  谁: { examplePinyin: "Tā shì shéi?", exampleTranslation: "Who is he?" },
+  什么: { examplePinyin: "Nǐ xiǎng chī shénme?", exampleTranslation: "What do you want to eat?" },
+  是: { examplePinyin: "Wǒ shì xuésheng.", exampleTranslation: "I am a student." },
+  太: { examplePinyin: "Zhège tài guì le.", exampleTranslation: "This is too expensive." },
+  在: { examplePinyin: "Wǒ zài xuéxiào xuéxí.", exampleTranslation: "I study at school." },
+  想: { examplePinyin: "Wǒ xiǎng hē shuǐ.", exampleTranslation: "I’d like to drink water." },
+  些: { examplePinyin: "Wǒ mǎi le yìxiē shuǐguǒ.", exampleTranslation: "I bought some fruit." },
+  要: { examplePinyin: "Wǒ yào yì bēi chá.", exampleTranslation: "I want a cup of tea." },
+  也: { examplePinyin: "Wǒ yě shì xuésheng.", exampleTranslation: "I am also a student." },
+  一: { examplePinyin: "Wǒ yǒu yí ge péngyou.", exampleTranslation: "I have a friend." },
+  有: { examplePinyin: "Xuéxiào lǐ yǒu yì jiā shūdiàn.", exampleTranslation: "There is a bookstore at the school." },
+  再: { examplePinyin: "Qǐng zài shuō yíxià.", exampleTranslation: "Please say it again." },
+  正在: { examplePinyin: "Tā zhèngzài dǎ diànhuà ne.", exampleTranslation: "She is making a phone call." },
+  只: { examplePinyin: "Wǒ yǒu yì zhī māo.", exampleTranslation: "I have a cat." },
+  坐: { examplePinyin: "Wǒ zuò chūzūchē qù yīyuàn.", exampleTranslation: "I take a taxi to the hospital." },
+};
+
 const actionWords = new Set("唱 穿 打电话 到 读 读书 飞 工作 回 见 叫 开 开车 看 看病 看见 来 买 卖 起床 请 去 上班 上课 上学 生病 睡 睡觉 说 说话 听 听见 玩 问 写 休息 学 学习 找 住 做 做饭".split(" "));
 const adjectiveWords = new Set("大 多 高兴 贵 好 好吃 好看 好听 好玩儿 冷 忙 漂亮 热 少 晚 小 新 早".split(" "));
 const numberWords = new Set("零 一 二 两 三 四 五 六 七 八 九 十 百 千 半".split(" "));
 
+function primaryMeaning(meaning: string) {
+  return meaning.split(";")[0].trim();
+}
+
+function actionMeaning(meaning: string) {
+  const phrase = primaryMeaning(meaning).replace(/^to\s+/, "");
+  return phrase.startsWith("be ") ? `am ${phrase.slice(3)}` : phrase;
+}
+
 export const vocabulary: VocabularyWord[] = vocabularyBase.map((word) => {
   const detail = wordDetails[word.hanzi];
-  if (detail) return { ...word, ...detail };
-  if (actionWords.has(word.hanzi)) return { ...word, example: `我${word.hanzi}。`, collocation: `想${word.hanzi}` };
-  if (adjectiveWords.has(word.hanzi)) return { ...word, example: `这个很${word.hanzi}。`, collocation: `很${word.hanzi}` };
-  if (numberWords.has(word.hanzi)) return { ...word, example: `我有${word.hanzi}个。`, collocation: `${word.hanzi}个` };
-  return { ...word, example: `这是${word.hanzi}。`, collocation: `认识“${word.hanzi}”` };
+  if (detail) return { ...word, ...detail, ...guidedExamples[word.hanzi] };
+  if (actionWords.has(word.hanzi)) return { ...word, example: `我${word.hanzi}。`, examplePinyin: `Wǒ ${word.pinyin}.`, exampleTranslation: `I ${actionMeaning(word.meaning)}.`, collocation: `想${word.hanzi}` };
+  if (adjectiveWords.has(word.hanzi)) return { ...word, example: `这个很${word.hanzi}。`, examplePinyin: `Zhège hěn ${word.pinyin}.`, exampleTranslation: `This is ${primaryMeaning(word.meaning)}.`, collocation: `很${word.hanzi}` };
+  if (numberWords.has(word.hanzi)) return { ...word, example: `我有${word.hanzi}个。`, examplePinyin: `Wǒ yǒu ${word.pinyin} ge.`, exampleTranslation: `I have ${primaryMeaning(word.meaning)}.`, collocation: `${word.hanzi}个` };
+  return { ...word, example: `这是${word.hanzi}。`, examplePinyin: `Zhè shì ${word.pinyin}.`, exampleTranslation: `This is ${primaryMeaning(word.meaning)}.`, collocation: `认识“${word.hanzi}”` };
 });
 
 const charactersRaw = `

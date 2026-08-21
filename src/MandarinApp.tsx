@@ -1022,7 +1022,32 @@ export default function MandarinApp() {
           {practice === "flashcards" && (
             <div className="flashcard-lab">
               <div className="lab-instructions"><span className="micro-label">AUTOMATIC RECALL CADENCE · {Math.min(sessionCardPosition + 1, sessionVocabularyQueue.length)} / {sessionVocabularyQueue.length}</span><h3>Say it before you flip it.</h3><p>{replaySession ? `This is extra practice from ${studyDayLabel(replaySession.day.date)}. It does not move the card’s automatic return date.` : `Today mixes ${progress.dailyNew} new words with every card due on its fixed cadence. Reveal each answer and continue—the app handles the timing.`}</p><div className="cadence-preview"><span>THIS CARD’S NEXT STEP</span><strong>{replaySession ? "Schedule unchanged" : `${nextCadenceDays} day${nextCadenceDays === 1 ? "" : "s"}`}</strong><small>{replaySession ? "Replay practice only" : nextCadenceDays === 1 ? "Tomorrow" : `After ${nextCadenceDays} calendar days`}</small></div><div className="lab-progress"><span style={{ width: `${queuePercent}%` }} /></div></div>
-              {activeWord ? <><div className={`study-card ${cardRevealed ? "revealed" : ""}`}><button className="card-face-button" onClick={() => setCardRevealed((value) => !value)} aria-label="Flip vocabulary card">{!cardRevealed ? <><span className="card-caption">SAY IN MANDARIN</span><strong className={`english-prompt ${promptLengthClass(activeWord.meaning)}`}>{activeWord.meaning}</strong><span className="flip-hint">Tap to reveal ↗</span></> : <><span className="card-caption">LISTEN & SHADOW</span><strong className={`hanzi-prompt ${activeWord.hanzi.length > 6 ? "very-long" : activeWord.hanzi.length > 3 ? "long" : ""}`}>{activeWord.hanzi}</strong>{progress.showPinyin && <span className={`pinyin-prompt ${promptLengthClass(activeWord.pinyin)}`}>{activeWord.pinyin}</span>}{activeWord.example && <span className="card-example">{activeWord.example}</span>}</>}</button>{cardRevealed && <button className="audio-link" onClick={() => speak(activeWord.hanzi)}>▶ Play Mandarin</button>}</div><div className="cadence-action"><span><b>{replaySession ? "EXTRA REP" : `STEP ${nextCadenceDays}`}</b><small>{replaySession ? "The scheduled cadence stays exactly where it is." : `No rating needed · returns in ${nextCadenceDays} day${nextCadenceDays === 1 ? "" : "s"}.`}</small></span><button onClick={advanceVocabularyCard} disabled={!cardRevealed}>{cardRevealed ? "Continue →" : "Reveal the card first"}</button></div></> : <div className="queue-complete"><span>好</span><h3>{replaySession ? "This day’s recall is complete." : "Today’s recall is complete."}</h3><p>{replaySession ? "You reviewed the same vocabulary again without changing its scheduled cadence." : "Every reviewed card now has its next automatic calendar date. Tomorrow adds new words and every prior card due on step 1, 2, 3, or beyond."}</p><button className="primary-button" onClick={continueAfterRecall}>Continue to grammar <span>→</span></button></div>}
+              {activeWord ? <>
+                <div className={`study-card ${cardRevealed ? "revealed" : ""}`}>
+                  <button className="card-face-button" onClick={() => setCardRevealed((value) => !value)} aria-label="Flip vocabulary card">
+                    {!cardRevealed ? <>
+                      <span className="card-caption">SAY IN MANDARIN</span>
+                      <strong className={`english-prompt ${promptLengthClass(activeWord.meaning)}`}>{activeWord.meaning}</strong>
+                      <span className="flip-hint">Tap to reveal ↗</span>
+                    </> : <>
+                      <span className="card-caption">LISTEN & SHADOW</span>
+                      <strong className={`hanzi-prompt ${activeWord.hanzi.length > 6 ? "very-long" : activeWord.hanzi.length > 3 ? "long" : ""}`}>{activeWord.hanzi}</strong>
+                      {progress.showPinyin && <span className={`pinyin-prompt ${promptLengthClass(activeWord.pinyin)}`}>{activeWord.pinyin}</span>}
+                      {activeWord.example && <span className="card-example">
+                        <small>EXAMPLE SENTENCE</small>
+                        <strong lang="zh-CN">{activeWord.example}</strong>
+                        {progress.showPinyin && <span>{activeWord.examplePinyin}</span>}
+                        <em>{activeWord.exampleTranslation}</em>
+                      </span>}
+                    </>}
+                  </button>
+                  {cardRevealed && <div className="card-audio-actions">
+                    <button className="audio-link" onClick={() => speak(activeWord.hanzi)} aria-label={`Play pronunciation for ${activeWord.hanzi}`}>▶ Word</button>
+                    {activeWord.example && <button className="audio-link" onClick={() => speak(activeWord.example)} aria-label={`Play example sentence ${activeWord.example}`}>▶ Example</button>}
+                  </div>}
+                </div>
+                <div className="cadence-action"><span><b>{replaySession ? "EXTRA REP" : `STEP ${nextCadenceDays}`}</b><small>{replaySession ? "The scheduled cadence stays exactly where it is." : `No rating needed · returns in ${nextCadenceDays} day${nextCadenceDays === 1 ? "" : "s"}.`}</small></span><button onClick={advanceVocabularyCard} disabled={!cardRevealed}>{cardRevealed ? "Continue →" : "Reveal the card first"}</button></div>
+              </> : <div className="queue-complete"><span>好</span><h3>{replaySession ? "This day’s recall is complete." : "Today’s recall is complete."}</h3><p>{replaySession ? "You reviewed the same vocabulary again without changing its scheduled cadence." : "Every reviewed card now has its next automatic calendar date. Tomorrow adds new words and every prior card due on step 1, 2, 3, or beyond."}</p><button className="primary-button" onClick={continueAfterRecall}>Continue to grammar <span>→</span></button></div>}
             </div>
           )}
 
