@@ -82,6 +82,8 @@ button { color: inherit; }
 .primary-button:hover { transform: translate(-2px, -2px); box-shadow: 7px 7px 0 var(--coral); }
 .history-button { display: inline-flex; align-items: center; gap: 8px; padding: 12px 14px; border: 1px solid var(--ink); background: var(--white); cursor: pointer; font-size: 12px; font-weight: 850; box-shadow: 3px 3px 0 var(--yellow); }
 .history-button span { color: var(--coral); font-size: 18px; }
+.install-app-button { display: inline-flex; align-items: center; gap: 8px; padding: 12px 14px; border: 1px solid var(--ink); background: var(--yellow); cursor: pointer; font-size: 12px; font-weight: 850; box-shadow: 3px 3px 0 var(--coral); }
+.install-app-button span { width: 19px; height: 19px; display: grid; place-items: center; border-radius: 50%; background: var(--ink); color: white; font-size: 13px; }
 .text-button { border: 0; background: transparent; font-weight: 800; font-size: 13px; cursor: pointer; padding: 10px 0; }
 .play-dot { display: inline-grid; place-items: center; width: 27px; height: 27px; border: 1px solid var(--ink); border-radius: 50%; margin-right: 8px; font-size: 9px; }
 .hero-proof { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-top: 60px; padding-top: 24px; border-top: 1px solid var(--line); }
@@ -705,6 +707,19 @@ button { color: inherit; }
 .history-empty h3 { margin: 0; font: 27px Georgia, serif; }
 .history-empty p { max-width: 470px; margin: 11px auto 20px; color: var(--muted); font-size: 11px; line-height: 1.6; }
 
+.install-backdrop { position: fixed; inset: 0; z-index: 350; display: grid; place-items: center; padding: 24px; background: rgba(12,18,16,.84); }
+.install-sheet { width: min(520px, 100%); position: relative; padding: 34px 37px 36px; border: 1px solid var(--ink); background: var(--paper); box-shadow: 14px 14px 0 rgba(0,0,0,.28); }
+.install-sheet-icon { width: 72px; height: 72px; display: grid; place-items: center; margin-bottom: 19px; border: 11px solid var(--ink); border-radius: 20px; background: var(--coral); color: white; box-shadow: 4px 4px 0 var(--yellow); font: 700 31px "Microsoft YaHei", "Noto Sans SC", sans-serif; }
+.install-sheet .section-kicker { color: var(--coral); }
+.install-sheet h2 { max-width: 420px; margin: 8px 0 13px; font: 36px/1.04 Georgia, serif; letter-spacing: -.025em; }
+.install-sheet > p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.install-sheet ol { margin: 23px 0 18px; padding: 0; list-style: none; counter-reset: install-step; }
+.install-sheet li { counter-increment: install-step; display: grid; grid-template-columns: 28px 1fr; gap: 11px; align-items: start; margin: 11px 0; font-size: 12px; line-height: 1.45; }
+.install-sheet li::before { content: counter(install-step); width: 27px; height: 27px; display: grid; place-items: center; border-radius: 50%; background: var(--yellow); font-size: 10px; font-weight: 950; }
+.install-sheet > small { display: block; margin-top: 17px; padding-top: 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 9px; line-height: 1.5; }
+.install-close { position: absolute; top: 18px; right: 18px; width: 34px; height: 34px; border: 1px solid var(--ink); border-radius: 50%; background: transparent; cursor: pointer; font-size: 22px; line-height: 1; }
+.install-now { margin-top: 24px; }
+
 .app-about { margin-top: 70px; padding: 30px; display: grid; grid-template-columns: 1fr 1fr; gap: 30px; background: var(--ink); color: white; }
 .app-about > div { display: flex; align-items: flex-start; gap: 13px; }
 .app-about > div:nth-child(2) { flex-direction: column; gap: 8px; }
@@ -928,6 +943,9 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
   .history-date span { font-size: 14px; }
   .repeat-day-button { grid-column: 1 / 3; width: 100%; }
   .history-note { flex-direction: column; gap: 3px; padding: 12px 18px calc(12px + env(safe-area-inset-bottom)); }
+  .install-backdrop { place-items: end center; padding: 0; }
+  .install-sheet { width: 100%; max-height: calc(100dvh - 24px); overflow-y: auto; padding: 28px 21px calc(24px + env(safe-area-inset-bottom)); border-bottom: 0; border-radius: 18px 18px 0 0; box-shadow: 0 -12px 40px rgba(0,0,0,.3); }
+  .install-sheet h2 { font-size: 30px; }
   .character-bank.standalone { margin-top: 0; }
 }
 

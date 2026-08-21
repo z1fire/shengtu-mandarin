@@ -1,13 +1,60 @@
 {
-  "name": "Shēngtú Mandarin — HSK 1",
+  "id": "./",
+  "name": "Shēngtú Mandarin",
   "short_name": "Shēngtú",
-  "description": "A guided, speaking-first HSK 3.0 Level 1 Mandarin course.",
-  "start_url": "./",
+  "description": "A guided, speaking-first HSK 3.0 Mandarin course with automatic recall, grammar practice, listening, reading, and real-life missions.",
+  "lang": "en",
+  "dir": "ltr",
+  "start_url": "./#today",
   "scope": "./",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "portrait-primary",
   "background_color": "#f3f0e8",
   "theme_color": "#18201d",
+  "categories": ["education", "language"],
+  "prefer_related_applications": false,
   "icons": [
-    { "src": "./favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+    {
+      "src": "./icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Today’s lesson",
+      "short_name": "Today",
+      "description": "Continue today’s guided Mandarin lesson.",
+      "url": "./#today",
+      "icons": [{ "src": "./icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Search the library",
+      "short_name": "Library",
+      "description": "Search vocabulary, characters, and grammar.",
+      "url": "./#library/words",
+      "icons": [{ "src": "./icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Learning progress",
+      "short_name": "Progress",
+      "description": "Review coverage, accuracy, and backups.",
+      "url": "./#progress",
+      "icons": [{ "src": "./icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
   ]
 }

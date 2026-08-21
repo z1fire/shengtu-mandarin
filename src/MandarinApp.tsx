@@ -64,6 +64,10 @@ type PracticeMode = "flashcards" | "grammar" | "listening" | "builder" | "readin
 type AppView = "today" | "course" | "library" | "exam" | "progress";
 type LibraryView = "words" | "characters" | "grammar";
 type GrammarStage = "learn" | "recall";
+type BeforeInstallPromptEvent = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform: string }>;
+};
 type ReplaySession = {
   day: StudyDay;
   vocabularyQueue: number[];
@@ -385,6 +389,9 @@ export default function MandarinApp() {
   const [examRemaining, setExamRemaining] = useState(40 * 60);
   const [examResult, setExamResult] = useState<{ correct: number; score: number } | null>(null);
   const [toast, setToast] = useState("");
+  const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [isInstalled, setIsInstalled] = useState(false);
+  const [showInstallHelp, setShowInstallHelp] = useState(false);
   const [syncStatus, setSyncStatus] = useState<"checking" | "saving" | "synced" | "local" | "error">("checking");
   const [syncReady, setSyncReady] = useState(false);
   const [syncEnabled, setSyncEnabled] = useState(false);
@@ -445,6 +452,32 @@ export default function MandarinApp() {
     }, 0);
     if ("serviceWorker" in navigator) navigator.serviceWorker.register(new URL("./sw.js", window.location.href).pathname).catch(() => undefined);
     return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    const standaloneNavigator = navigator as Navigator & { standalone?: boolean };
+    const displayModeTimer = window.setTimeout(() => {
+      setIsInstalled(window.matchMedia("(display-mode: standalone)").matches || standaloneNavigator.standalone === true);
+    }, 0);
+
+    const captureInstallPrompt = (event: Event) => {
+      event.preventDefault();
+      setInstallPrompt(event as BeforeInstallPromptEvent);
+    };
+    const confirmInstall = () => {
+      setIsInstalled(true);
+      setInstallPrompt(null);
+      setShowInstallHelp(false);
+      setToast("Shēngtú is installed and ready from your home screen");
+    };
+
+    window.addEventListener("beforeinstallprompt", captureInstallPrompt);
+    window.addEventListener("appinstalled", confirmInstall);
+    return () => {
+      window.clearTimeout(displayModeTimer);
+      window.removeEventListener("beforeinstallprompt", captureInstallPrompt);
+      window.removeEventListener("appinstalled", confirmInstall);
+    };
   }, []);
 
   useEffect(() => {
@@ -1421,6 +1454,22 @@ export default function MandarinApp() {
     setToast("Progress reset");
   }
 
+  async function installApp() {
+    if (isInstalled) {
+      setToast("Shēngtú is already installed");
+      return;
+    }
+    if (!installPrompt) {
+      setShowInstallHelp(true);
+      return;
+    }
+    await installPrompt.prompt();
+    const choice = await installPrompt.userChoice;
+    setInstallPrompt(null);
+    if (choice.outcome === "accepted") setToast("Finishing the Android installation…");
+    else setShowInstallHelp(true);
+  }
+
   return (
     <main className="site-shell">
       <header className="topbar">
@@ -1442,7 +1491,7 @@ export default function MandarinApp() {
           <div className="eyebrow"><span>HSK 3.0</span> {meta.label.toUpperCase()} · CURRENT 2026 SYLLABUS</div>
           <h1>Stop studying Mandarin.<br /><em>Start using it.</em></h1>
           <p className="hero-lede">A guided, speaking-first {meta.label} course that schedules the right words each day—never the whole level at once.</p>
-          <div className="hero-actions"><button className="primary-button" onClick={() => goToPractice(nextRecommended)}>Continue: {practiceLabels[nextRecommended]} <span>→</span></button><button className="history-button" onClick={() => setShowStudyHistory(true)}><span>↶</span> Study history</button><button className="text-button" onClick={() => navigate("course")}><span className="play-dot">▶</span> See the mission path</button></div>
+          <div className="hero-actions"><button className="primary-button" onClick={() => goToPractice(nextRecommended)}>Continue: {practiceLabels[nextRecommended]} <span>→</span></button><button className="history-button" onClick={() => setShowStudyHistory(true)}><span>↶</span> Study history</button>{!isInstalled && <button className="install-app-button" onClick={() => void installApp()}><span>↓</span> Install app</button>}<button className="text-button" onClick={() => navigate("course")}><span className="play-dot">▶</span> See the mission path</button></div>
           <div className="hero-proof"><div><strong>{meta.newWords.toLocaleString()}</strong><span>new words</span></div><div><strong>{meta.newCharacters.toLocaleString()}</strong><span>new characters</span></div><div><strong>{meta.grammarTargets}</strong><span>grammar targets</span></div><div><strong>{meta.cumulativeWords.toLocaleString()}</strong><span>cumulative words</span></div></div>
         </div>
 
@@ -1635,6 +1684,20 @@ export default function MandarinApp() {
             </div>
             {studyDays.length ? <div className="history-day-list">{studyDays.map((day) => { const mission = missions[Math.min(missions.length - 1, day.missionIndex)]; const originallyComplete = day.completedSteps.includes("speak"); return <article key={day.date}><div className="history-date"><span>{studyDayLabel(day.date)}</span><small>{day.date}</small></div><div className="history-day-copy"><strong>{mission.title} · day {day.missionPhase + 1}/3</strong><span>{day.vocabularyQueue.length} words · {day.grammarQueue.length} grammar target{day.grammarQueue.length === 1 ? "" : "s"}</span><small>{originallyComplete ? "✓ Completed that day" : `${day.completedSteps.length}/6 steps completed`}{day.replayCount ? ` · repeated ${day.replayCount}×` : ""}</small></div><button className="repeat-day-button" onClick={() => startStudyDayReplay(day)}>Repeat day <span>→</span></button></article>; })}</div> : <div className="history-empty"><span>日</span><h3>Your history starts here.</h3><p>Shēngtú is now saving each daily lesson. After your next study day begins, today will appear here with a one-tap replay button.</p><button onClick={() => setShowStudyHistory(false)}>Keep studying today</button></div>}
             <div className="history-note"><strong>What changes during a replay?</strong><span>Vocabulary return dates stay on their automatic cadence; grammar reviews can adapt. Today’s completion, mission position, streak, time, and XP do not advance twice.</span></div>
+          </div>
+        </div>
+      )}
+
+      {ready && showInstallHelp && (
+        <div className="install-backdrop" role="dialog" aria-modal="true" aria-labelledby="install-app-title">
+          <div className="install-sheet">
+            <button className="install-close" onClick={() => setShowInstallHelp(false)} aria-label="Close installation instructions">×</button>
+            <span className="install-sheet-icon" aria-hidden="true">声</span>
+            <span className="section-kicker">ANDROID APP</span>
+            <h2 id="install-app-title">Put Shēngtú on your home screen.</h2>
+            <p>Install it once for a full-screen app window, launcher icon, and offline access to lessons you have already loaded.</p>
+            {installPrompt ? <button className="primary-button install-now" onClick={() => void installApp()}>Install now <span>→</span></button> : <ol><li>Open this site in <strong>Google Chrome</strong> on your Android phone.</li><li>Tap Chrome’s <strong>⋮ menu</strong> in the top-right corner.</li><li>Choose <strong>Install app</strong> or <strong>Add to Home screen</strong>.</li><li>Confirm <strong>Install</strong>. Shēngtú will appear with your other apps.</li></ol>}
+            <small>The menu wording can differ by Android device. If the option is missing, refresh once while online and reopen this panel.</small>
           </div>
         </div>
       )}
