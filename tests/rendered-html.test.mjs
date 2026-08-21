@@ -24,6 +24,7 @@ import {
 import {
   getCumulativeCharacters,
   getCumulativeVocabulary,
+  getCourseMissions,
   getLibraryGrammar,
   getStudyCharacters,
   getStudyVocabulary,
@@ -116,6 +117,17 @@ test("ships every official HSK level with cumulative searchable inventories", ()
   assert.equal(getCumulativeVocabulary("7-9").length, 11000);
   assert.equal(getCumulativeCharacters("7-9").length, 3088);
   assert.equal(getStudyVocabulary("3").find((word) => word.hanzi === "除了")?.meaning, "apart from; besides; in addition to");
+});
+
+test("provides complete pinyin with no Chinese-character leakage for every mission", () => {
+  for (const level of levelOrder) {
+    const missions = getCourseMissions(level);
+    assert.equal(missions.length, 12);
+    for (const mission of missions) {
+      assert.ok(mission.pinyin.trim(), `${level} ${mission.title} is missing pinyin`);
+      assert.doesNotMatch(mission.pinyin, /\p{Script=Han}/u, `${level} ${mission.title} leaks Hanzi into pinyin`);
+    }
+  }
 });
 
 test("builds a bounded daily queue and schedules reviews by recall quality", () => {

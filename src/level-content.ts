@@ -235,11 +235,30 @@ for (const level of levelOrder) {
   }
 }
 
+const missionPinyinOverrides = new Map<string, string>([
+  ["北京", "Běijīng"],
+  ["英语", "Yīngyǔ"],
+  ["而言", "ér yán"],
+  ["暂缓", "zànhuǎn"],
+  ["失真", "shīzhēn"],
+  ["凡", "fán"],
+  ["十周年", "shí zhōunián"],
+  ["之际", "zhī jì"],
+  ["致以", "zhìyǐ"],
+  ["谢意", "xièyì"],
+  ["综上所述", "zōngshàng suǒshù"],
+  ["语境", "yǔjìng"],
+]);
+
 function pinyinForTokens(tokens: string[]) {
   return tokens.map((token) => {
-    const exact = allWordPinyin.get(token);
+    const exact = missionPinyinOverrides.get(token) ?? allWordPinyin.get(token);
     if (exact) return exact;
-    return [...token].map((character) => allWordPinyin.get(character) ?? character).join(" ");
+    return [...token].map((character) => {
+      const syllable = missionPinyinOverrides.get(character) ?? allWordPinyin.get(character);
+      if (!syllable) throw new Error(`Missing mission pinyin for ${character} in ${token}`);
+      return syllable;
+    }).join(" ");
   }).join(" ").replace(/\s+/g, " ").trim();
 }
 
