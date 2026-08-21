@@ -1,4 +1,4 @@
-const CACHE = "shengtu-v10";
+const CACHE = "shengtu-v11";
 const SHELL = ["./", "./manifest.webmanifest", "./favicon.svg", "./og.png"];
 
 self.addEventListener("install", (event) => {

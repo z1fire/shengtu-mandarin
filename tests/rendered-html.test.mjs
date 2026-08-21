@@ -9,8 +9,13 @@ import {
   earnOnce,
   makeStarterProgress,
   normalizeProgress,
+  dueCorrections,
+  queueCorrection,
   recordStudyDay,
   recordStudyDayReplay,
+  recordSkillAttempt,
+  recordWordConfidence,
+  resolveCorrection,
   scheduleCadenceReview,
   scheduleReview,
   similarityScore,
@@ -39,6 +44,12 @@ import {
   initialMixerSelections,
   mixerExpectedTokens,
 } from "../src/grammar-mixer.ts";
+import {
+  buildGradedReading,
+  buildMissionConversation,
+  buildMissionDictation,
+  buildRecallChallenge,
+} from "../src/learning-experience.ts";
 
 async function render() {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
@@ -61,7 +72,9 @@ test("server-renders the finished Mandarin course", async () => {
   assert.match(html, /Continue:[\s\S]{0,40}Recall/);
   assert.match(html, /MISSION[\s\S]{0,30}01[\s\S]{0,30}DAY[\s\S]{0,30}1[\s\S]{0,20}\/ 3/);
   assert.match(html, /Grammar coverage/);
-  assert.match(html, /0[\s\S]{0,20}\/5 complete/);
+  assert.match(html, /0[\s\S]{0,20}\/6 complete/);
+  assert.match(html, /Listening ladder/);
+  assert.match(html, /Read in context/);
   assert.match(html, /aria-label="App navigation"/);
   assert.match(html, />Today<\/button>/);
   assert.match(html, />Course<\/button>/);
@@ -78,7 +91,7 @@ test("uses focused app views instead of one scrolling curriculum page", async ()
   assert.match(source, /todayScreen === "lesson"/);
   assert.match(source, /appView === "course"/);
   assert.match(source, /libraryView === "grammar"/);
-  assert.match(source, /type PracticeMode = "flashcards" \| "grammar" \| "listening" \| "builder" \| "speaking"/);
+  assert.match(source, /type PracticeMode = "flashcards" \| "grammar" \| "listening" \| "builder" \| "reading" \| "speaking"/);
   assert.match(source, /function completeMissionCheckpoint/);
   assert.match(source, /missionSteps/);
   assert.match(source, /libraryVocabulary\.length\.toLocaleString\(\).*Words/);
@@ -118,7 +131,13 @@ test("uses focused app views instead of one scrolling curriculum page", async ()
   assert.match(source, /Review today’s cards again/);
   assert.match(source, /return dates, XP, and completion stay unchanged/);
   assert.match(source, /AUTOMATIC RECALL CADENCE/);
-  assert.match(source, /No rating needed/);
+  assert.match(source, /ANSWER WITHOUT SELF-RATING/);
+  assert.match(source, /AUTOMATIC CORRECTION LOOP/);
+  assert.match(source, /LISTENING LADDER/);
+  assert.match(source, /GRADED READING/);
+  assert.match(source, /EXPANDING CONVERSATION/);
+  assert.match(source, /OBJECTIVE ACCURACY/);
+  assert.match(source, /\/api\/progress/);
   assert.match(source, /EXAMPLE SENTENCE/);
   assert.match(source, /activeWord\.examplePinyin/);
   assert.match(source, /activeWord\.exampleTranslation/);
@@ -222,6 +241,57 @@ test("builds the daily queue and advances vocabulary on a fixed calendar cadence
   assert.equal(buildDailyQueue(everyDueCard, 100, 0).length, 38);
 });
 
+test("objectively scores practice and resolves misses over two correct days", () => {
+  let progress = makeStarterProgress("2026-08-20");
+  progress = recordSkillAttempt(progress, "vocabulary", false, "2026-08-20");
+  progress = recordWordConfidence(progress, "1", 4, false);
+  progress = queueCorrection(progress, {
+    id: "vocabulary:1:4",
+    level: "1",
+    skill: "vocabulary",
+    prompt: "to drink",
+    answer: "喝",
+    options: ["吃", "喝", "看"],
+    explanation: "喝 means to drink.",
+    dueDate: "2026-08-20",
+  });
+  assert.equal(progress.skillStats.vocabulary.attempts, 1);
+  assert.equal(progress.skillStats.vocabulary.correct, 0);
+  assert.equal(dueCorrections(progress, "1", "2026-08-20").length, 1);
+
+  progress = resolveCorrection(progress, "vocabulary:1:4", "2026-08-20");
+  assert.equal(dueCorrections(progress, "1", "2026-08-20").length, 0);
+  assert.equal(dueCorrections(progress, "1", "2026-08-21").length, 1);
+  progress = resolveCorrection(progress, "vocabulary:1:4", "2026-08-21");
+  assert.equal(progress.corrections.length, 0);
+
+  progress = recordWordConfidence(progress, "1", 4, true);
+  progress = recordWordConfidence(progress, "1", 4, true);
+  progress = recordWordConfidence(progress, "1", 4, true);
+  assert.equal(progress.pinyinConfidence["1:4"], 3);
+});
+
+test("builds recall, dictation, reading, and expanding conversation exercises for every level", () => {
+  for (const level of levelOrder) {
+    const words = getStudyVocabulary(level);
+    const missions = getCourseMissions(level);
+    for (const repetitions of [0, 1, 2]) {
+      const challenge = buildRecallChallenge(0, words, repetitions);
+      assert.ok(challenge.options.includes(challenge.answer));
+      assert.ok(challenge.options.length >= 3);
+    }
+    const dictation = buildMissionDictation(missions, 0);
+    assert.match(dictation.masked, /＿＿/);
+    assert.ok(dictation.options.includes(dictation.answer));
+    const reading = buildGradedReading(missions, 0, 2);
+    assert.equal(reading.lines.length, 2);
+    assert.ok(reading.options.includes(reading.answer));
+    assert.equal(buildMissionConversation(missions[0], 0).length, 2);
+    assert.equal(buildMissionConversation(missions[0], 1).length, 3);
+    assert.equal(buildMissionConversation(missions[0], 2).length, 4);
+  }
+});
+
 test("guarantees a new grammar target while retaining due reviews", () => {
   const progress = {
     ...makeStarterProgress("2026-08-20"),
@@ -278,7 +348,7 @@ test("resets daily work, calculates real streaks, and prevents repeat rewards", 
   assert.deepEqual(normalized.listeningDone, []);
 
   const legacyMissionProgress = normalizeProgress({ ...stale, version: 2, missions: [0, 1], missionSteps: undefined }, 300, 70, "2026-08-19");
-  assert.equal(legacyMissionProgress.version, 7);
+  assert.equal(legacyMissionProgress.version, 8);
   assert.deepEqual(legacyMissionProgress.missionSteps, ["0:0", "0:1", "0:2", "1:0", "1:1", "1:2"]);
   assert.equal(legacyMissionProgress.missionSessionCount, 6);
   assert.equal(legacyMissionProgress.grammarQueue.at(-1), 0);
@@ -297,7 +367,7 @@ test("archives exact study days and preserves repeat counts across dates", () =>
   const studied = recordStudyDay({
     ...makeStarterProgress("2026-08-18"),
     onboarded: true,
-    daily: ["review", "grammar", "listen", "build", "speak"],
+    daily: ["review", "grammar", "listen", "build", "reading", "speak"],
     dailyQueue: [2, 4, 2, 8],
     dailyQueueDate: "2026-08-18",
     grammarQueue: [1, 3],
@@ -309,7 +379,7 @@ test("archives exact study days and preserves repeat counts across dates", () =>
   assert.deepEqual(day.grammarQueue, [1, 3]);
   assert.equal(day.missionIndex, 0);
   assert.equal(day.missionPhase, 0);
-  assert.deepEqual(day.completedSteps, ["review", "grammar", "listen", "build", "speak"]);
+  assert.deepEqual(day.completedSteps, ["review", "grammar", "listen", "build", "reading", "speak"]);
 
   const replayed = recordStudyDayReplay(studied, "1", "2026-08-18");
   assert.equal(replayed.studyHistory["1"][0].replayCount, 1);
@@ -375,4 +445,15 @@ test("static Pages build has absolute social metadata and offline assets", async
     access(new URL("../docs/manifest.webmanifest", import.meta.url)),
     access(new URL("../docs/favicon.svg", import.meta.url)),
   ]);
+});
+
+test("configures authenticated cross-device progress sync with a device-local fallback", async () => {
+  const hosting = JSON.parse(await readFile(new URL("../.openai/hosting.json", import.meta.url), "utf8"));
+  const route = await readFile(new URL("../app/api/progress/route.ts", import.meta.url), "utf8");
+  const schema = await readFile(new URL("../db/schema.ts", import.meta.url), "utf8");
+  assert.equal(hosting.d1, "DB");
+  assert.match(route, /getChatGPTUser/);
+  assert.match(route, /readLearnerProgress/);
+  assert.match(route, /writeLearnerProgress/);
+  assert.match(schema, /learner_progress/);
 });

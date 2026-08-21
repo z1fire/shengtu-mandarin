@@ -17,6 +17,27 @@ export type ExamAttempt = {
 
 export type HskLevel = "1" | "2" | "3" | "4" | "5" | "6" | "7-9";
 
+export type SkillArea = "vocabulary" | "grammar" | "listening" | "reading" | "sentence" | "speaking";
+
+export type SkillStat = {
+  attempts: number;
+  correct: number;
+  lastPracticed: string;
+};
+
+export type CorrectionItem = {
+  id: string;
+  level: HskLevel;
+  skill: SkillArea;
+  prompt: string;
+  answer: string;
+  options: string[];
+  explanation: string;
+  dueDate: string;
+  correctStreak: number;
+  misses: number;
+};
+
 export type StudyDay = {
   date: string;
   vocabularyQueue: number[];
@@ -51,7 +72,7 @@ export type LevelArchive = {
 };
 
 export type Progress = {
-  version: 7;
+  version: 8;
   selectedLevel: HskLevel;
   levelArchives: Partial<Record<HskLevel, LevelArchive>>;
   studyHistory: Partial<Record<HskLevel, StudyDay[]>>;
@@ -83,6 +104,9 @@ export type Progress = {
   builderDone: string[];
   pronunciationDone: string[];
   examHistory: ExamAttempt[];
+  skillStats: Record<string, SkillStat>;
+  corrections: CorrectionItem[];
+  pinyinConfidence: Record<string, number>;
 };
 
 export const DAY_MS = 86_400_000;
@@ -104,7 +128,7 @@ export function daysBetween(from: string, to: string) {
 
 export function makeStarterProgress(date = localDate()): Progress {
   return {
-    version: 7,
+    version: 8,
     selectedLevel: "1",
     levelArchives: {},
     studyHistory: {},
@@ -136,6 +160,9 @@ export function makeStarterProgress(date = localDate()): Progress {
     builderDone: [],
     pronunciationDone: [],
     examHistory: [],
+    skillStats: {},
+    corrections: [],
+    pinyinConfidence: {},
   };
 }
 
@@ -156,7 +183,7 @@ function cleanStudyDay(value: unknown): StudyDay | null {
     missionIndex: Math.max(0, Math.min(11, Number(day.missionIndex) || 0)),
     missionPhase: Math.max(0, Math.min(2, Number(day.missionPhase) || 0)),
     completedSteps: Array.isArray(day.completedSteps)
-      ? [...new Set(day.completedSteps.filter((step): step is string => ["review", "grammar", "listen", "build", "speak"].includes(String(step))))]
+      ? [...new Set(day.completedSteps.filter((step): step is string => ["review", "grammar", "listen", "build", "reading", "speak"].includes(String(step))))]
       : [],
     replayCount: Math.max(0, Number(day.replayCount) || 0),
   };
@@ -196,8 +223,9 @@ function inferStudyDays(earned: unknown) {
     const review = action.match(/^review:(\d+)$/);
     const grammar = action.match(/^daily-grammar:(\d+)$/);
     const mission = action.match(/^mission-(listen|build):(\d+):(\d+)$/);
+    const reading = action.match(/^reading:(\d+):(\d+)$/);
     const checkpoint = action.match(/^mission-checkpoint:(\d+):(\d+):(\d+)$/);
-    if (!review && !grammar && !mission && !checkpoint) continue;
+    if (!review && !grammar && !mission && !reading && !checkpoint) continue;
     const day = getDay(date);
     if (review) {
       day.vocabularyQueue.push(Number(review[1]));
@@ -210,6 +238,10 @@ function inferStudyDays(earned: unknown) {
       day.missionPhase = Number(mission[3]);
       const step = mission[1] === "listen" ? "listen" : "build";
       if (!day.completedSteps.includes(step)) day.completedSteps.push(step);
+    } else if (reading) {
+      day.missionIndex = Number(reading[1]);
+      day.missionPhase = Number(reading[2]);
+      if (!day.completedSteps.includes("reading")) day.completedSteps.push("reading");
     } else if (checkpoint) {
       day.missionIndex = Number(checkpoint[2]);
       day.missionPhase = Number(checkpoint[3]);
@@ -342,7 +374,7 @@ export function normalizeProgress(raw: unknown, vocabularySize: number, grammarS
   const progress: Progress = {
     ...starter,
     ...legacy,
-    version: 7,
+    version: 8,
     selectedLevel: HSK_LEVELS.includes(legacy.selectedLevel as HskLevel) ? legacy.selectedLevel as HskLevel : "1",
     levelArchives,
     studyHistory,
@@ -360,6 +392,11 @@ export function normalizeProgress(raw: unknown, vocabularySize: number, grammarS
     dailyNew: [5, 8, 10].includes(Number(legacy.dailyNew)) ? Number(legacy.dailyNew) : 8,
     earned: Array.isArray(legacy.earned) ? legacy.earned.slice(-1800) : [],
     examHistory: Array.isArray(legacy.examHistory) ? legacy.examHistory.slice(-20) : [],
+    skillStats: legacy.skillStats && typeof legacy.skillStats === "object" ? legacy.skillStats : {},
+    corrections: Array.isArray(legacy.corrections)
+      ? legacy.corrections.filter((item): item is CorrectionItem => Boolean(item && typeof item === "object" && item.id && item.answer && item.dueDate)).slice(-200)
+      : [],
+    pinyinConfidence: legacy.pinyinConfidence && typeof legacy.pinyinConfidence === "object" ? legacy.pinyinConfidence : {},
   };
   if (legacy.dailyQueueDate !== date || !Array.isArray(legacy.dailyQueue)) {
     progress.dailyQueue = buildDailyQueue(progress, vocabularySize);
@@ -508,6 +545,69 @@ export function completeDailyStep(progress: Progress, id: string, minutes: numbe
   const active = activate(progress, date);
   if (active.daily.includes(id)) return active;
   return { ...active, daily: [...active.daily, id], minutes: active.minutes + minutes };
+}
+
+export function recordSkillAttempt(progress: Progress, skill: SkillArea, correct: boolean, date = localDate()): Progress {
+  const prior = progress.skillStats[skill] ?? { attempts: 0, correct: 0, lastPracticed: "" };
+  return {
+    ...progress,
+    skillStats: {
+      ...progress.skillStats,
+      [skill]: {
+        attempts: prior.attempts + 1,
+        correct: prior.correct + (correct ? 1 : 0),
+        lastPracticed: date,
+      },
+    },
+  };
+}
+
+export function recordWordConfidence(progress: Progress, level: HskLevel, index: number, correct: boolean): Progress {
+  const key = `${level}:${index}`;
+  const prior = progress.pinyinConfidence[key] ?? 0;
+  return {
+    ...progress,
+    pinyinConfidence: {
+      ...progress.pinyinConfidence,
+      [key]: correct ? Math.min(5, prior + 1) : Math.max(0, prior - 1),
+    },
+  };
+}
+
+export function queueCorrection(progress: Progress, item: Omit<CorrectionItem, "correctStreak" | "misses">): Progress {
+  const existing = progress.corrections.find((correction) => correction.id === item.id);
+  const correction: CorrectionItem = {
+    ...item,
+    correctStreak: 0,
+    misses: (existing?.misses ?? 0) + 1,
+  };
+  return {
+    ...progress,
+    corrections: [...progress.corrections.filter((candidate) => candidate.id !== item.id), correction].slice(-200),
+  };
+}
+
+export function resolveCorrection(progress: Progress, id: string, date = localDate()): Progress {
+  const tomorrow = new Date(`${date}T12:00:00`);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const nextDate = localDate(tomorrow);
+  return {
+    ...progress,
+    corrections: progress.corrections.flatMap((item) => {
+      if (item.id !== id) return [item];
+      if (item.correctStreak >= 1) return [];
+      return [{ ...item, correctStreak: 1, dueDate: nextDate }];
+    }),
+  };
+}
+
+export function dueCorrections(progress: Progress, level: HskLevel, date = localDate()) {
+  return progress.corrections.filter((item) => item.level === level && item.dueDate <= date);
+}
+
+export function skillAccuracy(progress: Progress, skill: SkillArea) {
+  const stat = progress.skillStats[skill];
+  return stat?.attempts ? Math.round((stat.correct / stat.attempts) * 100) : 0;
 }
 
 function cadenceDueAt(now: number, intervalDays: number) {
