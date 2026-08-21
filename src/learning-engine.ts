@@ -51,7 +51,7 @@ export type LevelArchive = {
 };
 
 export type Progress = {
-  version: 6;
+  version: 7;
   selectedLevel: HskLevel;
   levelArchives: Partial<Record<HskLevel, LevelArchive>>;
   studyHistory: Partial<Record<HskLevel, StudyDay[]>>;
@@ -104,7 +104,7 @@ export function daysBetween(from: string, to: string) {
 
 export function makeStarterProgress(date = localDate()): Progress {
   return {
-    version: 6,
+    version: 7,
     selectedLevel: "1",
     levelArchives: {},
     studyHistory: {},
@@ -261,7 +261,6 @@ export function buildDailyQueue(progress: Progress, vocabularySize: number, now 
   const due = Object.entries(progress.reviews)
     .filter(([, review]) => review.dueAt <= now)
     .sort((a, b) => a[1].dueAt - b[1].dueAt)
-    .slice(0, 24)
     .map(([index]) => Number(index));
   const dueSet = new Set(due);
   const unseen: number[] = [];
@@ -295,8 +294,30 @@ export function normalizeProgress(raw: unknown, vocabularySize: number, grammarS
   const migratedMissionSteps = Array.isArray(legacy.missionSteps)
     ? legacy.missionSteps
     : Array.from({ length: (legacy.missions?.length ?? 0) * 3 }, (_, index) => `${Math.floor(index / 3)}:${index % 3}`);
+  const migrateVocabularyCadence = (Number(legacy.version) || 0) < 7;
   const reviews = { ...(legacy.reviews ?? {}) };
   const grammarReviews = { ...(legacy.grammarReviews ?? {}) };
+  const levelArchives = {
+    ...(legacy.levelArchives && typeof legacy.levelArchives === "object" ? legacy.levelArchives : {}),
+  } as Partial<Record<HskLevel, LevelArchive>>;
+  if (migrateVocabularyCadence) {
+    for (const [index, review] of Object.entries(reviews)) {
+      const intervalDays = Math.max(1, Number(review.repetitions) || 1);
+      const lastReviewedAt = Number(review.lastReviewedAt) || Date.now();
+      reviews[index] = { ...review, intervalDays, dueAt: cadenceDueAt(lastReviewedAt, intervalDays) };
+    }
+    for (const level of HSK_LEVELS) {
+      const archive = levelArchives[level];
+      if (!archive) continue;
+      const migratedReviews = { ...(archive.reviews ?? {}) };
+      for (const [index, review] of Object.entries(migratedReviews)) {
+        const intervalDays = Math.max(1, Number(review.repetitions) || 1);
+        const lastReviewedAt = Number(review.lastReviewedAt) || Date.now();
+        migratedReviews[index] = { ...review, intervalDays, dueAt: cadenceDueAt(lastReviewedAt, intervalDays) };
+      }
+      levelArchives[level] = { ...archive, reviews: migratedReviews };
+    }
+  }
   const rawHistory = legacy.studyHistory && typeof legacy.studyHistory === "object" ? legacy.studyHistory : {};
   const studyHistory: Partial<Record<HskLevel, StudyDay[]>> = {};
   for (const level of HSK_LEVELS) {
@@ -309,8 +330,8 @@ export function normalizeProgress(raw: unknown, vocabularySize: number, grammarS
   for (const index of legacy.mastered ?? []) {
     if (!reviews[index]) {
       reviews[index] = {
-        dueAt: Date.now() + 7 * DAY_MS,
-        intervalDays: 7,
+        dueAt: cadenceDueAt(Date.now(), 3),
+        intervalDays: 3,
         repetitions: 3,
         lapses: 0,
         lastReviewedAt: Date.now(),
@@ -321,9 +342,9 @@ export function normalizeProgress(raw: unknown, vocabularySize: number, grammarS
   const progress: Progress = {
     ...starter,
     ...legacy,
-    version: 6,
+    version: 7,
     selectedLevel: HSK_LEVELS.includes(legacy.selectedLevel as HskLevel) ? legacy.selectedLevel as HskLevel : "1",
-    levelArchives: legacy.levelArchives && typeof legacy.levelArchives === "object" ? legacy.levelArchives : {},
+    levelArchives,
     studyHistory,
     reviews,
     grammarReviews,
@@ -487,6 +508,24 @@ export function completeDailyStep(progress: Progress, id: string, minutes: numbe
   const active = activate(progress, date);
   if (active.daily.includes(id)) return active;
   return { ...active, daily: [...active.daily, id], minutes: active.minutes + minutes };
+}
+
+function cadenceDueAt(now: number, intervalDays: number) {
+  const due = new Date(now);
+  due.setHours(0, 0, 0, 0);
+  due.setDate(due.getDate() + intervalDays);
+  return due.getTime();
+}
+
+export function scheduleCadenceReview(previous: ReviewState | undefined, now = Date.now()): ReviewState {
+  const intervalDays = Math.max(1, (previous?.intervalDays ?? 0) + 1);
+  return {
+    dueAt: cadenceDueAt(now, intervalDays),
+    intervalDays,
+    repetitions: (previous?.repetitions ?? 0) + 1,
+    lapses: previous?.lapses ?? 0,
+    lastReviewedAt: now,
+  };
 }
 
 export function scheduleReview(previous: ReviewState | undefined, grade: ReviewGrade, now = Date.now()): ReviewState {

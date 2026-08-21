@@ -31,11 +31,11 @@ import {
   normalizeProgress,
   recordStudyDay,
   recordStudyDayReplay,
+  scheduleCadenceReview,
   scheduleReview,
   similarityScore,
   switchProgressLevel,
   type Progress,
-  type ReviewGrade,
   type StudyDay,
 } from "./learning-engine";
 import "./mandarin.css";
@@ -143,13 +143,6 @@ function speak(text: string, rate = 0.82) {
   const chineseVoice = voices.find((voice) => voice.lang.toLowerCase().startsWith("zh"));
   if (chineseVoice) utterance.voice = chineseVoice;
   window.speechSynthesis.speak(utterance);
-}
-
-function dueLabel(grade: ReviewGrade, reviewDays: number) {
-  if (grade === "again") return "1 min";
-  if (grade === "hard") return `${Math.max(1, reviewDays)} day`;
-  if (grade === "good") return reviewDays ? `${Math.max(2, Math.round(reviewDays * 2.2))} days` : "2 days";
-  return reviewDays ? `${Math.max(7, Math.round(reviewDays * 3.2))} days` : "7 days";
 }
 
 function appRouteFromHash(hash: string): { view: AppView; library?: LibraryView; lesson?: boolean } {
@@ -364,6 +357,7 @@ export default function MandarinApp() {
   const activeWordIndex = sessionVocabularyQueue[sessionCardPosition];
   const activeWord = activeWordIndex === undefined ? null : vocabulary[activeWordIndex];
   const activeReview = activeWordIndex === undefined ? undefined : progress.reviews[activeWordIndex];
+  const nextCadenceDays = Math.max(1, (activeReview?.intervalDays ?? 0) + 1);
   const queuePercent = sessionVocabularyQueue.length ? Math.round((sessionCardPosition / sessionVocabularyQueue.length) * 100) : 100;
   const activeSentence = sentenceChallenges[buildIndex];
   const activePronunciation = pronunciationDrills[pronunciationIndex];
@@ -549,52 +543,37 @@ export default function MandarinApp() {
     goToPractice("flashcards");
   }
 
-  function gradeCard(grade: ReviewGrade) {
+  function advanceVocabularyCard() {
     if (activeWordIndex === undefined) return;
     if (replaySession) {
-      setProgress((current) => {
-        const scheduled = scheduleReview(current.reviews[activeWordIndex], grade);
-        return {
-          ...current,
-          reviews: { ...current.reviews, [activeWordIndex]: scheduled },
-          mastered: scheduled.repetitions >= 3
-            ? current.mastered.includes(activeWordIndex) ? current.mastered : [...current.mastered, activeWordIndex]
-            : current.mastered.filter((index) => index !== activeWordIndex),
-        };
-      });
       setReplaySession((current) => {
         if (!current) return current;
-        const queue = [...current.vocabularyQueue];
-        if (grade === "again") queue.splice(Math.min(current.cardPosition + 3, queue.length), 0, activeWordIndex);
         const cardPosition = current.cardPosition + 1;
-        const completedSteps = cardPosition >= queue.length && !current.completedSteps.includes("review")
+        const completedSteps = cardPosition >= current.vocabularyQueue.length && !current.completedSteps.includes("review")
           ? [...current.completedSteps, "review"]
           : current.completedSteps;
-        return { ...current, vocabularyQueue: queue, cardPosition, completedSteps };
+        return { ...current, cardPosition, completedSteps };
       });
       setCardRevealed(false);
-      setToast(grade === "again" ? "Added again to this replay" : `Review strengthened · next due ${dueLabel(grade, activeReview?.intervalDays ?? 0)}`);
+      setToast("Replay practice logged · automatic schedule unchanged");
       return;
     }
     setProgress((current) => {
-      const scheduled = scheduleReview(current.reviews[activeWordIndex], grade);
-      const queue = [...current.dailyQueue];
-      if (grade === "again") queue.splice(Math.min(current.cardPosition + 3, queue.length), 0, activeWordIndex);
+      const scheduled = scheduleCadenceReview(current.reviews[activeWordIndex]);
       let next: Progress = {
         ...current,
         reviews: { ...current.reviews, [activeWordIndex]: scheduled },
-        dailyQueue: queue,
         cardPosition: current.cardPosition + 1,
         mastered: scheduled.repetitions >= 3
           ? current.mastered.includes(activeWordIndex) ? current.mastered : [...current.mastered, activeWordIndex]
           : current.mastered.filter((index) => index !== activeWordIndex),
       };
-      next = earnOnce(next, `${today}:review:${activeWordIndex}`, grade === "again" ? 2 : 5, today);
+      next = earnOnce(next, `${today}:review:${activeWordIndex}`, 5, today);
       if (next.cardPosition >= next.dailyQueue.length) next = completeDailyStep(next, "review", 5, today);
       return next;
     });
     setCardRevealed(false);
-    setToast(grade === "again" ? "Scheduled again in this session" : `Next review: ${dueLabel(grade, activeReview?.intervalDays ?? 0)}`);
+    setToast(`Cadence advanced · returns in ${nextCadenceDays} day${nextCadenceDays === 1 ? "" : "s"}`);
   }
 
   function answerListening(answer: string) {
@@ -1036,14 +1015,14 @@ export default function MandarinApp() {
       <section className="section practice-section" id="practice">
         <div className="lesson-toolbar"><button onClick={() => navigate("today")}>{replaySession ? "← End replay" : "← Today’s plan"}</button><span>{replaySession ? studyDayLabel(replaySession.day.date) : `Mission ${activeMissionIndex + 1} · day ${missionPhase + 1}/3`} · step {practiceOrder.indexOf(practice) + 1} of 5</span></div>
         {replaySession && <div className="replay-banner"><span>↶</span><div><strong>Repeating {studyDayLabel(replaySession.day.date)}</strong><small>The same words, grammar, and mission are loaded. Today’s five steps and course position stay untouched.</small></div><button onClick={() => navigate("today")}>Return to today</button></div>}
-        <div className="section-heading two-column-heading"><div><span className="section-kicker">{replaySession ? "STUDY-DAY REPLAY" : "TODAY’S GUIDED LESSON"}</span><h2>{practiceLabels[practice]}</h2></div><p>{replaySession ? "Complete all five steps again. Recall and grammar answers strengthen their future review dates." : "Focus on one step. Your plan updates automatically when you hit today’s target."}</p></div>
+        <div className="section-heading two-column-heading"><div><span className="section-kicker">{replaySession ? "STUDY-DAY REPLAY" : "TODAY’S GUIDED LESSON"}</span><h2>{practiceLabels[practice]}</h2></div><p>{replaySession ? "Complete all five steps again. Vocabulary cadence stays fixed; grammar answers can still strengthen future reviews." : "Focus on one step. Your plan updates automatically when you hit today’s target."}</p></div>
         <div className="practice-tabs" role="tablist" aria-label={replaySession ? "Replay lesson steps" : "Today’s lesson steps"}>{([ ["flashcards", "01", "Recall"], ["grammar", "02", "Grammar"], ["listening", "03", "Listening"], ["builder", "04", "Build"], ["speaking", "05", "Mission"] ] as [PracticeMode, string, string][]).map(([mode, number, label]) => { const step = dailySteps.find((item) => item.mode === mode); const done = step ? sessionDaily.includes(step.id) : false; return <button key={mode} className={`${practice === mode ? "active" : ""} ${done ? "complete" : ""}`} onClick={() => setPractice(mode)} role="tab" aria-selected={practice === mode}><span>{done ? "✓" : number}</span>{label}</button>; })}</div>
 
         <div className="practice-stage">
           {practice === "flashcards" && (
             <div className="flashcard-lab">
-              <div className="lab-instructions"><span className="micro-label">SPACED RECALL · {Math.min(sessionCardPosition + 1, sessionVocabularyQueue.length)} / {sessionVocabularyQueue.length}</span><h3>Say it before you flip it.</h3><p>{replaySession ? `This is the vocabulary saved for ${studyDayLabel(replaySession.day.date)}. Your answers update future review dates without changing today’s completion.` : `Today mixes up to ${progress.dailyNew} new words with reviews that are actually due. Grade your recall honestly; the next date changes with every answer.`}</p><div className="lab-progress"><span style={{ width: `${queuePercent}%` }} /></div></div>
-              {activeWord ? <><div className={`study-card ${cardRevealed ? "revealed" : ""}`}><button className="card-face-button" onClick={() => setCardRevealed((value) => !value)} aria-label="Flip vocabulary card">{!cardRevealed ? <><span className="card-caption">SAY IN MANDARIN</span><strong className={`english-prompt ${promptLengthClass(activeWord.meaning)}`}>{activeWord.meaning}</strong><span className="flip-hint">Tap to reveal ↗</span></> : <><span className="card-caption">LISTEN & SHADOW</span><strong className={`hanzi-prompt ${activeWord.hanzi.length > 6 ? "very-long" : activeWord.hanzi.length > 3 ? "long" : ""}`}>{activeWord.hanzi}</strong>{progress.showPinyin && <span className={`pinyin-prompt ${promptLengthClass(activeWord.pinyin)}`}>{activeWord.pinyin}</span>}{activeWord.example && <span className="card-example">{activeWord.example}</span>}</>}</button>{cardRevealed && <button className="audio-link" onClick={() => speak(activeWord.hanzi)}>▶ Play Mandarin</button>}</div><div className="confidence-buttons four"><button onClick={() => gradeCard("again")}>Again <small>1 min</small></button><button onClick={() => gradeCard("hard")}>Hard <small>{dueLabel("hard", activeReview?.intervalDays ?? 0)}</small></button><button onClick={() => gradeCard("good")}>Good <small>{dueLabel("good", activeReview?.intervalDays ?? 0)}</small></button><button onClick={() => gradeCard("easy")}>Easy <small>{dueLabel("easy", activeReview?.intervalDays ?? 0)}</small></button></div></> : <div className="queue-complete"><span>好</span><h3>{replaySession ? "This day’s recall is complete." : "Today’s recall is complete."}</h3><p>{replaySession ? "You reviewed the same vocabulary again. Continue through the remaining saved steps." : "Every level word has a place in the queue. Come back tomorrow for the next unseen set and reviews that are due."}</p><button className="primary-button" onClick={continueAfterRecall}>Continue to grammar <span>→</span></button></div>}
+              <div className="lab-instructions"><span className="micro-label">AUTOMATIC RECALL CADENCE · {Math.min(sessionCardPosition + 1, sessionVocabularyQueue.length)} / {sessionVocabularyQueue.length}</span><h3>Say it before you flip it.</h3><p>{replaySession ? `This is extra practice from ${studyDayLabel(replaySession.day.date)}. It does not move the card’s automatic return date.` : `Today mixes ${progress.dailyNew} new words with every card due on its fixed cadence. Reveal each answer and continue—the app handles the timing.`}</p><div className="cadence-preview"><span>THIS CARD’S NEXT STEP</span><strong>{replaySession ? "Schedule unchanged" : `${nextCadenceDays} day${nextCadenceDays === 1 ? "" : "s"}`}</strong><small>{replaySession ? "Replay practice only" : nextCadenceDays === 1 ? "Tomorrow" : `After ${nextCadenceDays} calendar days`}</small></div><div className="lab-progress"><span style={{ width: `${queuePercent}%` }} /></div></div>
+              {activeWord ? <><div className={`study-card ${cardRevealed ? "revealed" : ""}`}><button className="card-face-button" onClick={() => setCardRevealed((value) => !value)} aria-label="Flip vocabulary card">{!cardRevealed ? <><span className="card-caption">SAY IN MANDARIN</span><strong className={`english-prompt ${promptLengthClass(activeWord.meaning)}`}>{activeWord.meaning}</strong><span className="flip-hint">Tap to reveal ↗</span></> : <><span className="card-caption">LISTEN & SHADOW</span><strong className={`hanzi-prompt ${activeWord.hanzi.length > 6 ? "very-long" : activeWord.hanzi.length > 3 ? "long" : ""}`}>{activeWord.hanzi}</strong>{progress.showPinyin && <span className={`pinyin-prompt ${promptLengthClass(activeWord.pinyin)}`}>{activeWord.pinyin}</span>}{activeWord.example && <span className="card-example">{activeWord.example}</span>}</>}</button>{cardRevealed && <button className="audio-link" onClick={() => speak(activeWord.hanzi)}>▶ Play Mandarin</button>}</div><div className="cadence-action"><span><b>{replaySession ? "EXTRA REP" : `STEP ${nextCadenceDays}`}</b><small>{replaySession ? "The scheduled cadence stays exactly where it is." : `No rating needed · returns in ${nextCadenceDays} day${nextCadenceDays === 1 ? "" : "s"}.`}</small></span><button onClick={advanceVocabularyCard} disabled={!cardRevealed}>{cardRevealed ? "Continue →" : "Reveal the card first"}</button></div></> : <div className="queue-complete"><span>好</span><h3>{replaySession ? "This day’s recall is complete." : "Today’s recall is complete."}</h3><p>{replaySession ? "You reviewed the same vocabulary again without changing its scheduled cadence." : "Every reviewed card now has its next automatic calendar date. Tomorrow adds new words and every prior card due on step 1, 2, 3, or beyond."}</p><button className="primary-button" onClick={continueAfterRecall}>Continue to grammar <span>→</span></button></div>}
             </div>
           )}
 
@@ -1082,8 +1061,8 @@ export default function MandarinApp() {
           </div>
           {libraryView === "words" && <>
             <div className="section-heading vocabulary-heading"><div><span className="section-kicker">OFFICIAL {meta.label.toUpperCase()} WORD BANK</span><h2>{libraryVocabulary.length.toLocaleString()} searchable words.<br /><em>Meaning first.</em></h2></div><div className="vocab-tools"><label><span>⌕</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search 汉字, pinyin, English, or entry number" aria-label="Search vocabulary" /></label><button onClick={() => setProgress((current) => ({ ...current, showPinyin: !current.showPinyin }))}>{progress.showPinyin ? "Hide pinyin" : "Show pinyin"}</button></div></div>
-            <div className="vocab-status"><span><b>{progress.mastered.length}</b> stable words</span><div><i style={{ width: `${coursePercent}%` }} /></div><span>{coursePercent}%</span></div>
-            <div className="word-grid">{visibleWords.map((word) => { const originalIndex = word.level === selectedLevel ? vocabulary.findIndex((item) => item.sequence === word.sequence) : -1; const mastered = originalIndex >= 0 && progress.mastered.includes(originalIndex); const learned = originalIndex >= 0 && Boolean(progress.reviews[originalIndex]); return <article key={`${word.level}-${word.sequence}`} className={mastered ? "mastered" : ""}><button className="word-audio" onClick={() => speak(word.hanzi)} aria-label={`Play ${word.hanzi}`}>▶</button><strong>{word.hanzi}</strong>{progress.showPinyin && <span>{word.pinyin}</span>}<p>{word.meaning}</p><div className="word-context">{word.example && <b>{word.example}</b>}<small>{word.collocation}</small>{word.note && <em>{word.note}</em>}</div>{originalIndex >= 0 ? <button className="master-button" onClick={() => studyWord(originalIndex)}>{mastered ? "✓ Stable · review now" : learned ? "Learning · review now" : "+ Add to today"}</button> : <button className="master-button" disabled>HSK {word.level} foundation word</button>}</article>; })}</div>
+            <div className="vocab-status"><span><b>{progress.mastered.length}</b> words on step 3+</span><div><i style={{ width: `${coursePercent}%` }} /></div><span>{coursePercent}%</span></div>
+            <div className="word-grid">{visibleWords.map((word) => { const originalIndex = word.level === selectedLevel ? vocabulary.findIndex((item) => item.sequence === word.sequence) : -1; const mastered = originalIndex >= 0 && progress.mastered.includes(originalIndex); const learned = originalIndex >= 0 && Boolean(progress.reviews[originalIndex]); return <article key={`${word.level}-${word.sequence}`} className={mastered ? "mastered" : ""}><button className="word-audio" onClick={() => speak(word.hanzi)} aria-label={`Play ${word.hanzi}`}>▶</button><strong>{word.hanzi}</strong>{progress.showPinyin && <span>{word.pinyin}</span>}<p>{word.meaning}</p><div className="word-context">{word.example && <b>{word.example}</b>}<small>{word.collocation}</small>{word.note && <em>{word.note}</em>}</div>{originalIndex >= 0 ? <button className="master-button" onClick={() => studyWord(originalIndex)}>{mastered ? "✓ Cadence step 3+ · practice now" : learned ? "In cadence · practice now" : "+ Add to today"}</button> : <button className="master-button" disabled>HSK {word.level} foundation word</button>}</article>; })}</div>
             {!search && <button className="load-more" onClick={() => setShowAllWords((value) => !value)}>{showAllWords ? "Show the focused set" : libraryVocabulary.length > 200 ? `Browse the first 200 · search all ${libraryVocabulary.length.toLocaleString()}` : `Explore all ${libraryVocabulary.length.toLocaleString()} words`} <span>↓</span></button>}
             {search && filteredWords.length > visibleWords.length && <p className="result-limit-note">Showing the first {visibleWords.length} of {filteredWords.length.toLocaleString()} matches. Add another word, pinyin syllable, meaning, or entry number to narrow the search.</p>}
           </>}
@@ -1116,10 +1095,10 @@ export default function MandarinApp() {
         <section className="section progress-section app-view" id="progress">
           <div className="view-intro"><span className="view-icon">我</span><div><span className="section-kicker">PROGRESS · {meta.label.toUpperCase()}</span><h1>Your learning record</h1><p>See momentum, protect your data, and move between levels without losing your place.</p></div></div>
           <div className="section-heading progress-heading"><div><span className="section-kicker">YOUR MOMENTUM</span><h2>Small proof,<br /><em>every day.</em></h2></div><div className="progress-tools"><button onClick={exportProgress}>Export backup</button><button onClick={() => importRef.current?.click()}>Import backup</button><button className="danger-link" onClick={resetProgress}>Reset</button><input ref={importRef} type="file" accept="application/json" onChange={(event) => void importProgress(event.target.files?.[0])} hidden /></div></div>
-          <div className="stat-grid"><article className="stat-card coral"><span>火</span><strong>{progress.streak}</strong><p>day streak</p><small>Counts practice days, not visits.</small></article><article className="stat-card jade"><span>字</span><strong>{progress.mastered.length}</strong><p>stable words</p><small>Earned after repeated successful reviews.</small></article><article className="stat-card blue"><span>时</span><strong>{progress.minutes}</strong><p>minutes trained</p><small>Uses each task’s real target time.</small></article><article className="stat-card yellow"><span>光</span><strong>{progress.xp}</strong><p>practice XP</p><small>Every reward can be earned only once.</small></article></div>
-          <div className="coverage-dashboard"><div><span>VOCABULARY COVERAGE</span><strong>{wordsIntroduced.toLocaleString()} <small>/ {vocabulary.length.toLocaleString()} taught</small></strong><div><i style={{ width: `${wordCoveragePercent}%` }} /></div><p>{progress.mastered.length.toLocaleString()} stable · {Math.max(0, vocabulary.length - wordsIntroduced).toLocaleString()} still to introduce</p></div><div><span>GRAMMAR COVERAGE</span><strong>{grammarIntroduced} <small>/ {levelGrammar.length} taught</small></strong><div><i style={{ width: `${grammarCoveragePercent}%` }} /></div><p>{progress.grammarMastered.length} stable · {Math.max(0, levelGrammar.length - grammarIntroduced)} still to introduce</p></div></div>
+          <div className="stat-grid"><article className="stat-card coral"><span>火</span><strong>{progress.streak}</strong><p>day streak</p><small>Counts practice days, not visits.</small></article><article className="stat-card jade"><span>字</span><strong>{progress.mastered.length}</strong><p>cycled words</p><small>Seen on at least three scheduled study days.</small></article><article className="stat-card blue"><span>时</span><strong>{progress.minutes}</strong><p>minutes trained</p><small>Uses each task’s real target time.</small></article><article className="stat-card yellow"><span>光</span><strong>{progress.xp}</strong><p>practice XP</p><small>Every reward can be earned only once.</small></article></div>
+          <div className="coverage-dashboard"><div><span>VOCABULARY COVERAGE</span><strong>{wordsIntroduced.toLocaleString()} <small>/ {vocabulary.length.toLocaleString()} taught</small></strong><div><i style={{ width: `${wordCoveragePercent}%` }} /></div><p>{progress.mastered.length.toLocaleString()} on cadence step 3+ · {Math.max(0, vocabulary.length - wordsIntroduced).toLocaleString()} still to introduce</p></div><div><span>GRAMMAR COVERAGE</span><strong>{grammarIntroduced} <small>/ {levelGrammar.length} taught</small></strong><div><i style={{ width: `${grammarCoveragePercent}%` }} /></div><p>{progress.grammarMastered.length} stable · {Math.max(0, levelGrammar.length - grammarIntroduced)} still to introduce</p></div></div>
           <div className="backup-note"><strong>Your progress is protected.</strong><span>It saves automatically on this device. Export a backup before clearing browser data or moving to another device. The app shell also works offline after your first visit.</span></div>
-          <div className="level-roadmap"><div><span className="section-kicker">THE COMPLETE PATH</span><h3>All nine HSK levels are ready.</h3><p>Choose any level now. Each one keeps its own reviews, missions, exam history, and stable-word count.</p></div><ol>{levelOrder.map((level) => { const item = levelMeta[level]; const current = level === selectedLevel; return <li key={level} className={current ? "current" : "available"}><button onClick={() => chooseLevel(level)}><span>{current ? "NOW" : "OPEN"}</span><strong>{item.label}</strong><small>{item.stage} · {item.cumulativeWords.toLocaleString()} cumulative words</small></button></li>; })}</ol></div>
+          <div className="level-roadmap"><div><span className="section-kicker">THE COMPLETE PATH</span><h3>All nine HSK levels are ready.</h3><p>Choose any level now. Each one keeps its own cadence, missions, exam history, and cycled-word count.</p></div><ol>{levelOrder.map((level) => { const item = levelMeta[level]; const current = level === selectedLevel; return <li key={level} className={current ? "current" : "available"}><button onClick={() => chooseLevel(level)}><span>{current ? "NOW" : "OPEN"}</span><strong>{item.label}</strong><small>{item.stage} · {item.cumulativeWords.toLocaleString()} cumulative words</small></button></li>; })}</ol></div>
           <div className="app-about"><div><span className="brand-mark">声</span><div><strong>SHĒNGTÚ</strong><p>Hear it. Say it. Own it.</p></div></div><div><span>SOURCES</span><a href="https://www.chinesetest.cn/syllabus" target="_blank" rel="noreferrer">Official HSK 3.0 ↗</a><a href="https://hsk.cn-bj.ufileos.com/3.0/%E6%96%B0%E7%89%88HSK%E8%80%83%E8%AF%95%E5%A4%A7%E7%BA%B2%EF%BC%88%E8%AF%8D%E6%B1%87%E3%80%81%E6%B1%89%E5%AD%97%E3%80%81%E8%AF%AD%E6%B3%95%EF%BC%89.pdf" target="_blank" rel="noreferrer">2025 syllabus PDF ↗</a><a href="https://cc-cedict.org/editor/editor.php?handler=Download" target="_blank" rel="noreferrer">English glosses · CC-CEDICT ↗</a></div><small>Independent learning tool. Not affiliated with Chinese Test International.</small></div>
         </section>
       )}
@@ -1141,12 +1120,12 @@ export default function MandarinApp() {
               <button onClick={() => setShowStudyHistory(false)} aria-label="Close study history">×</button>
             </div>
             {studyDays.length ? <div className="history-day-list">{studyDays.map((day) => { const mission = missions[Math.min(missions.length - 1, day.missionIndex)]; const originallyComplete = day.completedSteps.length >= 5; return <article key={day.date}><div className="history-date"><span>{studyDayLabel(day.date)}</span><small>{day.date}</small></div><div className="history-day-copy"><strong>{mission.title} · day {day.missionPhase + 1}/3</strong><span>{day.vocabularyQueue.length} words · {day.grammarQueue.length} grammar target{day.grammarQueue.length === 1 ? "" : "s"}</span><small>{originallyComplete ? "✓ Completed that day" : `${day.completedSteps.length}/5 steps completed`}{day.replayCount ? ` · repeated ${day.replayCount}×` : ""}</small></div><button className="repeat-day-button" onClick={() => startStudyDayReplay(day)}>Repeat day <span>→</span></button></article>; })}</div> : <div className="history-empty"><span>日</span><h3>Your history starts here.</h3><p>Shēngtú is now saving each daily lesson. After your next study day begins, today will appear here with a one-tap replay button.</p><button onClick={() => setShowStudyHistory(false)}>Keep studying today</button></div>}
-            <div className="history-note"><strong>What changes during a replay?</strong><span>Word and grammar review dates adapt to your new answers. Today’s completion, mission position, streak, time, and XP do not advance twice.</span></div>
+            <div className="history-note"><strong>What changes during a replay?</strong><span>Vocabulary return dates stay on their automatic cadence; grammar reviews can adapt. Today’s completion, mission position, streak, time, and XP do not advance twice.</span></div>
           </div>
         </div>
       )}
 
-      {ready && showLevelPicker && <div className="onboarding-backdrop level-picker-backdrop" role="dialog" aria-modal="true" aria-labelledby="level-picker-title"><div className="onboarding-card level-picker-card"><div className="picker-top"><div><span className="section-kicker">COMPLETE HSK 3.0 PATH</span><h2 id="level-picker-title">Choose your active level.</h2><p>Switch whenever you need. Reviews and mission progress are saved separately for every level.</p></div><button className="picker-close" onClick={() => setShowLevelPicker(false)} aria-label="Close level picker">×</button></div><div className="level-picker-grid">{levelOrder.map((level) => { const item = levelMeta[level]; const active = level === selectedLevel; const savedCount = active ? progress.mastered.length : progress.levelArchives[level]?.mastered.length ?? 0; return <button key={level} className={active ? "active" : ""} onClick={() => chooseLevel(level)}><span>{active ? "CURRENT" : savedCount ? `${savedCount} STABLE` : "AVAILABLE"}</span><strong>{item.label}</strong><b>{item.stage}</b><p>{item.description}</p><small>{item.newWords.toLocaleString()} new · {item.cumulativeWords.toLocaleString()} cumulative words</small></button>; })}</div><p className="picker-note">New to Mandarin? Start at HSK 1. If you already study Chinese, use a level checkpoint and move down if the recall feels shaky.</p></div></div>}
+      {ready && showLevelPicker && <div className="onboarding-backdrop level-picker-backdrop" role="dialog" aria-modal="true" aria-labelledby="level-picker-title"><div className="onboarding-card level-picker-card"><div className="picker-top"><div><span className="section-kicker">COMPLETE HSK 3.0 PATH</span><h2 id="level-picker-title">Choose your active level.</h2><p>Switch whenever you need. Vocabulary cadence and mission progress are saved separately for every level.</p></div><button className="picker-close" onClick={() => setShowLevelPicker(false)} aria-label="Close level picker">×</button></div><div className="level-picker-grid">{levelOrder.map((level) => { const item = levelMeta[level]; const active = level === selectedLevel; const savedCount = active ? progress.mastered.length : progress.levelArchives[level]?.mastered.length ?? 0; return <button key={level} className={active ? "active" : ""} onClick={() => chooseLevel(level)}><span>{active ? "CURRENT" : savedCount ? `${savedCount} CYCLED` : "AVAILABLE"}</span><strong>{item.label}</strong><b>{item.stage}</b><p>{item.description}</p><small>{item.newWords.toLocaleString()} new · {item.cumulativeWords.toLocaleString()} cumulative words</small></button>; })}</div><p className="picker-note">New to Mandarin? Start at HSK 1. If you already study Chinese, use a level checkpoint and move down if the recall feels shaky.</p></div></div>}
       {ready && !showLevelPicker && !progress.onboarded && <div className="onboarding-backdrop" role="dialog" aria-modal="true" aria-labelledby="onboarding-title"><div className="onboarding-card"><span className="brand-mark">声</span><span className="section-kicker">YOUR FIRST TWO MINUTES</span><h2 id="onboarding-title">Set a pace you can repeat.</h2><p>You will not recall all {meta.newWords.toLocaleString()} words daily. Shēngtú gives you a small new set plus only the reviews that are due.</p><div className="goal-options">{[5, 8, 10].map((goal) => <button key={goal} className={onboardingGoal === goal ? "active" : ""} onClick={() => setOnboardingGoal(goal)}><strong>{goal}</strong><span>new words/day</span><small>{goal === 5 ? "gentle · ~22 min" : goal === 8 ? "recommended · ~28 min" : "fast · ~35 min"}</small></button>)}</div><ul><li>Keep pinyin on for the first 1–2 weeks, then toggle it off.</li><li>Say every answer before revealing it.</li><li>Finish the five daily steps; stop when the mission checkpoint is done.</li></ul><button className="primary-button" onClick={startCourse}>Start my first lesson <span>→</span></button></div></div>}
       {toast && <div className="toast" role="status">{toast}</div>}
     </main>

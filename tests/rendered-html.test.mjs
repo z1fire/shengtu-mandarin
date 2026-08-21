@@ -11,6 +11,7 @@ import {
   normalizeProgress,
   recordStudyDay,
   recordStudyDayReplay,
+  scheduleCadenceReview,
   scheduleReview,
   similarityScore,
   switchProgressLevel,
@@ -94,6 +95,10 @@ test("uses focused app views instead of one scrolling curriculum page", async ()
   assert.match(source, /function startStudyDayReplay/);
   assert.match(source, /Repeating \{studyDayLabel/);
   assert.match(source, /today’s course position is unchanged/);
+  assert.match(source, /function advanceVocabularyCard/);
+  assert.match(source, /AUTOMATIC RECALL CADENCE/);
+  assert.match(source, /No rating needed/);
+  assert.doesNotMatch(source, /gradeCard|>Again <|>Hard <|>Good <|>Easy </);
   assert.match(css, /\.mobile-nav\s*\{[^}]*display:\s*none/s);
   assert.match(css, /@media \(max-width:\s*850px\)[\s\S]*\.mobile-nav\s*\{[^}]*display:\s*grid/s);
   assert.match(css, /\.history-sheet/);
@@ -138,13 +143,25 @@ test("provides complete pinyin with no Chinese-character leakage for every missi
   }
 });
 
-test("builds a bounded daily queue and schedules reviews by recall quality", () => {
+test("builds the daily queue and advances vocabulary on a fixed calendar cadence", () => {
   const progress = { ...makeStarterProgress("2026-08-20"), dailyNew: 8 };
   assert.equal(buildDailyQueue(progress, 300, 0).length, 8);
-  assert.equal(scheduleReview(undefined, "again", 0).dueAt, 60_000);
-  assert.equal(scheduleReview(undefined, "hard", 0).intervalDays, 1);
-  assert.equal(scheduleReview(undefined, "good", 0).intervalDays, 2);
-  assert.equal(scheduleReview(undefined, "easy", 0).intervalDays, 7);
+  const day1 = new Date(2026, 7, 20, 15).getTime();
+  const first = scheduleCadenceReview(undefined, day1);
+  assert.equal(first.intervalDays, 1);
+  assert.equal(first.dueAt, new Date(2026, 7, 21).getTime());
+  const second = scheduleCadenceReview(first, new Date(2026, 7, 21, 9).getTime());
+  assert.equal(second.intervalDays, 2);
+  assert.equal(second.dueAt, new Date(2026, 7, 23).getTime());
+  const third = scheduleCadenceReview(second, new Date(2026, 7, 23, 20).getTime());
+  assert.equal(third.intervalDays, 3);
+  assert.equal(third.dueAt, new Date(2026, 7, 26).getTime());
+
+  const everyDueCard = {
+    ...progress,
+    reviews: Object.fromEntries(Array.from({ length: 30 }, (_, index) => [index, { ...first, dueAt: 0 }])),
+  };
+  assert.equal(buildDailyQueue(everyDueCard, 100, 0).length, 38);
 });
 
 test("guarantees a new grammar target while retaining due reviews", () => {
@@ -203,10 +220,19 @@ test("resets daily work, calculates real streaks, and prevents repeat rewards", 
   assert.deepEqual(normalized.listeningDone, []);
 
   const legacyMissionProgress = normalizeProgress({ ...stale, version: 2, missions: [0, 1], missionSteps: undefined }, 300, 70, "2026-08-19");
-  assert.equal(legacyMissionProgress.version, 6);
+  assert.equal(legacyMissionProgress.version, 7);
   assert.deepEqual(legacyMissionProgress.missionSteps, ["0:0", "0:1", "0:2", "1:0", "1:1", "1:2"]);
   assert.equal(legacyMissionProgress.missionSessionCount, 6);
   assert.equal(legacyMissionProgress.grammarQueue.at(-1), 0);
+
+  const lastReviewedAt = new Date(2026, 7, 15, 18).getTime();
+  const cadenceMigration = normalizeProgress({
+    ...makeStarterProgress("2026-08-18"),
+    version: 6,
+    reviews: { 4: { dueAt: lastReviewedAt + 21 * 86_400_000, intervalDays: 21, repetitions: 3, lapses: 0, lastReviewedAt } },
+  }, 300, 70, "2026-08-18");
+  assert.equal(cadenceMigration.reviews[4].intervalDays, 3);
+  assert.equal(cadenceMigration.reviews[4].dueAt, new Date(2026, 7, 18).getTime());
 });
 
 test("archives exact study days and preserves repeat counts across dates", () => {
