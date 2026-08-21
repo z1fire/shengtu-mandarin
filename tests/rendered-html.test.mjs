@@ -83,6 +83,15 @@ test("uses focused app views instead of one scrolling curriculum page", async ()
   assert.match(source, /function chooseLevel/);
   assert.match(source, /FULL-SYLLABUS GRAMMAR/);
   assert.match(source, /grammarMastered/);
+  assert.match(source, /type GrammarStage = "learn" \| "recall"/);
+  assert.match(source, /dailyGrammarStage === "learn"/);
+  assert.match(source, /grammarPracticeStage === "learn"/);
+  assert.match(source, /Hide the lesson &amp; start recall/);
+  assert.match(source, /LESSON HIDDEN/);
+  assert.match(source, /The pattern and model stay hidden until you answer correctly/);
+  assert.match(source, /Why this works/);
+  assert.match(source, /grammarChoicePool/);
+  assert.doesNotMatch(source, /Try again\. Match the target to:|Try again\. Build:/);
   assert.match(source, /promptLengthClass/);
   assert.match(source, /aria-label="Search characters"/);
   assert.match(source, /aria-label="Search grammar"/);
