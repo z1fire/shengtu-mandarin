@@ -50,6 +50,7 @@ import {
   buildGrammarMixerFrame,
   initialMixerSelections,
   mixerExpectedTokens,
+  updateMixerSelection,
   type MixerSlotPart,
 } from "./grammar-mixer";
 import {
@@ -213,14 +214,17 @@ function GrammarPatternMixer({ point, fallbackFormula, words }: { point: Grammar
   const [built, setBuilt] = useState<MixerTile[]>([]);
   const [result, setResult] = useState("");
   const [needsMix, setNeedsMix] = useState(false);
+  const [logicNote, setLogicNote] = useState("Linked choices adjust together so the finished sentence always describes a plausible situation.");
   const slots = frame.parts.filter((part): part is MixerSlotPart => part.type === "slot")
     .filter((part, index, items) => items.findIndex((item) => item.id === part.id) === index);
   const sentence = activeExpected.map((tile) => tile.text).join("");
 
   function selectWord(slot: MixerSlotPart, optionIndex: number) {
-    setSelections((current) => ({ ...current, [slot.id]: optionIndex }));
+    const update = updateMixerSelection(frame, selections, slot.id, optionIndex);
+    setSelections(update.selections);
+    setLogicNote(update.note);
     setNeedsMix(true);
-    setResult("Selection changed · mix the new words before rebuilding.");
+    setResult("Selection changed · related words were checked for meaning. Mix the new sentence before rebuilding.");
   }
 
   function mixSelectedWords() {
@@ -262,9 +266,10 @@ function GrammarPatternMixer({ point, fallbackFormula, words }: { point: Grammar
   }
 
   return <div className="grammar-pattern-mixer">
-    <div className="mixer-heading"><span>MIX &amp; MATCH PATTERN LAB</span><strong>Build with vocabulary</strong><p>{frame.usesMissionPattern ? "This target is a form inventory, so the lab uses today’s compositional mission pattern for the sentence round. The checker tests grammar order; choose words whose meanings also fit together." : "Choose vocabulary for each replaceable slot, then rebuild the sentence in the pattern’s required order. The checker tests grammar order, so also choose words whose meanings fit together."}</p></div>
+    <div className="mixer-heading"><span>MIX &amp; MATCH PATTERN LAB</span><strong>Build with vocabulary that makes sense</strong><p>{frame.usesMissionPattern ? "This target is a form inventory, so the lab uses today’s compositional mission pattern. Change any word and the linked choices adjust to keep the meaning natural." : "Choose vocabulary for each replaceable slot. Change any word and linked choices—such as a verb and its object, or a measure word and its noun—adjust to keep the meaning natural."}</p></div>
     <code>{frame.sourceFormula}</code>
     <div className="mixer-selectors">{slots.map((slot) => <label key={slot.id}><span>{slot.label}</span><select value={selections[slot.id] ?? 0} onChange={(event) => selectWord(slot, Number(event.target.value))} aria-label={`Choose vocabulary for ${slot.label}`}>{slot.options.map((word, index) => <option key={`${word.level}-${word.sequence}-${word.hanzi}`} value={index}>{word.hanzi} · {word.pinyin} · {word.meaning}</option>)}</select></label>)}</div>
+    <div className="mixer-logic-note" role="status"><span>✓</span>{logicNote}</div>
     <button className="mixer-mix-button" onClick={mixSelectedWords}>{needsMix ? "Mix my new choices →" : "Reshuffle this sentence ↻"}</button>
     <div className="mixer-sentence-line" aria-label="Your grammar sentence">{built.length ? built.map((tile, index) => <button key={tile.id} onClick={() => removeMixerTile(index)}>{tile.text}</button>) : <span>Tap the scrambled pieces below to build the sentence.</span>}</div>
     <div className="mixer-tile-bank">{bank.map((tile, index) => <button key={tile.id} onClick={() => addMixerTile(index)} disabled={needsMix}>{tile.text}</button>)}</div>

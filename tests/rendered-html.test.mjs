@@ -43,6 +43,7 @@ import {
   buildGrammarMixerFrame,
   initialMixerSelections,
   mixerExpectedTokens,
+  updateMixerSelection,
 } from "../src/grammar-mixer.ts";
 import {
   buildGradedReading,
@@ -207,6 +208,46 @@ test("builds a vocabulary pattern mixer for every HSK grammar target", () => {
   }
   const identity = buildGrammarMixerFrame(getLibraryGrammar("1", false)[0], "subject + 是 + noun", getCumulativeVocabulary("1"));
   assert.deepEqual(mixerExpectedTokens(identity, initialMixerSelections(identity)), ["我", "是", "学生"]);
+});
+
+test("keeps grammar mixer vocabulary logically compatible in both directions", () => {
+  const words = getCumulativeVocabulary("1");
+  const grammar = getLibraryGrammar("1", false);
+  const frameFor = (formula) => buildGrammarMixerFrame(grammar.find((point) => point.formula === formula), "subject + 是 + noun", words);
+  const slot = (frame, id) => frame.parts.find((part) => part.type === "slot" && part.id === id);
+  const optionIndex = (part, hanzi) => part.options.findIndex((option) => option.hanzi === hanzi);
+  const selected = (part, selections) => part.options[selections[part.id]].hanzi;
+
+  const identity = frameFor("subject + 是 + noun");
+  const identityNoun = slot(identity, "noun");
+  assert.ok(identityNoun.options.some((word) => word.hanzi === "学生"));
+  assert.ok(identityNoun.options.some((word) => word.hanzi === "老师"));
+  assert.ok(identityNoun.options.every((word) => !["书", "苹果", "茶", "衣服"].includes(word.hanzi)));
+
+  const counted = frameFor("number + measure word + noun");
+  const countedNoun = slot(counted, "noun");
+  const measure = slot(counted, "measure word");
+  let countedSelections = initialMixerSelections(counted);
+  countedSelections = updateMixerSelection(counted, countedSelections, countedNoun.id, optionIndex(countedNoun, "书")).selections;
+  assert.equal(selected(measure, countedSelections), "本");
+  countedSelections = updateMixerSelection(counted, countedSelections, measure.id, optionIndex(measure, "件")).selections;
+  assert.equal(selected(countedNoun, countedSelections), "衣服");
+
+  const completed = frameFor("verb + 了 + object");
+  const verb = slot(completed, "verb");
+  const object = slot(completed, "object");
+  let actionSelections = initialMixerSelections(completed);
+  actionSelections = updateMixerSelection(completed, actionSelections, verb.id, optionIndex(verb, "喝")).selections;
+  assert.equal(selected(object, actionSelections), "茶");
+  actionSelections = updateMixerSelection(completed, actionSelections, object.id, optionIndex(object, "苹果")).selections;
+  assert.equal(selected(verb, actionSelections), "吃");
+
+  const located = frameFor("noun + 在 + place + 上 / 下 / 里 / 外");
+  const locatedNoun = slot(located, "noun");
+  const place = slot(located, "place");
+  const locationUpdate = updateMixerSelection(located, initialMixerSelections(located), locatedNoun.id, optionIndex(locatedNoun, "衣服"));
+  assert.equal(selected(place, locationUpdate.selections), "商店");
+  assert.match(locationUpdate.note, /natural situation/);
 });
 
 test("provides complete pinyin with no Chinese-character leakage for every mission", () => {

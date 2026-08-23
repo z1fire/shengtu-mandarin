@@ -260,6 +260,8 @@ button { color: inherit; }
 .mixer-selectors label { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .mixer-selectors label > span { color: var(--jade); font-size: 8px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
 .mixer-selectors select { width: 100%; min-height: 38px; border: 1px solid var(--line); background: white; color: var(--ink); padding: 7px 9px; font-size: 10px; }
+.mixer-logic-note { display: flex; align-items: center; gap: 8px; margin-top: 8px; padding: 8px 10px; border-left: 3px solid var(--jade); background: #e3efe9; color: #315d50; font-size: 9px; line-height: 1.45; }
+.mixer-logic-note span { width: 18px; height: 18px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 50%; background: var(--jade); color: white; font-size: 9px; font-weight: 900; }
 .mixer-mix-button { width: 100%; margin-top: 9px; border: 1px solid var(--coral); background: transparent; color: var(--coral); padding: 9px 12px; cursor: pointer; font-size: 9px; font-weight: 900; }
 .mixer-sentence-line { min-height: 58px; margin-top: 11px; padding: 10px; display: flex; align-items: center; flex-wrap: wrap; gap: 7px; border-bottom: 2px solid var(--ink); background: white; }
 .mixer-sentence-line > span { color: var(--muted); font-size: 10px; }

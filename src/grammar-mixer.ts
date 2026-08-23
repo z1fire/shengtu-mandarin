@@ -38,6 +38,46 @@ const preferredWords: Record<MixerSlotKind, string[]> = {
   generic: ["学习", "朋友", "学校", "今天", "好", "书"],
 };
 
+const identityRoles = ["学生", "老师", "朋友", "同学", "医生", "妈妈"];
+const countableNouns = ["学生", "苹果", "书", "茶", "衣服", "猫"];
+const actionObjects = ["书", "苹果", "茶", "汉字", "衣服", "饭"];
+const locatedNouns = ["书", "学生", "猫", "衣服", "老师", "朋友"];
+
+const measureNouns: Record<string, string[]> = {
+  "个": ["学生", "朋友", "老师", "苹果"],
+  "本": ["书"],
+  "杯": ["茶"],
+  "件": ["衣服"],
+  "只": ["猫"],
+};
+
+const verbObjects: Record<string, string[]> = {
+  "看": ["书"],
+  "吃": ["苹果", "饭"],
+  "喝": ["茶"],
+  "写": ["汉字"],
+  "买": ["衣服", "书", "苹果"],
+  "学习": ["汉字"],
+};
+
+const nounPlaces: Record<string, string[]> = {
+  "书": ["桌子", "学校", "家"],
+  "学生": ["学校", "大学", "家"],
+  "老师": ["学校", "大学"],
+  "猫": ["家", "桌子"],
+  "衣服": ["商店", "家"],
+  "朋友": ["家", "学校"],
+};
+
+const placeActions: Record<string, string[]> = {
+  "学校": ["学习", "工作"],
+  "大学": ["学习", "工作"],
+  "家": ["学习", "吃", "喝"],
+  "医院": ["看", "工作"],
+  "商店": ["买", "看"],
+  "中国": ["学习", "工作"],
+};
+
 function slotKind(label: string): MixerSlotKind {
   const value = label.toLowerCase().replace(/\s+/g, " ").trim();
   if (/measure/.test(value)) return "measure";
@@ -55,9 +95,23 @@ function slotKind(label: string): MixerSlotKind {
   return "generic";
 }
 
-function mixerWords(kind: MixerSlotKind, words: LevelVocabularyWord[]) {
+function contextualPreference(formula: string, slotId: string, kind: MixerSlotKind) {
+  const normalizedFormula = formula.toLowerCase().replace(/\s+/g, " ");
+  if (/subject \+ (是|是不是) \+ noun/.test(normalizedFormula) && kind === "noun") return identityRoles;
+  if (/measure word|measure \+/.test(normalizedFormula) && kind === "noun") return countableNouns;
+  if (/verb.*(object|noun)|(object|noun).*verb/.test(normalizedFormula) && kind === "noun") return actionObjects;
+  if (/noun \+ 在 \+ place/.test(normalizedFormula) && kind === "noun") return locatedNouns;
+  if (/subject \+ (有|没有) \+ object/.test(normalizedFormula) && kind === "noun") return ["书", "朋友", "猫", "衣服", "茶", "钱"];
+  if (/owner \+ 的 \+ noun/.test(normalizedFormula) && kind === "noun") return ["书", "朋友", "老师", "衣服", "猫", "妈妈"];
+  if (/verb 1 \+ place \+ verb 2/.test(normalizedFormula) && slotId === "verb 1") return ["去", "到", "回"];
+  if (/verb 1 \+ place \+ verb 2/.test(normalizedFormula) && slotId === "verb 2") return ["学习", "工作", "看", "买", "吃", "喝"];
+  return [];
+}
+
+function mixerWords(kind: MixerSlotKind, words: LevelVocabularyWord[], prioritized: string[] = []) {
   const byHanzi = new Map(words.map((word) => [word.hanzi, word]));
-  const selected = preferredWords[kind].map((hanzi) => byHanzi.get(hanzi)).filter((word): word is LevelVocabularyWord => Boolean(word));
+  const order = [...new Set([...prioritized, ...preferredWords[kind]])];
+  const selected = order.map((hanzi) => byHanzi.get(hanzi)).filter((word): word is LevelVocabularyWord => Boolean(word));
   if (selected.length >= 3) return selected.slice(0, 6);
   const additions = words.filter((word) => !selected.some((item) => item.hanzi === word.hanzi)).slice(0, 6 - selected.length);
   return [...selected, ...additions];
@@ -101,7 +155,7 @@ function parseFormula(formula: string, words: LevelVocabularyWord[]) {
     if (label) {
       const normalized = label.toLowerCase().replace(/\s+/g, " ");
       const kind = slotKind(normalized);
-      parts.push({ type: "slot", id: normalized, label, kind, options: mixerWords(kind, words) });
+      parts.push({ type: "slot", id: normalized, label, kind, options: mixerWords(kind, words, contextualPreference(activeFormula, normalized, kind)) });
       continue;
     }
 
@@ -181,4 +235,96 @@ export function mixerExpectedTokens(frame: MixerFrame, selections: Record<string
     if (part.type === "fixed") return part.text;
     return part.options[selections[part.id] ?? 0]?.hanzi ?? part.label;
   });
+}
+
+export type MixerSelectionUpdate = {
+  selections: Record<string, number>;
+  adjustedSlotIds: string[];
+  note: string;
+};
+
+function uniqueSlots(frame: MixerFrame) {
+  return frame.parts
+    .filter((part): part is MixerSlotPart => part.type === "slot")
+    .filter((part, index, items) => items.findIndex((item) => item.id === part.id) === index);
+}
+
+function selectedHanzi(slot: MixerSlotPart | undefined, selections: Record<string, number>) {
+  if (!slot) return "";
+  return slot.options[selections[slot.id] ?? 0]?.hanzi ?? "";
+}
+
+function setSlotToFirstMatch(
+  next: Record<string, number>,
+  slot: MixerSlotPart | undefined,
+  preferredHanzi: string[],
+  adjusted: string[],
+) {
+  if (!slot || preferredHanzi.length === 0) return;
+  const current = selectedHanzi(slot, next);
+  if (preferredHanzi.includes(current)) return;
+  const optionIndex = preferredHanzi
+    .map((hanzi) => slot.options.findIndex((option) => option.hanzi === hanzi))
+    .find((index) => index >= 0) ?? -1;
+  if (optionIndex < 0) return;
+  next[slot.id] = optionIndex;
+  if (!adjusted.includes(slot.id)) adjusted.push(slot.id);
+}
+
+function firstReverseMatch(relations: Record<string, string[]>, value: string) {
+  return Object.entries(relations).filter(([, matches]) => matches.includes(value)).map(([key]) => key);
+}
+
+export function updateMixerSelection(
+  frame: MixerFrame,
+  selections: Record<string, number>,
+  changedSlotId: string,
+  optionIndex: number,
+): MixerSelectionUpdate {
+  const slots = uniqueSlots(frame);
+  const byId = new Map(slots.map((slot) => [slot.id, slot]));
+  const changedSlot = byId.get(changedSlotId);
+  const next = { ...selections, [changedSlotId]: optionIndex };
+  const adjusted: string[] = [];
+  const changedHanzi = selectedHanzi(changedSlot, next);
+  const measureSlot = slots.find((slot) => slot.kind === "measure");
+  const nounSlot = slots.find((slot) => slot.kind === "noun");
+  const placeSlot = slots.find((slot) => slot.kind === "place");
+  const verbSlots = slots.filter((slot) => slot.kind === "verb");
+  const formula = frame.sourceFormula.toLowerCase().replace(/\s+/g, " ");
+
+  if (measureSlot && nounSlot) {
+    if (changedSlotId === measureSlot.id) setSlotToFirstMatch(next, nounSlot, measureNouns[changedHanzi] ?? [], adjusted);
+    if (changedSlotId === nounSlot.id) setSlotToFirstMatch(next, measureSlot, firstReverseMatch(measureNouns, changedHanzi), adjusted);
+  }
+
+  if (verbSlots.length === 1 && nounSlot && /verb.*(object|noun)|(object|noun).*verb/.test(formula)) {
+    const verbSlot = verbSlots[0];
+    if (changedSlotId === verbSlot.id) setSlotToFirstMatch(next, nounSlot, verbObjects[changedHanzi] ?? [], adjusted);
+    if (changedSlotId === nounSlot.id) setSlotToFirstMatch(next, verbSlot, firstReverseMatch(verbObjects, changedHanzi), adjusted);
+  }
+
+  if (nounSlot && placeSlot && /noun \+ 在 \+ place/.test(formula)) {
+    if (changedSlotId === nounSlot.id) setSlotToFirstMatch(next, placeSlot, nounPlaces[changedHanzi] ?? [], adjusted);
+    if (changedSlotId === placeSlot.id) setSlotToFirstMatch(next, nounSlot, firstReverseMatch(nounPlaces, changedHanzi), adjusted);
+  }
+
+  if (verbSlots.length >= 2 && placeSlot && /verb 1 \+ place \+ verb 2/.test(formula)) {
+    const firstVerb = byId.get("verb 1") ?? verbSlots[0];
+    const secondVerb = byId.get("verb 2") ?? verbSlots[1];
+    if (changedSlotId === placeSlot.id) {
+      setSlotToFirstMatch(next, firstVerb, ["去"], adjusted);
+      setSlotToFirstMatch(next, secondVerb, placeActions[changedHanzi] ?? [], adjusted);
+    }
+    if (changedSlotId === secondVerb.id) {
+      setSlotToFirstMatch(next, placeSlot, firstReverseMatch(placeActions, changedHanzi), adjusted);
+      setSlotToFirstMatch(next, firstVerb, ["去"], adjusted);
+    }
+  }
+
+  const adjustedLabels = adjusted.map((slotId) => byId.get(slotId)?.label ?? slotId);
+  const note = adjustedLabels.length
+    ? `Updated ${adjustedLabels.join(" and ")} so the words describe a natural situation.`
+    : "This choice fits the rest of the sentence.";
+  return { selections: next, adjustedSlotIds: adjusted, note };
 }
