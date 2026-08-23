@@ -44,7 +44,8 @@ button { color: inherit; }
 
 .brand { border: 0; background: transparent; display: flex; align-items: center; gap: 11px; cursor: pointer; padding: 0; text-align: left; }
 .brand-mark { width: 42px; height: 42px; display: grid; place-items: center; background: var(--coral); color: white; border-radius: 50% 50% 46% 54%; font-family: "Noto Sans SC", "Microsoft YaHei", sans-serif; font-size: 22px; box-shadow: inset -4px -5px 0 rgba(0,0,0,0.08); }
-.brand strong { display: block; letter-spacing: .12em; font-size: 14px; line-height: 1; }
+.brand strong { display: flex; align-items: center; gap: 7px; letter-spacing: .12em; font-size: 14px; line-height: 1; }
+.app-version { display: inline-flex; align-items: center; min-height: 15px; padding: 1px 5px; border: 1px solid var(--line); border-radius: 999px; background: rgba(255,255,255,.55); color: var(--muted); font-size: 7px; font-weight: 850; letter-spacing: .04em; white-space: nowrap; }
 .brand small { display: block; margin-top: 5px; color: var(--muted); font-size: 8px; letter-spacing: .16em; }
 .nav-links { display: flex; align-items: center; gap: 34px; }
 .nav-links button { border: 0; background: transparent; cursor: pointer; text-transform: uppercase; letter-spacing: .12em; font-size: 11px; font-weight: 800; color: #4f5550; padding: 12px 0; }

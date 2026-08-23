@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { APP_VERSION } from "./app-version";
 import {
   listeningQuestions,
   mockExamQuestions as hsk1MockExamQuestions,
@@ -1478,7 +1479,7 @@ export default function MandarinApp() {
   return (
     <main className="site-shell">
       <header className="topbar">
-        <button className="brand" onClick={() => navigate("today")} aria-label="Open today"><span className="brand-mark">声</span><span><strong>SHĒNGTÚ</strong><small>MANDARIN, IN MOTION</small></span></button>
+        <button className="brand" onClick={() => navigate("today")} aria-label={`Open today · app version ${APP_VERSION}`}><span className="brand-mark">声</span><span><strong>SHĒNGTÚ <span className="app-version" title={`App version ${APP_VERSION}`}>v{APP_VERSION}</span></strong><small>MANDARIN, IN MOTION</small></span></button>
         <nav className="nav-links" aria-label="Primary navigation">
           <button className={appView === "today" ? "active" : ""} onClick={() => navigate("today")}>Today</button>
           <button className={appView === "course" ? "active" : ""} onClick={() => navigate("course")}>Course</button>

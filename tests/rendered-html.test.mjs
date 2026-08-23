@@ -496,6 +496,7 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
   const manifest = JSON.parse(await readFile(new URL("../public/manifest.webmanifest", import.meta.url), "utf8"));
   const serviceWorker = await readFile(new URL("../public/sw.js", import.meta.url), "utf8");
   const source = await readFile(new URL("../src/MandarinApp.tsx", import.meta.url), "utf8");
+  const versionSource = await readFile(new URL("../src/app-version.ts", import.meta.url), "utf8");
   const pagesHtml = await readFile(new URL("../pages-site/index.html", import.meta.url), "utf8");
 
   assert.equal(manifest.id, "./");
@@ -516,7 +517,7 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
     assert.equal(png.readUInt32BE(20), size);
   }
 
-  assert.match(serviceWorker, /shengtu-v12/);
+  assert.match(serviceWorker, /shengtu-v13/);
   assert.match(serviceWorker, /request\.mode === "navigate"/);
   assert.match(serviceWorker, /url\.pathname\.includes\("\/api\/"\)/);
   assert.match(serviceWorker, /icon-maskable-512\.png/);
@@ -525,6 +526,9 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
   assert.match(source, /Install app/);
   assert.match(source, /Add to Home screen/);
   assert.match(source, /display-mode: standalone/);
+  assert.match(source, /className="app-version"/);
+  assert.match(source, /v\{APP_VERSION\}/);
+  assert.match(versionSource, /APP_VERSION = "1\.0\.0"/);
   assert.match(pagesHtml, /mobile-web-app-capable/);
   assert.match(pagesHtml, /apple-touch-icon\.png/);
   assert.match(pagesHtml, /viewport-fit=cover/);
