@@ -31,6 +31,7 @@ import {
   localDate,
   makeStarterProgress,
   normalizeProgress,
+  recordActiveStudySeconds,
   recordStudyDay,
   recordStudyDayReplay,
   recordSkillAttempt,
@@ -103,6 +104,7 @@ function completedStudySteps(progress: Progress) {
 function hasLearningActivity(progress: Progress) {
   return progress.xp > 0
     || progress.minutes > 0
+    || progress.trainingSeconds > 0
     || progress.mastered.length > 0
     || progress.grammarMastered.length > 0
     || progress.missionSteps.length > 0
@@ -114,9 +116,16 @@ function progressCopySummary(progress: Progress) {
   return {
     steps: completedStudySteps(progress),
     xp: progress.xp,
-    minutes: progress.minutes,
+    minutes: Math.floor(progress.trainingSeconds / 60),
     words: progress.mastered.length,
   };
+}
+
+function formatTrainingMinutes(seconds: number) {
+  if (seconds <= 0) return "0";
+  if (seconds < 60) return "<1";
+  const minutes = Math.floor(seconds / 6) / 10;
+  return minutes >= 100 ? Math.floor(minutes).toLocaleString() : minutes.toFixed(1).replace(/\.0$/, "");
 }
 
 const missionPhaseCopy = [
@@ -443,11 +452,27 @@ export default function MandarinApp() {
   const [syncEnabled, setSyncEnabled] = useState(false);
   const [syncConflict, setSyncConflict] = useState<SyncConflict | null>(null);
   const [correctionResult, setCorrectionResult] = useState("");
+  const [pendingTrainingSeconds, setPendingTrainingSeconds] = useState(0);
   const importRef = useRef<HTMLInputElement>(null);
   const wasReplaying = useRef(false);
   const replayCompletionKey = useRef("");
   const cloudUpdatedAtRef = useRef(0);
   const lastSyncedPayloadRef = useRef("");
+  const currentProgressRef = useRef(progress);
+  const pendingTrainingMsRef = useRef(0);
+  const trainingEligibleRef = useRef(false);
+
+  useEffect(() => {
+    currentProgressRef.current = progress;
+  }, [progress]);
+
+  useEffect(() => {
+    trainingEligibleRef.current = ready
+      && progress.onboarded
+      && appView !== "progress"
+      && !showAccount
+      && !syncConflict;
+  }, [appView, progress.onboarded, ready, showAccount, syncConflict]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -577,6 +602,71 @@ export default function MandarinApp() {
   }, [progress, ready]);
 
   useEffect(() => {
+    if (!ready) return;
+    let lastTickAt = Date.now();
+    let lastInteractionAt = 0;
+
+    const commitPendingTime = () => {
+      const seconds = Math.floor(pendingTrainingMsRef.current / 1000);
+      if (!seconds) return;
+      pendingTrainingMsRef.current -= seconds * 1000;
+      setPendingTrainingSeconds(Math.floor(pendingTrainingMsRef.current / 1000));
+      const recordedAt = localDate();
+      const next = recordActiveStudySeconds(currentProgressRef.current, seconds, recordedAt);
+      currentProgressRef.current = next;
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(recordStudyDay(next, recordedAt)));
+      setProgress(next);
+    };
+
+    const collectActiveTime = () => {
+      const now = Date.now();
+      const elapsed = Math.max(0, Math.min(6_000, now - lastTickAt));
+      lastTickAt = now;
+      const recentlyActive = lastInteractionAt > 0 && now - lastInteractionAt <= 60_000;
+      if (trainingEligibleRef.current && document.visibilityState === "visible" && document.hasFocus() && recentlyActive) {
+        pendingTrainingMsRef.current += elapsed;
+        setPendingTrainingSeconds(Math.floor(pendingTrainingMsRef.current / 1000));
+        if (pendingTrainingMsRef.current >= 60_000) commitPendingTime();
+      }
+    };
+
+    const markInteraction = () => {
+      const now = Date.now();
+      if (!lastInteractionAt || now - lastInteractionAt > 60_000) lastTickAt = now;
+      lastInteractionAt = now;
+    };
+    const pauseTimer = () => {
+      collectActiveTime();
+      lastInteractionAt = 0;
+      commitPendingTime();
+    };
+    const resumeTimer = () => {
+      lastTickAt = Date.now();
+      lastInteractionAt = 0;
+    };
+    const handleVisibility = () => document.visibilityState === "hidden" ? pauseTimer() : resumeTimer();
+
+    const interval = window.setInterval(collectActiveTime, 5_000);
+    window.addEventListener("pointerdown", markInteraction, { passive: true });
+    window.addEventListener("keydown", markInteraction);
+    window.addEventListener("scroll", markInteraction, { passive: true, capture: true });
+    window.addEventListener("blur", pauseTimer);
+    window.addEventListener("focus", resumeTimer);
+    window.addEventListener("pagehide", pauseTimer);
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("pointerdown", markInteraction);
+      window.removeEventListener("keydown", markInteraction);
+      window.removeEventListener("scroll", markInteraction, true);
+      window.removeEventListener("blur", pauseTimer);
+      window.removeEventListener("focus", resumeTimer);
+      window.removeEventListener("pagehide", pauseTimer);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [ready]);
+
+  useEffect(() => {
     if (!ready || !syncReady || !syncEnabled) return;
     const snapshot = recordStudyDay(progress, today);
     const payload = JSON.stringify(snapshot);
@@ -703,6 +793,8 @@ export default function MandarinApp() {
   const sessionCardPosition = replaySession?.cardPosition ?? currentRecallReplayPosition ?? progress.cardPosition;
   const sessionGrammarQueue = replaySession?.grammarQueue ?? progress.grammarQueue;
   const sessionGrammarPosition = replaySession?.grammarPosition ?? progress.grammarPosition;
+  const displayedTrainingSeconds = progress.trainingSeconds + pendingTrainingSeconds;
+  const displayedTodayTrainingSeconds = (progress.trainingDate === today ? progress.trainingTodaySeconds : 0) + pendingTrainingSeconds;
   const dayPercent = Math.round((sessionDaily.length / 6) * 100);
   const coursePercent = Math.round((progress.mastered.length / vocabulary.length) * 100);
   const wordsIntroduced = Object.keys(progress.reviews).length;
@@ -1667,7 +1759,7 @@ export default function MandarinApp() {
           <div className="task-list">
             {dailySteps.map((step) => { const done = progress.daily.includes(step.id); return <button key={step.id} className={`task-row ${done ? "done" : ""}`} onClick={() => goToPractice(step.mode)}><span className={`task-time ${step.accent}`}>{done ? "✓" : String(step.time).padStart(2, "0")}</span><span><strong>{step.title}</strong><small>{step.detail}</small></span><span className="task-arrow">{done ? "DONE" : "START →"}</span></button>; })}
           </div>
-          <div className="today-foot"><span>35 focused minutes</span>{activeCorrections.length > 0 && <button className="correction-due" onClick={() => goToPractice("speaking")}>{activeCorrections.length} correction{activeCorrections.length === 1 ? "" : "s"} due</button>}<span>{progress.daily.length}/6 complete</span></div>
+          <div className="today-foot"><span>{formatTrainingMinutes(displayedTodayTrainingSeconds)} active min today</span>{activeCorrections.length > 0 && <button className="correction-due" onClick={() => goToPractice("speaking")}>{activeCorrections.length} correction{activeCorrections.length === 1 ? "" : "s"} due</button>}<span>{progress.daily.length}/6 complete</span></div>
         </aside>
       </section>
 
@@ -1830,7 +1922,7 @@ export default function MandarinApp() {
         <section className="section progress-section app-view" id="progress">
           <div className="view-intro"><span className="view-icon">我</span><div><span className="section-kicker">PROGRESS · {meta.label.toUpperCase()}</span><h1>Your learning record</h1><p>See momentum, protect your data, and move between levels without losing your place.</p></div></div>
           <div className="section-heading progress-heading"><div><span className="section-kicker">YOUR MOMENTUM</span><h2>Small proof,<br /><em>every day.</em></h2></div><div className="progress-tools"><button onClick={exportProgress}>Export backup</button><button onClick={() => importRef.current?.click()}>Import backup</button><button className="danger-link" onClick={resetProgress}>Reset</button><input ref={importRef} type="file" accept="application/json" onChange={(event) => void importProgress(event.target.files?.[0])} hidden /></div></div>
-          <div className="stat-grid"><article className="stat-card coral"><span>火</span><strong>{progress.streak}</strong><p>day streak</p><small>Counts practice days, not visits.</small></article><article className="stat-card jade"><span>字</span><strong>{progress.mastered.length}</strong><p>cycled words</p><small>Seen on at least three scheduled study days.</small></article><article className="stat-card blue"><span>时</span><strong>{progress.minutes}</strong><p>minutes trained</p><small>Uses each task’s real target time.</small></article><article className="stat-card yellow"><span>光</span><strong>{progress.xp}</strong><p>practice XP</p><small>Every reward can be earned only once.</small></article></div>
+          <div className="stat-grid"><article className="stat-card coral"><span>火</span><strong>{progress.streak}</strong><p>day streak</p><small>Counts practice days, not visits.</small></article><article className="stat-card jade"><span>字</span><strong>{progress.mastered.length}</strong><p>cycled words</p><small>Seen on at least three scheduled study days.</small></article><article className="stat-card blue"><span>时</span><strong>{formatTrainingMinutes(displayedTrainingSeconds)}</strong><p>active minutes</p><small>Measured since v1.2.8; pauses when hidden or after 60 seconds idle.</small></article><article className="stat-card yellow"><span>光</span><strong>{progress.xp}</strong><p>practice XP</p><small>Every reward can be earned only once.</small></article></div>
           <div className="coverage-dashboard"><div><span>VOCABULARY COVERAGE</span><strong>{wordsIntroduced.toLocaleString()} <small>/ {vocabulary.length.toLocaleString()} taught</small></strong><div><i style={{ width: `${wordCoveragePercent}%` }} /></div><p>{progress.mastered.length.toLocaleString()} on cadence step 3+ · {Math.max(0, vocabulary.length - wordsIntroduced).toLocaleString()} still to introduce</p></div><div><span>GRAMMAR COVERAGE</span><strong>{grammarIntroduced} <small>/ {levelGrammar.length} taught</small></strong><div><i style={{ width: `${grammarCoveragePercent}%` }} /></div><p>{progress.grammarMastered.length} stable · {Math.max(0, levelGrammar.length - grammarIntroduced)} still to introduce</p></div></div>
           <div className="skill-dashboard"><div className="skill-dashboard-head"><div><span className="section-kicker">OBJECTIVE ACCURACY</span><h3>Know exactly what needs attention.</h3></div><p>{weakestSkill ? `${skillLabels[weakestSkill.skill]} is currently the best place to focus at ${weakestSkill.accuracy}% accuracy.` : "Complete objective checks to build your first accuracy profile."} {progress.corrections.length} correction{progress.corrections.length === 1 ? "" : "s"} remain across all levels.</p></div><div className="skill-score-grid">{skillScores.map((item) => <article key={item.skill}><span>{skillLabels[item.skill]}</span><strong>{item.attempts ? `${item.accuracy}%` : "—"}</strong><div><i style={{ width: `${item.accuracy}%` }} /></div><small>{item.attempts} objective attempt{item.attempts === 1 ? "" : "s"}</small></article>)}</div></div>
           <div className={`backup-note sync-${syncStatus}`}><strong>{syncStatus === "synced" ? "Progress synced across devices." : syncStatus === "conflict" ? "Choose which progress copy to keep." : syncStatus === "saving" || syncStatus === "checking" ? "Checking your cloud progress…" : "Progress is saved on this device."}</strong><span>{syncStatus === "synced" ? "Your signed-in Sites account keeps the newest course state available on your phone and computer." : syncStatus === "conflict" ? "Nothing will be overwritten until you choose the device or cloud copy." : "Cloud sync requires the signed-in Sites version. Export a backup before clearing browser data when using GitHub Pages or offline mode."}</span><button className="account-manage-link" onClick={() => syncConflict ? undefined : setShowAccount(true)}>{syncConflict ? "Decision required" : "View account"}</button></div>

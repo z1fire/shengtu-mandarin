@@ -72,14 +72,18 @@ export type LevelArchive = {
 };
 
 export type Progress = {
-  version: 8;
+  version: 9;
   selectedLevel: HskLevel;
   levelArchives: Partial<Record<HskLevel, LevelArchive>>;
   studyHistory: Partial<Record<HskLevel, StudyDay[]>>;
   startedAt: string;
   streak: number;
   xp: number;
+  /** Legacy fixed-time estimate retained only for backward-compatible backups. */
   minutes: number;
+  trainingSeconds: number;
+  trainingTodaySeconds: number;
+  trainingDate: string;
   mastered: number[];
   grammarMastered: number[];
   missions: number[];
@@ -128,7 +132,7 @@ export function daysBetween(from: string, to: string) {
 
 export function makeStarterProgress(date = localDate()): Progress {
   return {
-    version: 8,
+    version: 9,
     selectedLevel: "1",
     levelArchives: {},
     studyHistory: {},
@@ -136,6 +140,9 @@ export function makeStarterProgress(date = localDate()): Progress {
     streak: 0,
     xp: 0,
     minutes: 0,
+    trainingSeconds: 0,
+    trainingTodaySeconds: 0,
+    trainingDate: date,
     mastered: [],
     grammarMastered: [],
     missions: [],
@@ -374,8 +381,13 @@ export function normalizeProgress(raw: unknown, vocabularySize: number, grammarS
   const progress: Progress = {
     ...starter,
     ...legacy,
-    version: 8,
+    version: 9,
     selectedLevel: HSK_LEVELS.includes(legacy.selectedLevel as HskLevel) ? legacy.selectedLevel as HskLevel : "1",
+    trainingSeconds: Number(legacy.version) >= 9 ? Math.max(0, Math.floor(Number(legacy.trainingSeconds) || 0)) : 0,
+    trainingTodaySeconds: Number(legacy.version) >= 9 && legacy.trainingDate === date
+      ? Math.max(0, Math.floor(Number(legacy.trainingTodaySeconds) || 0))
+      : 0,
+    trainingDate: date,
     levelArchives,
     studyHistory,
     reviews,
@@ -542,9 +554,22 @@ export function earnOnce(progress: Progress, key: string, amount: number, date =
 }
 
 export function completeDailyStep(progress: Progress, id: string, minutes: number, date = localDate()) {
+  void minutes;
   const active = activate(progress, date);
   if (active.daily.includes(id)) return active;
-  return { ...active, daily: [...active.daily, id], minutes: active.minutes + minutes };
+  return { ...active, daily: [...active.daily, id] };
+}
+
+export function recordActiveStudySeconds(progress: Progress, seconds: number, date = localDate()) {
+  const elapsed = Math.max(0, Math.min(300, Math.floor(Number(seconds) || 0)));
+  if (!elapsed) return progress;
+  const todaySeconds = progress.trainingDate === date ? progress.trainingTodaySeconds : 0;
+  return {
+    ...progress,
+    trainingSeconds: progress.trainingSeconds + elapsed,
+    trainingTodaySeconds: todaySeconds + elapsed,
+    trainingDate: date,
+  };
 }
 
 export function recordSkillAttempt(progress: Progress, skill: SkillArea, correct: boolean, date = localDate()): Progress {

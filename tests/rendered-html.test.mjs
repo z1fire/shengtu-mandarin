@@ -11,6 +11,7 @@ import {
   normalizeProgress,
   dueCorrections,
   queueCorrection,
+  recordActiveStudySeconds,
   recordStudyDay,
   recordStudyDayReplay,
   recordSkillAttempt,
@@ -139,6 +140,12 @@ test("uses focused app views instead of one scrolling curriculum page", async ()
   assert.match(source, /FOUR-LINE ROLE-PLAY/);
   assert.match(source, /missionAllLinesPassed/);
   assert.match(source, /Record or self-check all four conversation lines first/);
+  assert.match(source, /recordActiveStudySeconds/);
+  assert.match(source, /document\.visibilityState === "visible"/);
+  assert.match(source, /document\.hasFocus\(\)/);
+  assert.match(source, /now - lastInteractionAt <= 60_000/);
+  assert.match(source, /active min today/);
+  assert.doesNotMatch(source, /35 focused minutes/);
   assert.match(source, /OBJECTIVE ACCURACY/);
   assert.match(source, /\/api\/progress/);
   assert.match(source, /EXAMPLE SENTENCE/);
@@ -402,7 +409,15 @@ test("resets daily work, calculates real streaks, and prevents repeat rewards", 
 
   const once = earnOnce(starter, "word:1", 5, "2026-08-18");
   assert.equal(earnOnce(once, "word:1", 5, "2026-08-18").xp, 5);
-  assert.equal(completeDailyStep(once, "review", 5, "2026-08-18").minutes, 5);
+  assert.equal(completeDailyStep(once, "review", 5, "2026-08-18").minutes, 0);
+
+  const tracked = recordActiveStudySeconds(starter, 61, "2026-08-18");
+  assert.equal(tracked.trainingSeconds, 61);
+  assert.equal(tracked.trainingTodaySeconds, 61);
+  const nextTrackedDay = recordActiveStudySeconds(tracked, 30, "2026-08-19");
+  assert.equal(nextTrackedDay.trainingSeconds, 91);
+  assert.equal(nextTrackedDay.trainingTodaySeconds, 30);
+  assert.equal(nextTrackedDay.trainingDate, "2026-08-19");
 
   const stale = { ...once, daily: ["review"], dailyDate: "2026-08-18", listeningDone: ["l01"] };
   const normalized = normalizeProgress(stale, 300, 70, "2026-08-19");
@@ -410,7 +425,8 @@ test("resets daily work, calculates real streaks, and prevents repeat rewards", 
   assert.deepEqual(normalized.listeningDone, []);
 
   const legacyMissionProgress = normalizeProgress({ ...stale, version: 2, missions: [0, 1], missionSteps: undefined }, 300, 70, "2026-08-19");
-  assert.equal(legacyMissionProgress.version, 8);
+  assert.equal(legacyMissionProgress.version, 9);
+  assert.equal(legacyMissionProgress.trainingSeconds, 0);
   assert.deepEqual(legacyMissionProgress.missionSteps, ["0:0", "0:1", "0:2", "1:0", "1:1", "1:2"]);
   assert.equal(legacyMissionProgress.missionSessionCount, 6);
   assert.equal(legacyMissionProgress.grammarQueue.at(-1), 0);
@@ -549,7 +565,7 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
     assert.equal(png.readUInt32BE(20), size);
   }
 
-  assert.match(serviceWorker, /shengtu-v22/);
+  assert.match(serviceWorker, /shengtu-v23/);
   assert.match(serviceWorker, /request\.mode === "navigate"/);
   assert.match(serviceWorker, /url\.pathname\.includes\("\/api\/"\)/);
   assert.match(serviceWorker, /icon-maskable-512\.png/);
@@ -573,7 +589,7 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
   assert.match(layoutSource, /crossOrigin="use-credentials"/);
   assert.match(source, /className="app-version"/);
   assert.match(source, /v\{APP_VERSION\}/);
-  assert.match(versionSource, /APP_VERSION = "1\.2\.7"/);
+  assert.match(versionSource, /APP_VERSION = "1\.2\.8"/);
   assert.match(pagesHtml, /mobile-web-app-capable/);
   assert.match(pagesHtml, /apple-touch-icon\.png/);
   assert.match(pagesHtml, /viewport-fit=cover/);
