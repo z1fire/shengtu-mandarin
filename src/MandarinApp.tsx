@@ -420,8 +420,10 @@ export default function MandarinApp() {
   const [speechText, setSpeechText] = useState("Listen, shadow, then record the line.");
   const [speechScore, setSpeechScore] = useState<number | null>(null);
   const [isListening, setIsListening] = useState(false);
-  const [missionSpeechText, setMissionSpeechText] = useState("Listen once, shadow twice, then perform the mission line without reading.");
+  const [missionSpeechText, setMissionSpeechText] = useState("Practice both lines: listen once, shadow twice, then record each one.");
   const [missionSpeechScore, setMissionSpeechScore] = useState<number | null>(null);
+  const [missionSpeechLineIndex, setMissionSpeechLineIndex] = useState(0);
+  const [missionSpeechPassed, setMissionSpeechPassed] = useState<boolean[]>([]);
   const [isMissionListening, setIsMissionListening] = useState(false);
   const [examStarted, setExamStarted] = useState(false);
   const [examIndex, setExamIndex] = useState(0);
@@ -742,6 +744,8 @@ export default function MandarinApp() {
   const missionDictation = useMemo(() => buildMissionDictation(missions, activeMissionIndex), [activeMissionIndex, missions]);
   const gradedReading = useMemo(() => buildGradedReading(missions, activeMissionIndex, missionPhase), [activeMissionIndex, missionPhase, missions]);
   const missionConversation = useMemo(() => buildMissionConversation(activeMission, missionPhase), [activeMission, missionPhase]);
+  const missionLearnerTurns = useMemo(() => missionConversation.filter((turn) => turn.learner), [missionConversation]);
+  const activeMissionSpeechTurn = missionLearnerTurns[missionSpeechLineIndex] ?? missionLearnerTurns[0];
   const activeCorrections = dueCorrections(progress, selectedLevel, today);
   const activeCorrection = activeCorrections[0];
   const skillScores = (Object.keys(skillLabels) as SkillArea[]).map((skill) => ({
@@ -771,8 +775,10 @@ export default function MandarinApp() {
       setDailyGrammarStage("learn");
       setDailyGrammarResult("");
       setDailyGrammarAnswered(false);
-      setMissionSpeechText("Listen once, shadow twice, then perform the mission line without reading.");
+      setMissionSpeechText("Practice both lines: listen once, shadow twice, then record each one.");
       setMissionSpeechScore(null);
+      setMissionSpeechLineIndex(0);
+      setMissionSpeechPassed([]);
     }, 0);
     return () => window.clearTimeout(timer);
   }, [activeMission, activeMissionIndex, missionPhase, ready]);
@@ -801,8 +807,10 @@ export default function MandarinApp() {
         setMissionWordBank(shuffle(activeMission.tokens));
         setMissionBuilt([]);
         setMissionBuildResult("");
-        setMissionSpeechText("Listen once, shadow twice, then perform the mission line without reading.");
+        setMissionSpeechText("Practice both lines: listen once, shadow twice, then record each one.");
         setMissionSpeechScore(null);
+        setMissionSpeechLineIndex(0);
+        setMissionSpeechPassed([]);
       }, 0);
       wasReplaying.current = false;
       return;
@@ -913,8 +921,10 @@ export default function MandarinApp() {
     setMissionWordBank(shuffle(missions[Math.min(missions.length - 1, day.missionIndex)].tokens));
     setMissionBuilt([]);
     setMissionBuildResult("");
-    setMissionSpeechText("Listen once, shadow twice, then perform the mission line without reading.");
+    setMissionSpeechText("Practice both lines: listen once, shadow twice, then record each one.");
     setMissionSpeechScore(null);
+    setMissionSpeechLineIndex(0);
+    setMissionSpeechPassed([]);
     if (window.location.hash !== "#today/lesson") window.history.pushState(null, "", "#today/lesson");
     setAppView("today");
     setTodayScreen("lesson");
@@ -1453,8 +1463,8 @@ export default function MandarinApp() {
     const recognitionWindow = window as unknown as RecognitionWindow;
     const RecognitionCtor = recognitionWindow.SpeechRecognition ?? recognitionWindow.webkitSpeechRecognition;
     if (!RecognitionCtor) {
-      setMissionSpeechText("Automatic word checking is unavailable here. Perform the line aloud, then use the honest self-check.");
-      speak(activeMission.phrase, 0.7);
+      setMissionSpeechText(`Automatic word checking is unavailable here. Perform line ${missionSpeechLineIndex + 1} aloud, then use the honest self-check.`);
+      speak(activeMissionSpeechTurn.hanzi, 0.7);
       return;
     }
     const recognition = new RecognitionCtor();
@@ -1464,16 +1474,23 @@ export default function MandarinApp() {
     recognition.onresult = (event) => {
       const speechEvent = event as { results: { [key: number]: { [key: number]: { transcript: string } } } };
       const transcript = speechEvent.results[0][0].transcript;
-      const score = similarityScore(activeMission.phrase, transcript);
+      const score = similarityScore(activeMissionSpeechTurn.hanzi, transcript);
       setMissionSpeechScore(score);
+      if (score >= 65) {
+        setMissionSpeechPassed((current) => {
+          const next = [...current];
+          next[missionSpeechLineIndex] = true;
+          return next;
+        });
+      }
       setMissionSpeechText(score >= 65
-        ? `Heard: ${transcript} · word match ${score}%. Now self-check tones and fluency.`
-        : `Heard: ${transcript} · word match ${score}%. Shadow twice and try again.`);
+        ? `Line ${missionSpeechLineIndex + 1} heard: ${transcript} · word match ${score}%. Self-check tones, then ${missionSpeechLineIndex + 1 < missionLearnerTurns.length ? "select the next line" : "perform both lines together"}.`
+        : `Line ${missionSpeechLineIndex + 1} heard: ${transcript} · word match ${score}%. Shadow twice and try again.`);
       setProgress((current) => recordSkillAttempt(current, "speaking", score >= 65, today));
     };
     recognition.onerror = () => setMissionSpeechText("I couldn’t hear that clearly. Move closer and try once more.");
     recognition.onend = () => setIsMissionListening(false);
-    setMissionSpeechText(`Listening… perform: ${activeMission.phrase}`);
+    setMissionSpeechText(`Listening… perform line ${missionSpeechLineIndex + 1}: ${activeMissionSpeechTurn.hanzi}`);
     setMissionSpeechScore(null);
     setIsMissionListening(true);
     recognition.start();
@@ -1716,9 +1733,18 @@ export default function MandarinApp() {
 
           {practice === "reading" && <div className="graded-reader"><div className="reader-intro"><span className="micro-label">GRADED READING · KNOWN MISSION LANGUAGE</span><h3>{gradedReading.title}</h3><p>Read the exchange first without translation. Tap a line only when you need support.</p></div><div className="reader-page">{gradedReading.lines.map((line, index) => <details key={`${line.speaker}-${index}`}><summary><span>{line.speaker}</span><strong lang="zh-CN">{line.hanzi}</strong><button onClick={(event) => { event.preventDefault(); speak(line.hanzi); }} aria-label={`Play line ${index + 1}`}>▶</button></summary><p>{progress.showPinyin && <span>{line.pinyin}</span>}<em>{line.translation}</em></p></details>)}<div className="reader-question"><strong>{gradedReading.question}</strong>{gradedReading.options.map((option) => <button key={option} onClick={() => answerReading(option)} disabled={readingResult.startsWith("Correct")}>{option}</button>)}{readingResult && <div className={`result-note ${readingResult.startsWith("Correct") ? "correct" : ""}`}>{readingResult}</div>}</div></div></div>}
 
-          {practice === "speaking" && <div className="conversation-stage"><div className="conversation-heading"><span className="micro-label">EXPANDING CONVERSATION · DAY {missionPhase + 1} / 3</span><h3>{missionPhase === 2 ? "Perform the complete exchange." : "Add one more turn each day."}</h3><p>Tap any turn to hear it. Perform every turn marked YOU when you reach the checkpoint.</p></div>{missionConversation.map((turn, index) => <button key={`${turn.speaker}-${index}`} className={turn.learner ? "learner" : "partner"} onClick={() => speak(turn.hanzi, 0.72)}><span>{turn.speaker} · ▶</span><strong lang="zh-CN">{turn.hanzi}</strong>{progress.showPinyin && <small>{turn.pinyin}</small>}<em>{turn.translation}</em></button>)}</div>}
+          {practice === "speaking" && <div className="conversation-stage"><div className="conversation-heading"><span className="micro-label">TWO-LINE ROLE-PLAY · DAY {missionPhase + 1} / 3</span><h3>{missionPhase === 2 ? "Perform both lines without reading." : "Practice both of your lines."}</h3><p>Tap any turn to hear it. The two turns marked YOU are both included in today’s checkpoint.</p></div>{missionConversation.map((turn, index) => <button key={`${turn.speaker}-${index}`} className={turn.learner ? "learner" : "partner"} onClick={() => speak(turn.hanzi, 0.72)}><span>{turn.speaker} · ▶</span><strong lang="zh-CN">{turn.hanzi}</strong>{progress.showPinyin && <small>{turn.pinyin}</small>}<em>{turn.translation}</em></button>)}</div>}
 
-          {practice === "speaking" && <div className="mission-checkpoint"><div className="checkpoint-intro"><span className="micro-label">REAL-LIFE CHECKPOINT · MISSION {activeMissionIndex + 1} · DAY {missionPhase + 1} / 3</span><h3>{missionPhase === 2 ? "Perform it without reading." : replaySession ? "Prove this mission skill again." : "Prove today’s mission skill."}</h3><p>{missionPhaseCopy[missionPhase].detail} Listen once, shadow twice, then look away and deliver the line naturally.</p><div className="checkpoint-readiness">{dailySteps.slice(0, 4).map((step) => <span key={step.id} className={sessionDaily.includes(step.id) ? "ready" : ""}>{sessionDaily.includes(step.id) ? "✓" : "○"} {step.title}</span>)}</div></div><div className="speech-console mission-speech-console"><button className="speaker-orb" onClick={() => speak(activeMission.phrase, 0.7)} aria-label="Play mission phrase">声<span>▶ MODEL</span></button><strong>{activeMission.phrase}</strong>{progress.showPinyin && <p>{activeMission.pinyin}</p>}<em>{activeMission.translation}</em><button className={`record-button ${isMissionListening ? "recording" : ""}`} onClick={startMissionSpeechCheck}><span>●</span>{isMissionListening ? "Listening…" : "Perform my line"}</button><div className="speech-feedback">{missionSpeechText}</div>{missionSpeechScore !== null && <div className="speech-meter"><i style={{ width: `${missionSpeechScore}%` }} /></div>}<button className="checkpoint-button" onClick={completeMissionCheckpoint} disabled={!missionReady || completedMissionSession}>{completedMissionSession ? `✓ ${replaySession ? "Replay" : "Checkpoint"} complete` : replaySession ? "I performed it · complete replay" : missionPhase === 2 ? "I performed it · complete mission" : "I performed it · complete today"}</button><small className="speech-honesty">Recognition checks words, not tone accuracy. Complete only after an honest self-check.</small></div><div className="sound-gym-toggle"><button onClick={() => setShowSoundGym((value) => !value)}>{showSoundGym ? "Close sound gym" : "Open optional sound gym"}</button><span>Keep all {pronunciationDrills.length} pronunciation drills available for extra practice.</span></div>{showSoundGym && <div className="speaking-lab pronunciation-lab sound-gym"><div className="lab-instructions"><span className="micro-label">OPTIONAL TONE & SOUND GYM · {pronunciationIndex + 1} / {pronunciationDrills.length}</span><h3>Train the sound, not just the word.</h3><p>{activePronunciation.cue}</p><div className="tone-map" aria-label="Mandarin tone contours"><span>1 ˉ<small>high</small></span><span>2 ˊ<small>rise</small></span><span>3 ˇ<small>dip</small></span><span>4 ˋ<small>fall</small></span><span>·<small>light</small></span></div></div><div><div className="pronunciation-picker">{pronunciationDrills.map((drill, index) => <button key={drill.id} className={index === pronunciationIndex ? "active" : ""} onClick={() => { setPronunciationIndex(index); setSpeechScore(null); setSpeechText("Listen, shadow, then record the line."); }}>{drill.focus}</button>)}</div><div className="speech-console"><button className="speaker-orb" onClick={() => speak(activePronunciation.hanzi, 0.7)} aria-label="Play phrase">声<span>▶ MODEL</span></button><strong>{activePronunciation.hanzi}</strong>{progress.showPinyin && <p>{activePronunciation.pinyin}</p>}<button className={`record-button ${isListening ? "recording" : ""}`} onClick={startSpeechCheck}><span>●</span>{isListening ? "Listening…" : "Record my line"}</button><div className="speech-feedback">{speechText}</div>{speechScore !== null && <div className="speech-meter"><i style={{ width: `${speechScore}%` }} /></div>}<div className="self-checks"><button onClick={() => completePronunciation("Pronunciation drill recorded · +12 XP")}>Tone contour felt accurate</button><button onClick={() => { setSpeechText("Replay slowly and exaggerate the contour once, then repeat naturally."); speak(activePronunciation.hanzi, 0.58); }}>Needs another round</button></div><small className="speech-honesty">Browser recognition checks the words, not pitch. Use the tone cue and an honest self-check.</small></div></div></div>}</div>}
+          {practice === "speaking" && <div className="mission-checkpoint">
+            <div className="checkpoint-intro"><span className="micro-label">REAL-LIFE CHECKPOINT · MISSION {activeMissionIndex + 1} · DAY {missionPhase + 1} / 3</span><h3>{missionPhase === 2 ? "Perform both lines without reading." : replaySession ? "Prove both mission lines again." : "Prove both of today’s lines."}</h3><p>{missionPhaseCopy[missionPhase].detail} Listen once, shadow twice, then look away and deliver both YOU lines naturally.</p><div className="checkpoint-readiness">{dailySteps.slice(0, 4).map((step) => <span key={step.id} className={sessionDaily.includes(step.id) ? "ready" : ""}>{sessionDaily.includes(step.id) ? "✓" : "○"} {step.title}</span>)}</div></div>
+            <div className="speech-console mission-speech-console">
+              <div className="mission-line-picker" role="tablist" aria-label="Choose a learner line to practice">{missionLearnerTurns.map((turn, index) => <button key={turn.hanzi} className={`${index === missionSpeechLineIndex ? "active" : ""} ${missionSpeechPassed[index] ? "passed" : ""}`} onClick={() => { setMissionSpeechLineIndex(index); setMissionSpeechScore(null); setMissionSpeechText(`Line ${index + 1} selected. Listen, shadow twice, then record it.`); }}><span>{missionSpeechPassed[index] ? "✓" : index + 1}</span>LINE {index + 1}</button>)}</div>
+              <button className="speaker-orb" onClick={() => speak(activeMissionSpeechTurn.hanzi, 0.7)} aria-label={`Play learner line ${missionSpeechLineIndex + 1}`}>声<span>▶ MODEL {missionSpeechLineIndex + 1}/2</span></button><strong>{activeMissionSpeechTurn.hanzi}</strong>{progress.showPinyin && <p>{activeMissionSpeechTurn.pinyin}</p>}<em>{activeMissionSpeechTurn.translation}</em>
+              <button className={`record-button ${isMissionListening ? "recording" : ""}`} onClick={startMissionSpeechCheck}><span>●</span>{isMissionListening ? "Listening…" : `Perform line ${missionSpeechLineIndex + 1} of 2`}</button><div className="speech-feedback">{missionSpeechText}</div>{missionSpeechScore !== null && <div className="speech-meter"><i style={{ width: `${missionSpeechScore}%` }} /></div>}
+              <button className="checkpoint-button" onClick={completeMissionCheckpoint} disabled={!missionReady || completedMissionSession}>{completedMissionSession ? `✓ ${replaySession ? "Replay" : "Checkpoint"} complete` : replaySession ? "I performed both lines · complete replay" : missionPhase === 2 ? "I performed both lines · complete mission" : "I performed both lines · complete today"}</button><small className="speech-honesty">Recognition checks words, not tone accuracy. Complete only after honestly performing both lines.</small>
+            </div>
+            <div className="sound-gym-toggle"><button onClick={() => setShowSoundGym((value) => !value)}>{showSoundGym ? "Close sound gym" : "Open optional sound gym"}</button><span>Keep all {pronunciationDrills.length} pronunciation drills available for extra practice.</span></div>{showSoundGym && <div className="speaking-lab pronunciation-lab sound-gym"><div className="lab-instructions"><span className="micro-label">OPTIONAL TONE & SOUND GYM · {pronunciationIndex + 1} / {pronunciationDrills.length}</span><h3>Train the sound, not just the word.</h3><p>{activePronunciation.cue}</p><div className="tone-map" aria-label="Mandarin tone contours"><span>1 ˉ<small>high</small></span><span>2 ˊ<small>rise</small></span><span>3 ˇ<small>dip</small></span><span>4 ˋ<small>fall</small></span><span>·<small>light</small></span></div></div><div><div className="pronunciation-picker">{pronunciationDrills.map((drill, index) => <button key={drill.id} className={index === pronunciationIndex ? "active" : ""} onClick={() => { setPronunciationIndex(index); setSpeechScore(null); setSpeechText("Listen, shadow, then record the line."); }}>{drill.focus}</button>)}</div><div className="speech-console"><button className="speaker-orb" onClick={() => speak(activePronunciation.hanzi, 0.7)} aria-label="Play phrase">声<span>▶ MODEL</span></button><strong>{activePronunciation.hanzi}</strong>{progress.showPinyin && <p>{activePronunciation.pinyin}</p>}<button className={`record-button ${isListening ? "recording" : ""}`} onClick={startSpeechCheck}><span>●</span>{isListening ? "Listening…" : "Record my line"}</button><div className="speech-feedback">{speechText}</div>{speechScore !== null && <div className="speech-meter"><i style={{ width: `${speechScore}%` }} /></div>}<div className="self-checks"><button onClick={() => completePronunciation("Pronunciation drill recorded · +12 XP")}>Tone contour felt accurate</button><button onClick={() => { setSpeechText("Replay slowly and exaggerate the contour once, then repeat naturally."); speak(activePronunciation.hanzi, 0.58); }}>Needs another round</button></div><small className="speech-honesty">Browser recognition checks the words, not pitch. Use the tone cue and an honest self-check.</small></div></div></div>}
+          </div>}
         </div>
         {practice === "speaking" && completedMissionSession && <div className="correction-lab"><div><span className="micro-label">AUTOMATIC CORRECTION LOOP</span><h3>{activeCorrection ? `${activeCorrections.length} miss${activeCorrections.length === 1 ? "" : "es"} ready to repair` : "Today’s misses are repaired."}</h3><p>{activeCorrection ? "Answer correctly now and once more tomorrow. This extra practice never changes the fixed vocabulary cadence." : "Anything you miss later will appear here automatically."}</p></div>{activeCorrection && <div className="correction-card"><span>{skillLabels[activeCorrection.skill]}</span><strong>{activeCorrection.prompt}</strong><div>{activeCorrection.options.map((option) => <button key={option} onClick={() => answerCorrection(option)}>{option}</button>)}</div>{correctionResult && <p className={correctionResult.startsWith("Correct") ? "correct" : ""}>{correctionResult}<small>{activeCorrection.explanation}</small></p>}</div>}</div>}
         <div className="lesson-next-bar"><button onClick={() => navigate("today")}>Save & return to plan</button><div><span>UP NEXT</span><strong>{practiceLabels[nextPractice]}</strong></div><button className="next-step-button" onClick={() => setPractice(nextPractice)}>Continue →</button></div>

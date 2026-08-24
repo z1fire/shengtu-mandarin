@@ -314,6 +314,13 @@ button { color: inherit; }
 .checkpoint-readiness span.ready { background: #dcebe5; border-color: var(--jade); color: #155845; }
 .mission-speech-console { min-height: 395px; }
 .mission-speech-console > em { margin: -9px 0 19px; color: #9da69f; font-size: 10px; font-style: normal; }
+.mission-line-picker { width: min(360px, 100%); display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.mission-line-picker button { display: flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid rgba(255,255,255,.28); background: transparent; color: #aeb5af; padding: 9px 10px; cursor: pointer; font-size: 8px; font-weight: 900; letter-spacing: .1em; }
+.mission-line-picker button span { width: 19px; height: 19px; display: grid; place-items: center; border-radius: 50%; background: rgba(255,255,255,.1); color: white; }
+.mission-line-picker button.active { border-color: var(--yellow); color: white; }
+.mission-line-picker button.active span { background: var(--yellow); color: var(--ink); }
+.mission-line-picker button.passed:not(.active) { border-color: var(--jade); color: #7bd0b4; }
+.mission-line-picker + .speaker-orb { margin-top: 22px; }
 .checkpoint-button { margin-top: 17px; border: 0; background: var(--yellow); color: var(--ink); padding: 13px 18px; cursor: pointer; font-weight: 900; }
 .checkpoint-button:disabled { opacity: .38; cursor: not-allowed; }
 .sound-gym-toggle { grid-column: 1/3; display: flex; align-items: center; gap: 17px; border-top: 1px solid var(--line); padding-top: 20px; }

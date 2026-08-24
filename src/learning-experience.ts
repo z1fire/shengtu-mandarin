@@ -33,6 +33,44 @@ export type ConversationTurn = ReadingLine & {
   learner: boolean;
 };
 
+type ConversationSupport = Omit<ReadingLine, "speaker">;
+
+const conversationSupport = {
+  foundation: {
+    opener: { hanzi: "你好，有什么事吗？", pinyin: "Nǐ hǎo, yǒu shénme shì ma?", translation: "Hello, what’s up?" },
+    acknowledgement: { hanzi: "好的，我明白了。", pinyin: "Hǎo de, wǒ míngbai le.", translation: "Okay, I understand." },
+    followUps: [
+      { hanzi: "好的，谢谢。", pinyin: "Hǎo de, xièxie.", translation: "Okay, thank you." },
+      { hanzi: "我明白了，谢谢。", pinyin: "Wǒ míngbai le, xièxie.", translation: "I understand, thank you." },
+      { hanzi: "谢谢你和我练习，再见！", pinyin: "Xièxie nǐ hé wǒ liànxí, zàijiàn!", translation: "Thank you for practicing with me. Goodbye!" },
+    ],
+  },
+  independent: {
+    opener: { hanzi: "你好，今天想谈什么？", pinyin: "Nǐ hǎo, jīntiān xiǎng tán shénme?", translation: "Hello, what would you like to discuss today?" },
+    acknowledgement: { hanzi: "明白了，谢谢你的说明。", pinyin: "Míngbai le, xièxie nǐ de shuōmíng.", translation: "I understand. Thank you for explaining." },
+    followUps: [
+      { hanzi: "好的，谢谢你听我说。", pinyin: "Hǎo de, xièxie nǐ tīng wǒ shuō.", translation: "Okay, thank you for listening to me." },
+      { hanzi: "我还想听听你的看法。", pinyin: "Wǒ hái xiǎng tīngting nǐ de kànfǎ.", translation: "I would also like to hear your view." },
+      { hanzi: "谢谢你和我讨论这个话题。", pinyin: "Xièxie nǐ hé wǒ tǎolùn zhège huàtí.", translation: "Thank you for discussing this topic with me." },
+    ],
+  },
+  advanced: {
+    opener: { hanzi: "今天您想讨论什么问题？", pinyin: "Jīntiān nín xiǎng tǎolùn shénme wèntí?", translation: "What issue would you like to discuss today?" },
+    acknowledgement: { hanzi: "您的意思很清楚。", pinyin: "Nín de yìsi hěn qīngchu.", translation: "Your meaning is very clear." },
+    followUps: [
+      { hanzi: "谢谢，我也想听听您的看法。", pinyin: "Xièxie, wǒ yě xiǎng tīngting nín de kànfǎ.", translation: "Thank you. I would also like to hear your view." },
+      { hanzi: "如果需要，我可以进一步说明。", pinyin: "Rúguǒ xūyào, wǒ kěyǐ jìnyíbù shuōmíng.", translation: "If needed, I can explain further." },
+      { hanzi: "谢谢您的意见，我们可以继续讨论。", pinyin: "Xièxie nín de yìjiàn, wǒmen kěyǐ jìxù tǎolùn.", translation: "Thank you for your input. We can continue the discussion." },
+    ],
+  },
+} satisfies Record<string, { opener: ConversationSupport; acknowledgement: ConversationSupport; followUps: ConversationSupport[] }>;
+
+function conversationRegister(mission: CourseMission) {
+  if (mission.level === "1" || mission.level === "2") return conversationSupport.foundation;
+  if (mission.level === "3" || mission.level === "4" || mission.level === "5") return conversationSupport.independent;
+  return conversationSupport.advanced;
+}
+
 function uniqueOptions(answer: string, candidates: string[]) {
   return [answer, ...candidates.filter((item) => item && item !== answer)]
     .filter((item, index, items) => items.indexOf(item) === index)
@@ -105,14 +143,12 @@ export function buildGradedReading(missions: CourseMission[], activeIndex: numbe
 }
 
 export function buildMissionConversation(mission: CourseMission, phase: number): ConversationTurn[] {
-  const opener = phase === 0
-    ? { hanzi: "请说。", pinyin: "Qǐng shuō.", translation: "Go ahead." }
-    : { hanzi: "你好，请问。", pinyin: "Nǐ hǎo, qǐngwèn.", translation: "Hello, how can I help?" };
-  const turns: ConversationTurn[] = [
-    { speaker: "PARTNER", learner: false, ...opener },
+  const support = conversationRegister(mission);
+  const followUp = support.followUps[Math.min(2, Math.max(0, phase))];
+  return [
+    { speaker: "PARTNER", learner: false, ...support.opener },
     { speaker: "YOU", learner: true, hanzi: mission.phrase, pinyin: mission.pinyin, translation: mission.translation },
+    { speaker: "PARTNER", learner: false, ...support.acknowledgement },
+    { speaker: "YOU", learner: true, ...followUp },
   ];
-  if (phase >= 1) turns.push({ speaker: "PARTNER", learner: false, hanzi: "好的，谢谢。", pinyin: "Hǎo de, xièxie.", translation: "Okay, thank you." });
-  if (phase >= 2) turns.push({ speaker: "YOU", learner: true, hanzi: "谢谢，再见！", pinyin: "Xièxie, zàijiàn!", translation: "Thank you, goodbye!" });
-  return turns;
 }

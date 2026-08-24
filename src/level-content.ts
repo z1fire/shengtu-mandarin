@@ -22,6 +22,7 @@ export type LevelVocabularyWord = VocabularyWord & {
 };
 
 export type CourseMission = {
+  level: HskLevel;
   week: number;
   title: string;
   subtitle: string;
@@ -134,7 +135,7 @@ export function getLibraryGrammar(level: HskLevel, cumulative = false) {
   return levelOrder.slice(0, end + 1).flatMap((item) => item === "1" ? hsk1Grammar : officialGrammar(item));
 }
 
-type MissionBlueprint = Omit<CourseMission, "week" | "words" | "pinyin">;
+type MissionBlueprint = Omit<CourseMission, "level" | "week" | "words" | "pinyin">;
 
 const hsk1Tokens = [
   ["你好", "我叫", "安娜", "你呢"], ["我家", "有", "四口", "人"], ["我要", "一杯茶", "和", "十个饺子"],
@@ -275,6 +276,7 @@ export function getCourseMissions(level: HskLevel): CourseMission[] {
   if (level === "1") {
     return hsk1Missions.map((mission, index) => ({
       ...mission,
+      level: "1",
       tokens: hsk1Tokens[index],
       grammarTitle: hsk1Grammar[Math.min(index * 3, hsk1Grammar.length - 1)].title,
       grammarFormula: hsk1Grammar[Math.min(index * 3, hsk1Grammar.length - 1)].formula,
@@ -282,6 +284,7 @@ export function getCourseMissions(level: HskLevel): CourseMission[] {
   }
   return blueprints[level].map((mission, index) => ({
     ...mission,
+    level,
     week: Math.floor(index / 2) + 1,
     words: focusWords(level, mission.tokens),
     pinyin: pinyinForTokens(mission.tokens),
