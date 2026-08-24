@@ -518,7 +518,14 @@ export default function MandarinApp() {
         }
       })();
     }, 0);
-    if ("serviceWorker" in navigator) navigator.serviceWorker.register(new URL("./sw.js", window.location.href).pathname).catch(() => undefined);
+    if ("serviceWorker" in navigator) {
+      const serviceWorkerUrl = new URL("./sw.js", window.location.href);
+      const serviceWorkerScope = new URL("./", window.location.href);
+      navigator.serviceWorker.register(serviceWorkerUrl.pathname, {
+        scope: serviceWorkerScope.pathname,
+        updateViaCache: "none",
+      }).catch(() => undefined);
+    }
     return () => window.clearTimeout(timer);
   }, []);
 
