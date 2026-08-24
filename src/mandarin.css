@@ -532,9 +532,10 @@ button { color: inherit; }
 .backup-note { margin-top: 18px; padding: 18px 22px; display: flex; gap: 18px; background: #e2ece8; border-left: 5px solid var(--jade); font-size: 11px; line-height: 1.5; }
 .backup-note span { color: var(--muted); }
 
-.sync-pill { padding: 7px 10px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); background: rgba(255,255,255,.5); font-size: 8px; font-weight: 900; letter-spacing: .05em; text-transform: uppercase; }
+.sync-pill { padding: 7px 10px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); background: rgba(255,255,255,.5); cursor: pointer; font-size: 8px; font-weight: 900; letter-spacing: .05em; text-transform: uppercase; }
 .sync-pill.synced { color: var(--jade); border-color: #9bc7b6; background: #eaf5f0; }
 .sync-pill.error { color: var(--coral); }
+.account-manage-link { flex: 0 0 auto; align-self: center; margin-left: auto; padding: 7px 10px; border: 1px solid currentColor; background: transparent; color: var(--jade); cursor: pointer; font-size: 8px; font-weight: 900; text-transform: uppercase; letter-spacing: .08em; }
 .correction-due { border: 0; background: transparent; color: var(--yellow); padding: 0; cursor: pointer; font: inherit; text-transform: inherit; letter-spacing: inherit; text-decoration: underline; text-underline-offset: 3px; }
 .recall-test-start { grid-column: 2; justify-self: end; width: min(100%, 570px); margin-top: -48px; border: 0; background: var(--blue); color: white; padding: 14px 18px; cursor: pointer; font-weight: 900; box-shadow: 5px 5px 0 #2c357b; }
 .recall-verification { grid-column: 2; justify-self: end; width: min(100%, 570px); margin-top: -46px; padding: 16px; border: 1px solid var(--ink); background: var(--paper); box-shadow: 5px 5px 0 var(--yellow); }
@@ -722,6 +723,33 @@ button { color: inherit; }
 .install-sheet > small { display: block; margin-top: 17px; padding-top: 14px; border-top: 1px solid var(--line); color: var(--muted); font-size: 9px; line-height: 1.5; }
 .install-close { position: absolute; top: 18px; right: 18px; width: 34px; height: 34px; border: 1px solid var(--ink); border-radius: 50%; background: transparent; cursor: pointer; font-size: 22px; line-height: 1; }
 .install-now { margin-top: 24px; }
+
+.account-backdrop { position: fixed; inset: 0; z-index: 370; display: grid; place-items: center; padding: 24px; background: rgba(12,18,16,.84); }
+.account-sheet { width: min(520px, 100%); position: relative; padding: 36px 38px 38px; border: 1px solid var(--ink); background: var(--paper); box-shadow: 14px 14px 0 rgba(0,0,0,.28); }
+.account-close { position: absolute; top: 18px; right: 18px; width: 34px; height: 34px; border: 1px solid var(--ink); border-radius: 50%; background: transparent; cursor: pointer; font-size: 22px; line-height: 1; }
+.account-sheet > .section-kicker { color: var(--coral); }
+.account-sheet h2 { max-width: 390px; margin: 8px 45px 22px 0; font: 36px/1.04 Georgia, serif; letter-spacing: -.025em; }
+.account-identity { display: grid; grid-template-columns: 54px 1fr; align-items: center; gap: 14px; padding: 16px; border: 1px solid var(--line); background: white; }
+.account-identity > span { width: 54px; height: 54px; display: grid; place-items: center; border-radius: 50%; background: var(--coral); color: white; font: 25px Georgia, serif; }
+.account-identity > div { min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.account-identity strong { overflow: hidden; text-overflow: ellipsis; font-size: 14px; white-space: nowrap; }
+.account-identity small { overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.account-sync-state { display: grid; grid-template-columns: 13px 1fr; gap: 13px; margin-top: 11px; padding: 16px; background: #e2ece8; }
+.account-sync-state.warning { background: #fff4e7; }
+.account-sync-state > i { width: 11px; height: 11px; margin-top: 2px; border: 3px solid white; border-radius: 50%; background: var(--jade); box-shadow: 0 0 0 1px var(--jade); }
+.account-sync-state.warning > i { background: var(--coral); box-shadow: 0 0 0 1px var(--coral); }
+.account-sync-state strong { font-size: 11px; }
+.account-sync-state p { margin: 5px 0 0; color: var(--muted); font-size: 9px; line-height: 1.55; }
+.account-actions { display: flex; justify-content: space-between; align-items: center; gap: 14px; margin-top: 25px; }
+.account-actions button, .account-primary { min-height: 43px; display: inline-flex; align-items: center; justify-content: center; padding: 11px 18px; border: 0; background: var(--ink); color: white; cursor: pointer; font-size: 10px; font-weight: 900; text-decoration: none; }
+.account-actions a { color: var(--muted); font-size: 10px; font-weight: 850; text-underline-offset: 3px; }
+.account-message { min-height: 220px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px 15px 8px; text-align: center; }
+.account-message > span { width: 58px; height: 58px; display: grid; place-items: center; margin-bottom: 17px; border-radius: 50%; background: var(--yellow); font: 27px "Noto Sans SC", sans-serif; }
+.account-message > strong { font: 24px Georgia, serif; }
+.account-message > p { max-width: 390px; margin: 10px 0 20px; color: var(--muted); font-size: 11px; line-height: 1.55; }
+.account-spinner { border: 3px solid var(--line) !important; border-top-color: var(--coral) !important; background: transparent !important; animation: account-spin .8s linear infinite; }
+.account-primary { margin-top: 1px; }
+@keyframes account-spin { to { transform: rotate(360deg); } }
 
 .app-about { margin-top: 70px; padding: 30px; display: grid; grid-template-columns: 1fr 1fr; gap: 30px; background: var(--ink); color: white; }
 .app-about > div { display: flex; align-items: flex-start; gap: 13px; }
@@ -920,6 +948,11 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
   .mock-question > strong { font-size: 29px; }
   .mock-top > strong { font-size: 23px; }
   .backup-note { flex-direction: column; gap: 5px; }
+  .account-manage-link { align-self: flex-start; margin: 7px 0 0; }
+  .account-backdrop { padding: 15px; }
+  .account-sheet { padding: 30px 21px 26px; box-shadow: 8px 8px 0 rgba(0,0,0,.28); }
+  .account-sheet h2 { margin-right: 36px; font-size: 31px; }
+  .account-actions button { flex: 1; }
   .onboarding-card { padding: 28px 20px; }
   .level-picker-card { margin: 0; }
   .picker-top h2 { font-size: 38px; }
