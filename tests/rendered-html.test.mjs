@@ -10,6 +10,8 @@ import {
   makeStarterProgress,
   normalizeProgress,
   dueCorrections,
+  getLevelGraduationStatus,
+  markLevelGraduated,
   queueCorrection,
   recordActiveStudySeconds,
   recordStudyDay,
@@ -151,6 +153,12 @@ test("uses focused app views instead of one scrolling curriculum page", async ()
   assert.match(source, /SAY YOUR GRAMMAR SENTENCE/);
   assert.match(source, /similarityScore\(target, transcript\)/);
   assert.match(source, /I said it aloud · mark practiced/);
+  assert.match(source, /You earned your/);
+  assert.match(source, /Graduate & start/);
+  assert.match(source, /Keep reviewing/);
+  assert.match(source, /progress\.graduatedLevels\.includes/);
+  assert.match(source, /LEVEL GRADUATION/);
+  assert.match(source, /5 requirements complete/);
   assert.match(source, /OBJECTIVE ACCURACY/);
   assert.match(source, /\/api\/progress/);
   assert.match(source, /EXAMPLE SENTENCE/);
@@ -430,7 +438,8 @@ test("resets daily work, calculates real streaks, and prevents repeat rewards", 
   assert.deepEqual(normalized.listeningDone, []);
 
   const legacyMissionProgress = normalizeProgress({ ...stale, version: 2, missions: [0, 1], missionSteps: undefined }, 300, 70, "2026-08-19");
-  assert.equal(legacyMissionProgress.version, 9);
+  assert.equal(legacyMissionProgress.version, 10);
+  assert.deepEqual(legacyMissionProgress.graduatedLevels, []);
   assert.equal(legacyMissionProgress.trainingSeconds, 0);
   assert.deepEqual(legacyMissionProgress.missionSteps, ["0:0", "0:1", "0:2", "1:0", "1:1", "1:2"]);
   assert.equal(legacyMissionProgress.missionSessionCount, 6);
@@ -513,6 +522,35 @@ test("keeps spaced-repetition and mission progress separate by HSK level", () =>
   assert.deepEqual(restored.levelArchives["2"].mastered, [3]);
 });
 
+test("graduates a completed HSK level and preserves the achievement", () => {
+  const reviews = Object.fromEntries(Array.from({ length: 3 }, (_, index) => [index, scheduleReview(undefined, "good", index)]));
+  const grammarReviews = Object.fromEntries(Array.from({ length: 2 }, (_, index) => [index, scheduleReview(undefined, "good", index)]));
+  const complete = {
+    ...makeStarterProgress("2026-08-20"),
+    onboarded: true,
+    reviews,
+    grammarReviews,
+    missions: [0, 1],
+    examHistory: [{ date: "2026-08-20", score: 82, correct: 33, total: 40 }],
+  };
+  const status = getLevelGraduationStatus(complete, 3, 2, 2);
+  assert.equal(status.ready, true);
+  assert.deepEqual(status.requirements, { vocabulary: true, grammar: true, missions: true, corrections: true, checkpoint: true });
+
+  const blocked = getLevelGraduationStatus({
+    ...complete,
+    corrections: [{ id: "miss", level: "1", skill: "reading", prompt: "p", answer: "a", options: ["a"], explanation: "e", dueDate: "2026-08-21", correctStreak: 1, misses: 1 }],
+  }, 3, 2, 2);
+  assert.equal(blocked.ready, false);
+  assert.equal(blocked.pendingCorrections, 1);
+
+  const graduated = markLevelGraduated(complete, "1");
+  assert.deepEqual(graduated.graduatedLevels, ["1"]);
+  assert.equal(markLevelGraduated(graduated, "1"), graduated);
+  const advanced = switchProgressLevel(graduated, "2", 3, 2, "2026-08-20");
+  assert.deepEqual(advanced.graduatedLevels, ["1"]);
+});
+
 test("scores speech transcripts by the full target instead of two hardcoded phrases", () => {
   assert.equal(similarityScore("你好我叫安娜", "你好我叫安娜"), 100);
   assert.ok(similarityScore("我想喝一杯茶", "我想喝茶") >= 60);
@@ -570,8 +608,8 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
     assert.equal(png.readUInt32BE(20), size);
   }
 
-  assert.match(serviceWorker, /shengtu-v24/);
-  assert.match(versionSource, /1\.2\.9/);
+  assert.match(serviceWorker, /shengtu-v25/);
+  assert.match(versionSource, /1\.3\.0/);
   assert.match(serviceWorker, /request\.mode === "navigate"/);
   assert.match(serviceWorker, /url\.pathname\.includes\("\/api\/"\)/);
   assert.match(serviceWorker, /icon-maskable-512\.png/);
@@ -595,7 +633,7 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
   assert.match(layoutSource, /crossOrigin="use-credentials"/);
   assert.match(source, /className="app-version"/);
   assert.match(source, /v\{APP_VERSION\}/);
-  assert.match(versionSource, /APP_VERSION = "1\.2\.9"/);
+  assert.match(versionSource, /APP_VERSION = "1\.3\.0"/);
   assert.match(pagesHtml, /mobile-web-app-capable/);
   assert.match(pagesHtml, /apple-touch-icon\.png/);
   assert.match(pagesHtml, /viewport-fit=cover/);

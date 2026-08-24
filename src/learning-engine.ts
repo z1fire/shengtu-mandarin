@@ -72,8 +72,9 @@ export type LevelArchive = {
 };
 
 export type Progress = {
-  version: 9;
+  version: 10;
   selectedLevel: HskLevel;
+  graduatedLevels: HskLevel[];
   levelArchives: Partial<Record<HskLevel, LevelArchive>>;
   studyHistory: Partial<Record<HskLevel, StudyDay[]>>;
   startedAt: string;
@@ -132,8 +133,9 @@ export function daysBetween(from: string, to: string) {
 
 export function makeStarterProgress(date = localDate()): Progress {
   return {
-    version: 9,
+    version: 10,
     selectedLevel: "1",
+    graduatedLevels: [],
     levelArchives: {},
     studyHistory: {},
     startedAt: date,
@@ -381,8 +383,11 @@ export function normalizeProgress(raw: unknown, vocabularySize: number, grammarS
   const progress: Progress = {
     ...starter,
     ...legacy,
-    version: 9,
+    version: 10,
     selectedLevel: HSK_LEVELS.includes(legacy.selectedLevel as HskLevel) ? legacy.selectedLevel as HskLevel : "1",
+    graduatedLevels: Array.isArray(legacy.graduatedLevels)
+      ? [...new Set(legacy.graduatedLevels.filter((level): level is HskLevel => HSK_LEVELS.includes(level as HskLevel)))]
+      : [],
     trainingSeconds: Number(legacy.version) >= 9 ? Math.max(0, Math.floor(Number(legacy.trainingSeconds) || 0)) : 0,
     trainingTodaySeconds: Number(legacy.version) >= 9 && legacy.trainingDate === date
       ? Math.max(0, Math.floor(Number(legacy.trainingTodaySeconds) || 0))
@@ -570,6 +575,42 @@ export function recordActiveStudySeconds(progress: Progress, seconds: number, da
     trainingTodaySeconds: todaySeconds + elapsed,
     trainingDate: date,
   };
+}
+
+function coveredItemCount(items: Record<string, ReviewState>, total: number) {
+  return Object.keys(items).filter((index) => {
+    const value = Number(index);
+    return Number.isInteger(value) && value >= 0 && value < total;
+  }).length;
+}
+
+export function getLevelGraduationStatus(progress: Progress, vocabularySize: number, grammarSize: number, missionCount: number) {
+  const vocabularyTaught = coveredItemCount(progress.reviews, vocabularySize);
+  const grammarTaught = coveredItemCount(progress.grammarReviews, grammarSize);
+  const missionsCompleted = new Set(progress.missions.filter((index) => index >= 0 && index < missionCount)).size;
+  const pendingCorrections = progress.corrections.filter((item) => item.level === progress.selectedLevel).length;
+  const bestCheckpointScore = progress.examHistory.reduce((best, attempt) => Math.max(best, attempt.score), 0);
+  const requirements = {
+    vocabulary: vocabularyTaught >= vocabularySize,
+    grammar: grammarTaught >= grammarSize,
+    missions: missionsCompleted >= missionCount,
+    corrections: pendingCorrections === 0,
+    checkpoint: bestCheckpointScore >= 80,
+  };
+  return {
+    ready: Object.values(requirements).every(Boolean),
+    requirements,
+    vocabularyTaught,
+    grammarTaught,
+    missionsCompleted,
+    pendingCorrections,
+    bestCheckpointScore,
+  };
+}
+
+export function markLevelGraduated(progress: Progress, level = progress.selectedLevel): Progress {
+  if (progress.graduatedLevels.includes(level)) return progress;
+  return { ...progress, graduatedLevels: [...progress.graduatedLevels, level] };
 }
 
 export function recordSkillAttempt(progress: Progress, skill: SkillArea, correct: boolean, date = localDate()): Progress {

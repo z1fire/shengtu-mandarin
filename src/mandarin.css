@@ -484,6 +484,8 @@ button { color: inherit; }
 .level-roadmap li small { color: var(--muted); font-size: 8px; line-height: 1.4; margin-top: 4px; }
 .level-roadmap li.current { background: var(--coral); color: white; }
 .level-roadmap li.current span, .level-roadmap li.current small { color: white; opacity: .75; }
+.level-roadmap li.graduated { background: #e2f0ea; }
+.level-roadmap li.graduated span { color: var(--jade); }
 
 .card-example { width: min(100%, 430px); margin-top: 16px; padding-top: 13px; border-top: 1px solid rgba(255,255,255,.35); display: flex; flex-direction: column; align-items: center; gap: 4px; font-family: "Noto Sans SC", "Microsoft YaHei", sans-serif; text-align: center; }
 .card-example small { font-family: Arial, sans-serif; font-size: 8px; font-weight: 900; letter-spacing: .16em; opacity: .72; }
@@ -616,6 +618,19 @@ button { color: inherit; }
 .correction-card > p { display: grid; gap: 5px; margin: 0; padding: 10px; background: #fff1ed; }
 .correction-card > p.correct { background: #eaf5f0; color: var(--jade); }
 .correction-card > p small { color: var(--muted); }
+.graduation-progress-card { margin-top: 22px; padding: 24px; display: grid; grid-template-columns: 310px 1fr; gap: 28px; border: 1px solid var(--line); background: white; }
+.graduation-progress-card.ready { border-color: var(--coral); box-shadow: 7px 7px 0 var(--yellow); }
+.graduation-progress-card.graduated { border-color: var(--jade); background: #eaf4f0; }
+.graduation-progress-copy h3 { margin: 8px 0 10px; font: 27px Georgia, serif; }
+.graduation-progress-copy p { margin: 0; color: var(--muted); font-size: 10px; line-height: 1.55; }
+.graduation-progress-copy button { margin-top: 15px; border: 0; background: var(--coral); color: white; padding: 11px 14px; cursor: pointer; font-size: 9px; font-weight: 900; }
+.graduation-progress-checks { display: grid; grid-template-columns: repeat(5, 1fr); border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+.graduation-progress-checks > div { min-height: 96px; padding: 11px; display: flex; flex-direction: column; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); background: var(--paper); }
+.graduation-progress-checks > div > span { color: var(--muted); font-size: 14px; }
+.graduation-progress-checks > div.complete > span { color: var(--jade); }
+.graduation-progress-checks strong { margin-top: auto; font-size: 8px; line-height: 1.3; }
+.graduation-progress-checks small { margin-top: 4px; color: var(--muted); font-size: 7px; }
+.graduation-progress-checks > div.complete small { color: var(--jade); }
 .skill-dashboard { margin-top: 22px; padding: 28px; background: var(--ink); color: white; }
 .skill-dashboard-head { display: flex; justify-content: space-between; gap: 35px; align-items: end; }
 .skill-dashboard-head h3 { margin: 8px 0 0; font: 31px Georgia, serif; }
@@ -650,12 +665,39 @@ button { color: inherit; }
 .level-picker-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 9px; margin-top: 26px; }
 .level-picker-grid > button { min-height: 205px; padding: 18px; display: flex; flex-direction: column; align-items: flex-start; border: 1px solid var(--line); background: white; text-align: left; cursor: pointer; }
 .level-picker-grid > button.active { border: 3px solid var(--coral); background: #fff4ef; }
+.level-picker-grid > button.graduated:not(.active) { border-color: var(--jade); background: #eef7f3; }
+.level-picker-grid > button.graduated:not(.active) span { color: var(--jade); }
 .level-picker-grid span { color: var(--coral); font-size: 7px; font-weight: 950; letter-spacing: .13em; }
 .level-picker-grid strong { margin-top: 14px; font: 30px Georgia, serif; }
 .level-picker-grid b { margin-top: 5px; font-size: 10px; }
 .level-picker-grid p { margin: 13px 0; color: var(--muted); font-size: 10px; line-height: 1.45; }
 .level-picker-grid small { margin-top: auto; color: var(--jade); font-size: 8px; font-weight: 850; }
 .picker-note { margin: 22px 0 0 !important; padding: 14px 18px; border-left: 4px solid var(--yellow); background: #e9e5dc; font-size: 10px; }
+
+.graduation-ready-banner { width: min(1180px, calc(100% - 40px)); margin: 25px auto -10px; padding: 13px 16px; display: grid; grid-template-columns: auto 1fr auto; gap: 13px; align-items: center; border: 1px solid var(--jade); background: #e2f0ea; box-shadow: 5px 5px 0 var(--jade); }
+.graduation-ready-banner > span { width: 36px; height: 36px; display: grid; place-items: center; border-radius: 50%; background: var(--jade); color: white; font: 20px "Noto Sans SC", sans-serif; }
+.graduation-ready-banner strong, .graduation-ready-banner small { display: block; }
+.graduation-ready-banner small { margin-top: 3px; color: var(--muted); font-size: 9px; }
+.graduation-ready-banner button { border: 0; background: var(--ink); color: white; padding: 11px 14px; cursor: pointer; font-size: 9px; font-weight: 900; }
+.graduation-backdrop { position: fixed; inset: 0; z-index: 420; display: grid; place-items: center; padding: 24px; background: rgba(12,18,16,.9); overflow-y: auto; }
+.graduation-sheet { width: min(760px, 100%); position: relative; padding: 45px 48px 38px; border: 1px solid var(--ink); background: var(--paper); box-shadow: 15px 15px 0 var(--yellow); overflow: hidden; }
+.graduation-sheet::after { content: "毕业"; position: absolute; right: -12px; top: 22px; color: rgba(26,35,31,.055); font: 128px/.8 "Noto Sans SC", sans-serif; pointer-events: none; }
+.graduation-seal { width: 78px; height: 78px; position: absolute; right: 46px; top: 44px; z-index: 1; display: grid; place-items: center; align-content: center; border-radius: 50%; background: var(--coral); color: white; box-shadow: 0 0 0 8px rgba(243,85,61,.14); font: 38px/.9 "Noto Sans SC", sans-serif; }
+.graduation-seal span { display: block; margin-top: 3px; font: 7px Inter, sans-serif; letter-spacing: .1em; }
+.graduation-sheet > .section-kicker { color: var(--coral); }
+.graduation-sheet h2 { max-width: 500px; margin: 10px 100px 16px 0; font: clamp(42px, 6vw, 63px)/.92 Georgia, serif; letter-spacing: -.045em; }
+.graduation-sheet h2 em { color: var(--coral); }
+.graduation-sheet > p { max-width: 580px; color: var(--muted); font-size: 12px; line-height: 1.65; }
+.graduation-checks { margin: 25px 0 22px; display: grid; grid-template-columns: repeat(5, 1fr); border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+.graduation-checks > div { min-height: 105px; padding: 13px; display: flex; flex-direction: column; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); background: white; }
+.graduation-checks > div > span { width: 23px; height: 23px; display: grid; place-items: center; border-radius: 50%; background: var(--jade); color: white; font-size: 10px; }
+.graduation-checks strong { margin-top: auto; font-size: 9px; line-height: 1.3; }
+.graduation-checks small { margin-top: 4px; color: var(--jade); font-size: 8px; font-weight: 850; }
+.graduation-actions { display: flex; align-items: center; gap: 15px; }
+.graduation-actions button { cursor: pointer; font-weight: 900; }
+.graduation-advance { border: 0; background: var(--coral); color: white; padding: 15px 19px; box-shadow: 5px 5px 0 var(--ink); }
+.graduation-review { border: 0; border-bottom: 1px solid currentColor; background: transparent; color: var(--muted); padding: 6px 0; font-size: 9px; }
+.graduation-note { display: block; margin-top: 20px; color: var(--muted); font-size: 8px; }
 
 /* App navigation and focused views */
 .topbar { position: sticky; top: 0; z-index: 80; background: rgba(243,240,232,.94); backdrop-filter: blur(16px); }
@@ -873,6 +915,7 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
   .grammar-drill-choices { grid-template-columns: 1fr; }
   .progress-tools { justify-content: flex-start; }
   .coverage-dashboard { grid-template-columns: 1fr; }
+  .graduation-progress-card { grid-template-columns: 1fr; }
   .dictation-lab, .graded-reader, .correction-lab { grid-template-columns: 1fr; gap: 28px; padding: 36px 30px; }
   .conversation-stage { grid-template-columns: 1fr 1fr; padding: 30px; }
   .conversation-heading { grid-row: auto; grid-column: 1 / 3; }
@@ -1018,6 +1061,23 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
   .sync-copy-grid { grid-template-columns: 1fr; }
   .sync-copy-grid article { min-height: 155px; }
   .onboarding-card { padding: 28px 20px; }
+  .graduation-backdrop { padding: 13px; place-items: start center; }
+  .graduation-sheet { margin: 10px 0; padding: 30px 20px 25px; box-shadow: 8px 8px 0 var(--yellow); }
+  .graduation-sheet::after { font-size: 88px; }
+  .graduation-seal { width: 58px; height: 58px; right: 22px; top: 28px; font-size: 28px; }
+  .graduation-sheet h2 { margin-right: 68px; font-size: 38px; }
+  .graduation-checks { grid-template-columns: 1fr; }
+  .graduation-checks > div { min-height: 62px; display: grid; grid-template-columns: 25px 1fr auto; gap: 9px; align-items: center; }
+  .graduation-checks strong { margin-top: 0; }
+  .graduation-actions { align-items: stretch; flex-direction: column; }
+  .graduation-advance { width: 100%; }
+  .graduation-review { align-self: center; }
+  .graduation-ready-banner { width: calc(100% - 28px); margin-top: 14px; grid-template-columns: auto 1fr; }
+  .graduation-ready-banner button { grid-column: 1 / 3; width: 100%; }
+  .graduation-progress-card { padding: 18px; }
+  .graduation-progress-checks { grid-template-columns: 1fr; }
+  .graduation-progress-checks > div { min-height: 52px; display: grid; grid-template-columns: 22px 1fr auto; gap: 8px; align-items: center; }
+  .graduation-progress-checks strong { margin-top: 0; }
   .level-picker-card { margin: 0; }
   .picker-top h2 { font-size: 38px; }
   .level-picker-grid { grid-template-columns: 1fr; }

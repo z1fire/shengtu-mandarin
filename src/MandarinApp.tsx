@@ -28,8 +28,10 @@ import {
   completeDailyStep,
   dueCorrections,
   earnOnce,
+  getLevelGraduationStatus,
   localDate,
   makeStarterProgress,
+  markLevelGraduated,
   normalizeProgress,
   recordActiveStudySeconds,
   recordStudyDay,
@@ -463,6 +465,7 @@ export default function MandarinApp() {
   const [progress, setProgress] = useState<Progress>(() => makeStarterProgress(today));
   const [ready, setReady] = useState(false);
   const [showLevelPicker, setShowLevelPicker] = useState(false);
+  const [graduationDismissedLevel, setGraduationDismissedLevel] = useState<HskLevel | null>(null);
   const [libraryCumulative, setLibraryCumulative] = useState(true);
   const selectedLevel = progress.selectedLevel;
   const meta = levelMeta[selectedLevel];
@@ -899,6 +902,22 @@ export default function MandarinApp() {
   const grammarIntroduced = Object.keys(progress.grammarReviews).length;
   const wordCoveragePercent = Math.round((wordsIntroduced / vocabulary.length) * 100);
   const grammarCoveragePercent = Math.round((grammarIntroduced / levelGrammar.length) * 100);
+  const graduationStatus = useMemo(
+    () => getLevelGraduationStatus(progress, vocabulary.length, levelGrammar.length, missions.length),
+    [levelGrammar.length, missions.length, progress, vocabulary.length],
+  );
+  const selectedLevelPosition = levelOrder.indexOf(selectedLevel);
+  const nextGraduationLevel = levelOrder[selectedLevelPosition + 1] ?? null;
+  const currentLevelGraduated = progress.graduatedLevels.includes(selectedLevel);
+  const levelReadyToGraduate = graduationStatus.ready && !currentLevelGraduated;
+  const graduationChecks = [
+    { id: "vocabulary", label: "Vocabulary taught", value: `${graduationStatus.vocabularyTaught.toLocaleString()} / ${vocabulary.length.toLocaleString()}`, complete: graduationStatus.requirements.vocabulary },
+    { id: "grammar", label: "Grammar taught", value: `${graduationStatus.grammarTaught} / ${levelGrammar.length}`, complete: graduationStatus.requirements.grammar },
+    { id: "missions", label: "Missions completed", value: `${graduationStatus.missionsCompleted} / ${missions.length}`, complete: graduationStatus.requirements.missions },
+    { id: "corrections", label: "Corrections cleared", value: graduationStatus.pendingCorrections ? `${graduationStatus.pendingCorrections} remaining` : "Clear", complete: graduationStatus.requirements.corrections },
+    { id: "checkpoint", label: "Checkpoint score", value: graduationStatus.bestCheckpointScore ? `${graduationStatus.bestCheckpointScore}% best` : "Not taken", complete: graduationStatus.requirements.checkpoint },
+  ];
+  const graduationRequirementCount = graduationChecks.filter((check) => check.complete).length;
   const activeWordIndex = sessionVocabularyQueue[sessionCardPosition];
   const activeWord = activeWordIndex === undefined ? null : vocabulary[activeWordIndex];
   const activeReview = activeWordIndex === undefined ? undefined : progress.reviews[activeWordIndex];
@@ -1127,12 +1146,7 @@ export default function MandarinApp() {
     setToast(`Repeating ${studyDayLabel(day.date)} · progress for today is protected`);
   }
 
-  function chooseLevel(level: HskLevel) {
-    if (level === selectedLevel) {
-      setShowLevelPicker(false);
-      return;
-    }
-    setProgress((current) => switchProgressLevel(current, level, getStudyVocabulary(level).length, getLibraryGrammar(level, false).length, today));
+  function resetLevelInterface() {
     setReplaySession(null);
     setCurrentRecallReplayPosition(null);
     setShowLevelPicker(false);
@@ -1149,7 +1163,35 @@ export default function MandarinApp() {
     setTodayScreen("plan");
     if (window.location.hash !== "#today") window.history.pushState(null, "", "#today");
     window.scrollTo({ top: 0 });
+  }
+
+  function chooseLevel(level: HskLevel) {
+    if (level === selectedLevel) {
+      setShowLevelPicker(false);
+      return;
+    }
+    setProgress((current) => switchProgressLevel(current, level, getStudyVocabulary(level).length, getLibraryGrammar(level, false).length, today));
+    setGraduationDismissedLevel(null);
+    resetLevelInterface();
     setToast(`Switched to ${levelMeta[level].label} · your other level progress is saved`);
+  }
+
+  function completeLevelGraduation() {
+    if (!graduationStatus.ready || currentLevelGraduated) return;
+    const completedLabel = meta.label;
+    if (!nextGraduationLevel) {
+      setProgress((current) => markLevelGraduated(current, selectedLevel));
+      setGraduationDismissedLevel(selectedLevel);
+      setToast("Complete HSK path graduated · keep using the fluency loops to maintain it");
+      return;
+    }
+    setProgress((current) => {
+      const graduated = markLevelGraduated(current, selectedLevel);
+      return switchProgressLevel(graduated, nextGraduationLevel, getStudyVocabulary(nextGraduationLevel).length, getLibraryGrammar(nextGraduationLevel, false).length, today);
+    });
+    setGraduationDismissedLevel(null);
+    resetLevelInterface();
+    setToast(`${completedLabel} graduated · welcome to ${levelMeta[nextGraduationLevel].label}`);
   }
 
   function navigate(view: AppView) {
@@ -1840,6 +1882,7 @@ export default function MandarinApp() {
 
       <div className="app-content">
       {appView === "today" && todayScreen === "plan" && <>
+      {levelReadyToGraduate && graduationDismissedLevel === selectedLevel && <div className="graduation-ready-banner"><span>成</span><div><strong>{meta.label} graduation is ready.</strong><small>All five requirements are complete. Open the graduation screen whenever you are ready to advance.</small></div><button onClick={() => setGraduationDismissedLevel(null)}>Open graduation →</button></div>}
       <section className="hero" id="top">
         <div className="hero-copy">
           <div className="eyebrow"><span>HSK 3.0</span> {meta.label.toUpperCase()} · CURRENT 2026 SYLLABUS</div>
@@ -2023,9 +2066,10 @@ export default function MandarinApp() {
           <div className="section-heading progress-heading"><div><span className="section-kicker">YOUR MOMENTUM</span><h2>Small proof,<br /><em>every day.</em></h2></div><div className="progress-tools"><button onClick={exportProgress}>Export backup</button><button onClick={() => importRef.current?.click()}>Import backup</button><button className="danger-link" onClick={resetProgress}>Reset</button><input ref={importRef} type="file" accept="application/json" onChange={(event) => void importProgress(event.target.files?.[0])} hidden /></div></div>
           <div className="stat-grid"><article className="stat-card coral"><span>火</span><strong>{progress.streak}</strong><p>day streak</p><small>Counts practice days, not visits.</small></article><article className="stat-card jade"><span>字</span><strong>{progress.mastered.length}</strong><p>cycled words</p><small>Seen on at least three scheduled study days.</small></article><article className="stat-card blue"><span>时</span><strong>{formatTrainingMinutes(displayedTrainingSeconds)}</strong><p>active minutes</p><small>Measured since v1.2.8; pauses when hidden or after 60 seconds idle.</small></article><article className="stat-card yellow"><span>光</span><strong>{progress.xp}</strong><p>practice XP</p><small>Every reward can be earned only once.</small></article></div>
           <div className="coverage-dashboard"><div><span>VOCABULARY COVERAGE</span><strong>{wordsIntroduced.toLocaleString()} <small>/ {vocabulary.length.toLocaleString()} taught</small></strong><div><i style={{ width: `${wordCoveragePercent}%` }} /></div><p>{progress.mastered.length.toLocaleString()} on cadence step 3+ · {Math.max(0, vocabulary.length - wordsIntroduced).toLocaleString()} still to introduce</p></div><div><span>GRAMMAR COVERAGE</span><strong>{grammarIntroduced} <small>/ {levelGrammar.length} taught</small></strong><div><i style={{ width: `${grammarCoveragePercent}%` }} /></div><p>{progress.grammarMastered.length} stable · {Math.max(0, levelGrammar.length - grammarIntroduced)} still to introduce</p></div></div>
+          <div className={`graduation-progress-card ${currentLevelGraduated ? "graduated" : levelReadyToGraduate ? "ready" : ""}`}><div className="graduation-progress-copy"><span className="section-kicker">LEVEL GRADUATION</span><h3>{currentLevelGraduated ? `${meta.label} graduated.` : levelReadyToGraduate ? "Your graduation is ready." : `${graduationRequirementCount} of 5 requirements complete.`}</h3><p>{currentLevelGraduated ? "This achievement is saved with your account. You can keep reviewing this level without losing your place above it." : "Finish the complete syllabus route, clear every correction, and score at least 80% on a checkpoint. The app will then offer a one-tap move to the next level."}</p>{levelReadyToGraduate && <button onClick={() => { setGraduationDismissedLevel(null); navigate("today"); }}>Open graduation screen →</button>}</div><div className="graduation-progress-checks">{graduationChecks.map((check) => <div key={check.id} className={check.complete ? "complete" : ""}><span>{check.complete ? "✓" : "○"}</span><strong>{check.label}</strong><small>{check.value}</small></div>)}</div></div>
           <div className="skill-dashboard"><div className="skill-dashboard-head"><div><span className="section-kicker">OBJECTIVE ACCURACY</span><h3>Know exactly what needs attention.</h3></div><p>{weakestSkill ? `${skillLabels[weakestSkill.skill]} is currently the best place to focus at ${weakestSkill.accuracy}% accuracy.` : "Complete objective checks to build your first accuracy profile."} {progress.corrections.length} correction{progress.corrections.length === 1 ? "" : "s"} remain across all levels.</p></div><div className="skill-score-grid">{skillScores.map((item) => <article key={item.skill}><span>{skillLabels[item.skill]}</span><strong>{item.attempts ? `${item.accuracy}%` : "—"}</strong><div><i style={{ width: `${item.accuracy}%` }} /></div><small>{item.attempts} objective attempt{item.attempts === 1 ? "" : "s"}</small></article>)}</div></div>
           <div className={`backup-note sync-${syncStatus}`}><strong>{syncStatus === "synced" ? "Progress synced across devices." : syncStatus === "conflict" ? "Choose which progress copy to keep." : syncStatus === "saving" || syncStatus === "checking" ? "Checking your cloud progress…" : "Progress is saved on this device."}</strong><span>{syncStatus === "synced" ? "Your signed-in Sites account keeps the newest course state available on your phone and computer." : syncStatus === "conflict" ? "Nothing will be overwritten until you choose the device or cloud copy." : "Cloud sync requires the signed-in Sites version. Export a backup before clearing browser data when using GitHub Pages or offline mode."}</span><button className="account-manage-link" onClick={() => syncConflict ? undefined : setShowAccount(true)}>{syncConflict ? "Decision required" : "View account"}</button></div>
-          <div className="level-roadmap"><div><span className="section-kicker">THE COMPLETE PATH</span><h3>All nine HSK levels are ready.</h3><p>Choose any level now. Each one keeps its own cadence, missions, exam history, and cycled-word count.</p></div><ol>{levelOrder.map((level) => { const item = levelMeta[level]; const current = level === selectedLevel; return <li key={level} className={current ? "current" : "available"}><button onClick={() => chooseLevel(level)}><span>{current ? "NOW" : "OPEN"}</span><strong>{item.label}</strong><small>{item.stage} · {item.cumulativeWords.toLocaleString()} cumulative words</small></button></li>; })}</ol></div>
+          <div className="level-roadmap"><div><span className="section-kicker">THE COMPLETE PATH</span><h3>All nine HSK levels are ready.</h3><p>Choose any level now. Each one keeps its own cadence, missions, exam history, graduation, and cycled-word count.</p></div><ol>{levelOrder.map((level) => { const item = levelMeta[level]; const current = level === selectedLevel; const graduated = progress.graduatedLevels.includes(level); return <li key={level} className={current ? "current" : graduated ? "graduated" : "available"}><button onClick={() => chooseLevel(level)}><span>{current ? "NOW" : graduated ? "✓ GRADUATED" : "OPEN"}</span><strong>{item.label}</strong><small>{item.stage} · {item.cumulativeWords.toLocaleString()} cumulative words</small></button></li>; })}</ol></div>
           <div className="app-about"><div><span className="brand-mark">声</span><div><strong>SHĒNGTÚ</strong><p>Hear it. Say it. Own it.</p></div></div><div><span>SOURCES</span><a href="https://www.chinesetest.cn/syllabus" target="_blank" rel="noreferrer">Official HSK 3.0 ↗</a><a href="https://hsk.cn-bj.ufileos.com/3.0/%E6%96%B0%E7%89%88HSK%E8%80%83%E8%AF%95%E5%A4%A7%E7%BA%B2%EF%BC%88%E8%AF%8D%E6%B1%87%E3%80%81%E6%B1%89%E5%AD%97%E3%80%81%E8%AF%AD%E6%B3%95%EF%BC%89.pdf" target="_blank" rel="noreferrer">2025 syllabus PDF ↗</a><a href="https://cc-cedict.org/editor/editor.php?handler=Download" target="_blank" rel="noreferrer">English glosses · CC-CEDICT ↗</a></div><small>Independent learning tool. Not affiliated with Chinese Test International.</small></div>
         </section>
       )}
@@ -2089,7 +2133,8 @@ export default function MandarinApp() {
 
       {ready && !syncReady && !progress.onboarded && <div className="sync-startup-backdrop" role="status" aria-live="polite"><div className="sync-startup-card"><span className="account-spinner" aria-hidden="true" /><strong>Checking for your saved course…</strong><small>First-time setup will appear only if no account progress is found.</small></div></div>}
 
-      {ready && showLevelPicker && <div className="onboarding-backdrop level-picker-backdrop" role="dialog" aria-modal="true" aria-labelledby="level-picker-title"><div className="onboarding-card level-picker-card"><div className="picker-top"><div><span className="section-kicker">COMPLETE HSK 3.0 PATH</span><h2 id="level-picker-title">Choose your active level.</h2><p>Switch whenever you need. Vocabulary cadence and mission progress are saved separately for every level.</p></div><button className="picker-close" onClick={() => setShowLevelPicker(false)} aria-label="Close level picker">×</button></div><div className="level-picker-grid">{levelOrder.map((level) => { const item = levelMeta[level]; const active = level === selectedLevel; const savedCount = active ? progress.mastered.length : progress.levelArchives[level]?.mastered.length ?? 0; return <button key={level} className={active ? "active" : ""} onClick={() => chooseLevel(level)}><span>{active ? "CURRENT" : savedCount ? `${savedCount} CYCLED` : "AVAILABLE"}</span><strong>{item.label}</strong><b>{item.stage}</b><p>{item.description}</p><small>{item.newWords.toLocaleString()} new · {item.cumulativeWords.toLocaleString()} cumulative words</small></button>; })}</div><p className="picker-note">New to Mandarin? Start at HSK 1. If you already study Chinese, use a level checkpoint and move down if the recall feels shaky.</p></div></div>}
+      {ready && syncReady && !syncConflict && progress.onboarded && appView === "today" && todayScreen === "plan" && levelReadyToGraduate && graduationDismissedLevel !== selectedLevel && !showLevelPicker && !showAccount && <div className="graduation-backdrop" role="dialog" aria-modal="true" aria-labelledby="graduation-title"><div className="graduation-sheet"><div className="graduation-seal" aria-hidden="true">成<span>chéng</span></div><span className="section-kicker">{meta.label.toUpperCase()} · LEVEL COMPLETE</span><h2 id="graduation-title">You earned your<br /><em>graduation.</em></h2><p>You completed the full syllabus route and proved it on the checkpoint. Your {meta.label} cadence and history will stay saved when you move forward.</p><div className="graduation-checks">{graduationChecks.map((check) => <div key={check.id} className={check.complete ? "complete" : ""}><span>{check.complete ? "✓" : "○"}</span><strong>{check.label}</strong><small>{check.value}</small></div>)}</div><div className="graduation-actions"><button className="graduation-advance" onClick={completeLevelGraduation}>{nextGraduationLevel ? `Graduate & start ${levelMeta[nextGraduationLevel].label} →` : "Complete my HSK path →"}</button><button className="graduation-review" onClick={() => setGraduationDismissedLevel(selectedLevel)}>Keep reviewing {meta.label}</button></div><small className="graduation-note">Moving forward does not erase this level. You can return from Change level at any time.</small></div></div>}
+      {ready && showLevelPicker && <div className="onboarding-backdrop level-picker-backdrop" role="dialog" aria-modal="true" aria-labelledby="level-picker-title"><div className="onboarding-card level-picker-card"><div className="picker-top"><div><span className="section-kicker">COMPLETE HSK 3.0 PATH</span><h2 id="level-picker-title">Choose your active level.</h2><p>Switch whenever you need. Vocabulary cadence and mission progress are saved separately for every level.</p></div><button className="picker-close" onClick={() => setShowLevelPicker(false)} aria-label="Close level picker">×</button></div><div className="level-picker-grid">{levelOrder.map((level) => { const item = levelMeta[level]; const active = level === selectedLevel; const graduated = progress.graduatedLevels.includes(level); const savedCount = active ? progress.mastered.length : progress.levelArchives[level]?.mastered.length ?? 0; return <button key={level} className={`${active ? "active" : ""} ${graduated ? "graduated" : ""}`.trim()} onClick={() => chooseLevel(level)}><span>{active ? "CURRENT" : graduated ? "✓ GRADUATED" : savedCount ? `${savedCount} CYCLED` : "AVAILABLE"}</span><strong>{item.label}</strong><b>{item.stage}</b><p>{item.description}</p><small>{item.newWords.toLocaleString()} new · {item.cumulativeWords.toLocaleString()} cumulative words</small></button>; })}</div><p className="picker-note">New to Mandarin? Start at HSK 1. If you already study Chinese, use a level checkpoint and move down if the recall feels shaky.</p></div></div>}
       {ready && syncReady && !syncConflict && !showLevelPicker && !progress.onboarded && <div className="onboarding-backdrop" role="dialog" aria-modal="true" aria-labelledby="onboarding-title"><div className="onboarding-card"><span className="brand-mark">声</span><span className="section-kicker">YOUR FIRST TWO MINUTES</span><h2 id="onboarding-title">Set a pace you can repeat.</h2><p>You will not recall all {meta.newWords.toLocaleString()} words daily. Shēngtú gives you a small new set plus only the reviews that are due.</p><div className="goal-options">{[5, 8, 10].map((goal) => <button key={goal} className={onboardingGoal === goal ? "active" : ""} onClick={() => setOnboardingGoal(goal)}><strong>{goal}</strong><span>new words/day</span><small>{goal === 5 ? "gentle · ~27 min" : goal === 8 ? "recommended · ~33 min" : "fast · ~40 min"}</small></button>)}</div><ul><li>Pinyin fades automatically after three correct recalls; tap to reveal it anytime.</li><li>Every wrong answer enters the correction loop automatically.</li><li>Finish the six daily steps; stop when the mission checkpoint and corrections are done.</li></ul><button className="primary-button" onClick={startCourse}>Start my first lesson <span>→</span></button></div></div>}
       {toast && <div className="toast" role="status">{toast}</div>}
     </main>
