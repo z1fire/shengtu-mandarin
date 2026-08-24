@@ -146,6 +146,11 @@ test("uses focused app views instead of one scrolling curriculum page", async ()
   assert.match(source, /now - lastInteractionAt <= 60_000/);
   assert.match(source, /active min today/);
   assert.doesNotMatch(source, /35 focused minutes/);
+  assert.match(source, /RECALL PRONUNCIATION CHECK/);
+  assert.match(source, /GRAMMAR SPEAKING CHECK/);
+  assert.match(source, /SAY YOUR GRAMMAR SENTENCE/);
+  assert.match(source, /similarityScore\(target, transcript\)/);
+  assert.match(source, /I said it aloud · mark practiced/);
   assert.match(source, /OBJECTIVE ACCURACY/);
   assert.match(source, /\/api\/progress/);
   assert.match(source, /EXAMPLE SENTENCE/);
@@ -565,7 +570,8 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
     assert.equal(png.readUInt32BE(20), size);
   }
 
-  assert.match(serviceWorker, /shengtu-v23/);
+  assert.match(serviceWorker, /shengtu-v24/);
+  assert.match(versionSource, /1\.2\.9/);
   assert.match(serviceWorker, /request\.mode === "navigate"/);
   assert.match(serviceWorker, /url\.pathname\.includes\("\/api\/"\)/);
   assert.match(serviceWorker, /icon-maskable-512\.png/);
@@ -589,7 +595,7 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
   assert.match(layoutSource, /crossOrigin="use-credentials"/);
   assert.match(source, /className="app-version"/);
   assert.match(source, /v\{APP_VERSION\}/);
-  assert.match(versionSource, /APP_VERSION = "1\.2\.8"/);
+  assert.match(versionSource, /APP_VERSION = "1\.2\.9"/);
   assert.match(pagesHtml, /mobile-web-app-capable/);
   assert.match(pagesHtml, /apple-touch-icon\.png/);
   assert.match(pagesHtml, /viewport-fit=cover/);

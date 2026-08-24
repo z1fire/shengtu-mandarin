@@ -235,6 +235,103 @@ function speak(text: string, rate = 0.82) {
   window.speechSynthesis.speak(utterance);
 }
 
+type RecognitionLike = {
+  lang: string;
+  interimResults: boolean;
+  maxAlternatives: number;
+  start: () => void;
+  abort?: () => void;
+  onresult: (event: unknown) => void;
+  onerror: () => void;
+  onend: () => void;
+};
+
+type RecognitionWindow = {
+  SpeechRecognition?: new () => RecognitionLike;
+  webkitSpeechRecognition?: new () => RecognitionLike;
+};
+
+function SpeechPractice({
+  target,
+  pinyin,
+  translation,
+  label,
+  className = "",
+  onAttempt,
+}: {
+  target: string;
+  pinyin?: string;
+  translation?: string;
+  label: string;
+  className?: string;
+  onAttempt?: (correct: boolean) => void;
+}) {
+  const [feedback, setFeedback] = useState("Listen once, shadow twice, then record yourself.");
+  const [score, setScore] = useState<number | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [manualFallback, setManualFallback] = useState(false);
+  const recognitionRef = useRef<RecognitionLike | null>(null);
+
+  useEffect(() => () => recognitionRef.current?.abort?.(), []);
+
+  function startRecording() {
+    const recognitionWindow = window as unknown as RecognitionWindow;
+    const RecognitionCtor = recognitionWindow.SpeechRecognition ?? recognitionWindow.webkitSpeechRecognition;
+    if (!RecognitionCtor) {
+      setManualFallback(true);
+      setFeedback("Automatic checking is unavailable here. Play the model, say it aloud, then use the spoken self-check.");
+      speak(target, 0.7);
+      return;
+    }
+    const recognition = new RecognitionCtor();
+    recognitionRef.current = recognition;
+    recognition.lang = "zh-CN";
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    recognition.onresult = (event) => {
+      const speechEvent = event as { results: { [key: number]: { [key: number]: { transcript: string } } } };
+      const transcript = speechEvent.results[0][0].transcript;
+      const nextScore = similarityScore(target, transcript);
+      const passed = nextScore >= 65;
+      setScore(nextScore);
+      setFeedback(passed
+        ? `Heard: ${transcript} · word match ${nextScore}%. Now self-check your tones.`
+        : `Heard: ${transcript} · word match ${nextScore}%. Shadow twice and try again.`);
+      onAttempt?.(passed);
+    };
+    recognition.onerror = () => {
+      setManualFallback(true);
+      setFeedback("I couldn’t check that recording. Try again, or use the spoken self-check below.");
+      onAttempt?.(false);
+    };
+    recognition.onend = () => {
+      recognitionRef.current = null;
+      setIsRecording(false);
+    };
+    setFeedback(`Listening… say: ${target}`);
+    setScore(null);
+    setManualFallback(false);
+    setIsRecording(true);
+    recognition.start();
+  }
+
+  function confirmSpokenPractice() {
+    setManualFallback(false);
+    setFeedback("Spoken practice logged. Replay once and compare your tones honestly.");
+    onAttempt?.(true);
+  }
+
+  return <div className={`embedded-speech-practice ${className}`.trim()}>
+    <div className="embedded-speech-heading"><span>{label}</span><strong>Listen, shadow, record.</strong></div>
+    <div className="embedded-speech-target"><button onClick={() => speak(target, 0.7)} aria-label={`Play model pronunciation for ${target}`}>声<span>▶ MODEL</span></button><div><strong lang="zh-CN">{target}</strong>{pinyin && <span>{pinyin}</span>}{translation && <em>{translation}</em>}</div></div>
+    <button className={`record-button ${isRecording ? "recording" : ""}`} onClick={startRecording} disabled={isRecording}><span>●</span>{isRecording ? "Listening…" : "Record my voice"}</button>
+    {manualFallback && <button className="manual-complete" onClick={confirmSpokenPractice}>I said it aloud · mark practiced</button>}
+    <div className="speech-feedback" role="status">{feedback}</div>
+    {score !== null && <div className="speech-meter" aria-label={`${score}% word match`}><i style={{ width: `${score}%` }} /></div>}
+    <small>Recognition checks the words, not pitch. Compare the model and self-check your tones.</small>
+  </div>;
+}
+
 type MixerTile = { id: string; text: string };
 
 function mixerTiles(tokens: string[]): MixerTile[] {
@@ -249,7 +346,7 @@ function scrambleMixerTiles(tiles: MixerTile[]) {
   return scrambled;
 }
 
-function GrammarPatternMixer({ point, fallbackFormula, words }: { point: GrammarPoint; fallbackFormula: string; words: LevelVocabularyWord[] }) {
+function GrammarPatternMixer({ point, fallbackFormula, words, onSpeakingAttempt }: { point: GrammarPoint; fallbackFormula: string; words: LevelVocabularyWord[]; onSpeakingAttempt?: (correct: boolean) => void }) {
   const frame = useMemo(() => buildGrammarMixerFrame(point, fallbackFormula, words), [fallbackFormula, point, words]);
   const defaults = initialMixerSelections(frame);
   const initialExpected = mixerTiles(mixerExpectedTokens(frame, defaults));
@@ -320,6 +417,7 @@ function GrammarPatternMixer({ point, fallbackFormula, words }: { point: Grammar
     <div className="mixer-tile-bank">{bank.map((tile, index) => <button key={tile.id} onClick={() => addMixerTile(index)} disabled={needsMix}>{tile.text}</button>)}</div>
     <div className="mixer-actions"><button onClick={resetMixerOrder} disabled={needsMix}>Reset order</button><button className="check-button" onClick={checkMixerOrder} disabled={needsMix || bank.length > 0}>Check pattern</button></div>
     {result && <div className={`mixer-result ${result.startsWith("Correct") ? "correct" : ""}`}><span>{result}</span>{result.startsWith("Correct") && <button onClick={() => speak(sentence, 0.72)}>▶ Hear my sentence</button>}</div>}
+    {result.startsWith("Correct") && <SpeechPractice key={sentence} target={sentence} label="SAY YOUR GRAMMAR SENTENCE" className="mixer-speaking-practice" onAttempt={onSpeakingAttempt} />}
   </div>;
 }
 
@@ -1806,6 +1904,7 @@ export default function MandarinApp() {
                     {cardRevealed && progress.showPinyin && activePinyinConfidence >= 3 && !pinyinPeeked && <button className="audio-link" onClick={() => setPinyinPeeked(true)}>Show pinyin</button>}
                   </div>}
                 </div>
+                {(cardRevealed || recallVerified) && <SpeechPractice key={`recall-${selectedLevel}-${activeWordIndex}`} target={activeWord.hanzi} pinyin={showActivePinyin ? activeWord.pinyin : undefined} translation={activeWord.meaning} label="RECALL PRONUNCIATION CHECK" className="flashcard-speaking" onAttempt={(correct) => setProgress((current) => recordSkillAttempt(current, "speaking", correct, today))} />}
                 {!testingRecall && cardRevealed && !recallVerified && <button className="recall-test-start" onClick={() => { setRecallTesting(true); setCardRevealed(false); }}>Hide the answer &amp; verify recall →</button>}
                 {testingRecall && !recallVerified && <div className="recall-verification"><span>ANSWER WITHOUT SELF-RATING</span><div>{recallChallenge.options.map((option, index) => <button key={option} onClick={() => answerRecallChallenge(option)}><b>{String.fromCharCode(65 + index)}</b>{option}</button>)}</div>{recallResult && <p>{recallResult}</p>}</div>}
                 <div className="cadence-action"><span><b>{recallIsExtraPractice ? "EXTRA REP" : `STEP ${nextCadenceDays}`}</b><small>{recallIsExtraPractice ? "The scheduled cadence stays exactly where it is." : `Objective answer required · returns in ${nextCadenceDays} day${nextCadenceDays === 1 ? "" : "s"}.`}</small></span><button onClick={advanceVocabularyCard} disabled={!recallVerified}>{recallVerified ? "Continue →" : "Verify recall first"}</button></div>
@@ -1823,7 +1922,7 @@ export default function MandarinApp() {
                 <code>{dailyGrammar.formula}</code>
                 <div className="grammar-notice"><strong>What to notice</strong><p>This target teaches {grammarConcept(dailyGrammar)}. Read the structure from left to right: keep the fixed Chinese markers in place and substitute your own words into the descriptive slots.</p></div>
                 {dailyGrammar.example ? <button className="grammar-model" onClick={() => speak(dailyGrammar.example)}><span>▶</span><strong>{dailyGrammar.example}</strong>{progress.showPinyin && <small>{dailyGrammar.pinyin}</small>}<em>{dailyGrammar.translation}</em></button> : <div className="formula-explainer"><strong>Pattern-only target</strong><p>Say the fixed Chinese pieces aloud. Then cover this card and identify the complete structure from similar alternatives.</p></div>}
-                <GrammarPatternMixer key={`daily-${selectedLevel}-${dailyGrammarIndex}-${activeMissionIndex}`} point={dailyGrammar} fallbackFormula={activeMission.grammarFormula} words={cumulativeVocabulary} />
+                <GrammarPatternMixer key={`daily-${selectedLevel}-${dailyGrammarIndex}-${activeMissionIndex}`} point={dailyGrammar} fallbackFormula={activeMission.grammarFormula} words={cumulativeVocabulary} onSpeakingAttempt={(correct) => setProgress((current) => recordSkillAttempt(current, "speaking", correct, today))} />
                 <div className="grammar-study-steps"><span><b>1</b> Read the pattern</span><span><b>2</b> {dailyGrammar.example ? "Listen and shadow" : "Say the fixed pieces"}</span><span><b>3</b> Recall without looking</span></div>
                 <button className="grammar-recall-start" onClick={beginDailyGrammarRecall}>Hide the lesson &amp; start recall →</button>
               </> : <>
@@ -1834,7 +1933,7 @@ export default function MandarinApp() {
                 {!dailyGrammarResult && <button className="grammar-help-button" onClick={reopenDailyGrammarLesson}>Need help? Reopen the lesson</button>}
                 {dailyGrammarResult && <div className="grammar-feedback">
                   <div className={`result-note ${dailyGrammarResult.startsWith("Correct") ? "correct" : ""}`}><span>{dailyGrammarResult}</span>{!dailyGrammarAnswered && <button onClick={reopenDailyGrammarLesson}>Reopen lesson</button>}</div>
-                  {dailyGrammarAnswered && <div className="grammar-answer-review"><strong>Why this works</strong><code>{dailyGrammar.formula}</code>{dailyGrammar.example && <button className="grammar-model" onClick={() => speak(dailyGrammar.example)}><span>▶</span><strong>{dailyGrammar.example}</strong>{progress.showPinyin && <small>{dailyGrammar.pinyin}</small>}<em>{dailyGrammar.translation}</em></button>}<p>This answer uses {grammarConcept(dailyGrammar)} with the fixed pieces in their required order.</p><button className="grammar-next-target" onClick={advanceDailyGrammar}>{sessionGrammarPosition + 1 >= sessionGrammarQueue.length ? "Continue to listening →" : "Next grammar target →"}</button></div>}
+                  {dailyGrammarAnswered && <div className="grammar-answer-review"><strong>Why this works</strong><code>{dailyGrammar.formula}</code>{dailyGrammar.example && <button className="grammar-model" onClick={() => speak(dailyGrammar.example)}><span>▶</span><strong>{dailyGrammar.example}</strong>{progress.showPinyin && <small>{dailyGrammar.pinyin}</small>}<em>{dailyGrammar.translation}</em></button>}<p>This answer uses {grammarConcept(dailyGrammar)} with the fixed pieces in their required order.</p>{dailyGrammar.example && <SpeechPractice key={`daily-grammar-${selectedLevel}-${dailyGrammarIndex}`} target={dailyGrammar.example} pinyin={progress.showPinyin ? dailyGrammar.pinyin : undefined} translation={dailyGrammar.translation} label="GRAMMAR SPEAKING CHECK" className="grammar-recall-speaking" onAttempt={(correct) => setProgress((current) => recordSkillAttempt(current, "speaking", correct, today))} />}<button className="grammar-next-target" onClick={advanceDailyGrammar}>{sessionGrammarPosition + 1 >= sessionGrammarQueue.length ? "Continue to listening →" : "Next grammar target →"}</button></div>}
                 </div>}
               </>}
             </div>
@@ -1905,7 +2004,7 @@ export default function MandarinApp() {
           <div className="section-heading grammar-heading"><div><span className="section-kicker">OFFICIAL GRAMMAR INVENTORY</span><h2>{grammarPoints.length} searchable<br /><em>grammar targets.</em></h2></div><p>Every target in your active level now enters Today automatically: first as a taught item, then again when its review is due.</p></div>
           <label className="library-search"><span>⌕</span><input value={grammarSearch} onChange={(event) => setGrammarSearch(event.target.value)} placeholder="Search pattern, example, pinyin, or meaning" aria-label="Search grammar" /></label>
           <div className="filter-row">{["All", "Core", "Questions", "Time", "Place", "Actions"].map((filter) => <button key={filter} className={grammarFilter === filter ? "active" : ""} onClick={() => { setGrammarFilter(filter); setShowAllGrammar(filter !== "All"); }}>{filter}</button>)}</div>
-          {grammarPractice !== null && <div className={`grammar-drill grammar-drill-${grammarPracticeStage}`}><button className="close-drill" onClick={() => setGrammarPractice(null)} aria-label="Close grammar practice">×</button><div className="grammar-stage-track light" aria-label="Grammar practice stages"><span className={grammarPracticeStage === "learn" ? "active" : "complete"}><b>1</b> Learn</span><i>→</i><span className={grammarPracticeStage === "recall" ? "active" : ""}><b>2</b> Recall</span></div>{grammarPracticeStage === "learn" ? <div className="library-grammar-learn"><span className="micro-label">PATTERN STUDY · TARGET {grammarPractice + 1}</span><h3>{grammarPoints[grammarPractice].title}</h3><code>{grammarPoints[grammarPractice].formula}</code><p>This pattern teaches {grammarConcept(grammarPoints[grammarPractice])}. Notice the fixed Chinese pieces and the slots you can replace.</p>{grammarPoints[grammarPractice].example && <button className="grammar-model" onClick={() => speak(grammarPoints[grammarPractice].example)}><span>▶</span><strong>{grammarPoints[grammarPractice].example}</strong>{progress.showPinyin && <small>{grammarPoints[grammarPractice].pinyin}</small>}<em>{grammarPoints[grammarPractice].translation}</em></button>}<GrammarPatternMixer key={`library-${selectedLevel}-${grammarPractice}-${activeMissionIndex}`} point={grammarPoints[grammarPractice]} fallbackFormula={activeMission.grammarFormula} words={cumulativeVocabulary} /><button className="grammar-recall-start" onClick={beginLibraryGrammarRecall}>Hide the lesson &amp; test me →</button></div> : <div className="library-grammar-recall"><span className="micro-label">RECALL CHECK · LESSON HIDDEN</span><h3>{grammarPoints[grammarPractice].example ? `Which Mandarin sentence expresses “${grammarPoints[grammarPractice].translation}”?` : `Which official structure matches “${grammarPoints[grammarPractice].title}”?`}</h3><p>Retrieve the pattern from memory. The answer stays hidden until you are correct.</p><div className="grammar-drill-choices">{grammarOptions.map((option) => <button key={option} onClick={() => answerGrammar(option)} disabled={grammarResult.startsWith("Correct")}>{option}</button>)}</div>{!grammarResult && <button className="grammar-help-button light" onClick={reopenLibraryGrammarLesson}>Need help? Reopen the lesson</button>}{grammarResult && <div className="library-grammar-feedback"><p className={grammarResult.startsWith("Correct") ? "correct" : ""}>{grammarResult}</p>{!grammarResult.startsWith("Correct") ? <button className="grammar-help-button light" onClick={reopenLibraryGrammarLesson}>Reopen lesson</button> : <div className="grammar-answer-review dark"><strong>Answer explained</strong><code>{grammarPoints[grammarPractice].formula}</code>{grammarPoints[grammarPractice].example && <button className="grammar-model" onClick={() => speak(grammarPoints[grammarPractice].example)}><span>▶</span><strong>{grammarPoints[grammarPractice].example}</strong>{progress.showPinyin && <small>{grammarPoints[grammarPractice].pinyin}</small>}<em>{grammarPoints[grammarPractice].translation}</em></button>}<button className="grammar-next-target" onClick={() => setGrammarPractice(null)}>Choose another target →</button></div>}</div>}</div>}</div>}
+          {grammarPractice !== null && <div className={`grammar-drill grammar-drill-${grammarPracticeStage}`}><button className="close-drill" onClick={() => setGrammarPractice(null)} aria-label="Close grammar practice">×</button><div className="grammar-stage-track light" aria-label="Grammar practice stages"><span className={grammarPracticeStage === "learn" ? "active" : "complete"}><b>1</b> Learn</span><i>→</i><span className={grammarPracticeStage === "recall" ? "active" : ""}><b>2</b> Recall</span></div>{grammarPracticeStage === "learn" ? <div className="library-grammar-learn"><span className="micro-label">PATTERN STUDY · TARGET {grammarPractice + 1}</span><h3>{grammarPoints[grammarPractice].title}</h3><code>{grammarPoints[grammarPractice].formula}</code><p>This pattern teaches {grammarConcept(grammarPoints[grammarPractice])}. Notice the fixed Chinese pieces and the slots you can replace.</p>{grammarPoints[grammarPractice].example && <button className="grammar-model" onClick={() => speak(grammarPoints[grammarPractice].example)}><span>▶</span><strong>{grammarPoints[grammarPractice].example}</strong>{progress.showPinyin && <small>{grammarPoints[grammarPractice].pinyin}</small>}<em>{grammarPoints[grammarPractice].translation}</em></button>}<GrammarPatternMixer key={`library-${selectedLevel}-${grammarPractice}-${activeMissionIndex}`} point={grammarPoints[grammarPractice]} fallbackFormula={activeMission.grammarFormula} words={cumulativeVocabulary} onSpeakingAttempt={(correct) => setProgress((current) => recordSkillAttempt(current, "speaking", correct, today))} /><button className="grammar-recall-start" onClick={beginLibraryGrammarRecall}>Hide the lesson &amp; test me →</button></div> : <div className="library-grammar-recall"><span className="micro-label">RECALL CHECK · LESSON HIDDEN</span><h3>{grammarPoints[grammarPractice].example ? `Which Mandarin sentence expresses “${grammarPoints[grammarPractice].translation}”?` : `Which official structure matches “${grammarPoints[grammarPractice].title}”?`}</h3><p>Retrieve the pattern from memory. The answer stays hidden until you are correct.</p><div className="grammar-drill-choices">{grammarOptions.map((option) => <button key={option} onClick={() => answerGrammar(option)} disabled={grammarResult.startsWith("Correct")}>{option}</button>)}</div>{!grammarResult && <button className="grammar-help-button light" onClick={reopenLibraryGrammarLesson}>Need help? Reopen the lesson</button>}{grammarResult && <div className="library-grammar-feedback"><p className={grammarResult.startsWith("Correct") ? "correct" : ""}>{grammarResult}</p>{!grammarResult.startsWith("Correct") ? <button className="grammar-help-button light" onClick={reopenLibraryGrammarLesson}>Reopen lesson</button> : <div className="grammar-answer-review dark"><strong>Answer explained</strong><code>{grammarPoints[grammarPractice].formula}</code>{grammarPoints[grammarPractice].example && <><button className="grammar-model" onClick={() => speak(grammarPoints[grammarPractice].example)}><span>▶</span><strong>{grammarPoints[grammarPractice].example}</strong>{progress.showPinyin && <small>{grammarPoints[grammarPractice].pinyin}</small>}<em>{grammarPoints[grammarPractice].translation}</em></button><SpeechPractice key={`library-grammar-${selectedLevel}-${grammarPractice}`} target={grammarPoints[grammarPractice].example} pinyin={progress.showPinyin ? grammarPoints[grammarPractice].pinyin : undefined} translation={grammarPoints[grammarPractice].translation} label="GRAMMAR SPEAKING CHECK" className="grammar-recall-speaking" onAttempt={(correct) => setProgress((current) => recordSkillAttempt(current, "speaking", correct, today))} /></>}<button className="grammar-next-target" onClick={() => setGrammarPractice(null)}>Choose another target →</button></div>}</div>}</div>}</div>}
           <div className="grammar-grid">{visibleGrammar.map((point) => { const globalIndex = grammarPoints.indexOf(point); const activeIndex = levelGrammar.findIndex((target) => target.title === point.title && target.formula === point.formula); const introduced = activeIndex >= 0 && Boolean(progress.grammarReviews[activeIndex]); const stable = activeIndex >= 0 && progress.grammarMastered.includes(activeIndex); return <article key={`${point.title}-${globalIndex}`} className={stable ? "mastered" : introduced ? "introduced" : ""}><div className="grammar-card-top"><span>{String(globalIndex + 1).padStart(2, "0")} · {point.label}</span>{point.example && <button onClick={() => speak(point.example)}>▶</button>}</div><h3>{point.title}</h3><code>{point.formula}</code>{point.example ? <div className="grammar-example"><strong>{point.example}</strong>{progress.showPinyin && <span>{point.pinyin}</span>}<small>{point.translation}</small></div> : <span className="official-target-note">{stable ? "✓ Stable in your review schedule" : introduced ? "Learning · future review scheduled" : activeIndex >= 0 ? "Not taught yet · automatically scheduled in Today" : "Foundation target from an earlier level"}</span>}<button className="grammar-practice-button" onClick={() => openGrammarPractice(globalIndex)}>{stable ? "Practice stable target →" : introduced ? "Review this target →" : "Preview this target →"}</button></article>; })}</div>
           {grammarFilter === "All" && !grammarSearch && <button className="grammar-more" onClick={() => setShowAllGrammar((value) => !value)}>{showAllGrammar ? "Show the 20 essential targets" : `Show all ${grammarPoints.length} targets`}</button>}
         </section>

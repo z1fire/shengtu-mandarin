@@ -306,6 +306,23 @@ button { color: inherit; }
 .speech-feedback { min-height: 34px; margin-top: 15px; font-size: 11px; color: #aeb5af; }
 .manual-complete { border: 0; background: transparent; color: #7bd0b4; cursor: pointer; font-weight: 800; font-size: 10px; text-decoration: underline; text-underline-offset: 3px; }
 
+.embedded-speech-practice { margin-top: 14px; padding: 18px; display: flex; flex-direction: column; align-items: center; border: 1px solid #39413d; background: var(--ink); color: white; text-align: center; }
+.embedded-speech-heading { width: 100%; margin-bottom: 14px; text-align: left; }
+.embedded-speech-heading span { display: block; color: var(--yellow); font-size: 8px; font-weight: 950; letter-spacing: .13em; }
+.embedded-speech-heading strong { display: block; margin-top: 4px; font: 19px Georgia, serif; }
+.embedded-speech-target { width: 100%; display: grid; grid-template-columns: 54px 1fr; gap: 13px; align-items: center; margin-bottom: 15px; text-align: left; }
+.embedded-speech-target > button { width: 52px; height: 52px; display: grid; place-items: center; align-content: center; border: 0; border-radius: 50%; background: var(--coral); color: white; cursor: pointer; font: 21px "Noto Sans SC", sans-serif; }
+.embedded-speech-target > button span { display: block; margin-top: -3px; font: 700 5px Inter, sans-serif; letter-spacing: .08em; }
+.embedded-speech-target > div { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.embedded-speech-target strong { font: 22px "Noto Sans SC", "Microsoft YaHei", sans-serif; overflow-wrap: anywhere; }
+.embedded-speech-target span, .embedded-speech-target em { color: #aeb5af; font-size: 10px; font-style: normal; overflow-wrap: anywhere; }
+.embedded-speech-practice > small { margin-top: 10px; color: #8f9992; font-size: 8px; line-height: 1.4; }
+.embedded-speech-practice .speech-meter { margin-top: -5px; }
+.flashcard-speaking { grid-column: 2; justify-self: end; width: min(100%, 570px); margin-top: -43px; }
+.mixer-speaking-practice { margin-top: 10px; }
+.grammar-recall-speaking { margin: 14px 0; }
+.grammar-answer-review.dark .embedded-speech-practice { border-color: rgba(255,255,255,.25); }
+
 .mission-checkpoint { min-height: 488px; display: grid; grid-template-columns: .7fr 1.3fr; gap: 55px; align-items: start; padding: 52px 7%; }
 .checkpoint-intro h3 { margin: 10px 0 14px; font: 38px Georgia, serif; letter-spacing: -.03em; }
 .checkpoint-intro > p { color: var(--muted); line-height: 1.65; }
@@ -840,6 +857,7 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
   .mission-checkpoint { grid-template-columns: 1fr; gap: 30px; padding: 40px; }
   .sound-gym-toggle, .sound-gym { grid-column: 1; }
   .study-card, .cadence-action { grid-column: 1; justify-self: stretch; width: 100%; }
+  .flashcard-speaking { grid-column: 1; justify-self: stretch; width: 100%; margin-top: -15px; }
   .recall-test-start, .recall-verification { grid-column: 1; justify-self: stretch; width: 100%; margin-top: -12px; }
   .queue-complete { grid-column: 1; justify-self: stretch; width: 100%; }
   .cadence-action { margin-top: -15px; }
