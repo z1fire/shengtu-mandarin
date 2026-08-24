@@ -40,21 +40,21 @@
       "short_name": "Today",
       "description": "Continue today’s guided Mandarin lesson.",
       "url": "./#today",
-      "icons": [{ "src": "./icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+      "icons": [{ "src": "./icons/shortcut-today.png", "sizes": "192x192", "type": "image/png", "purpose": "any monochrome" }]
     },
     {
       "name": "Search the library",
       "short_name": "Library",
       "description": "Search vocabulary, characters, and grammar.",
       "url": "./#library/words",
-      "icons": [{ "src": "./icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+      "icons": [{ "src": "./icons/shortcut-library.png", "sizes": "192x192", "type": "image/png", "purpose": "any monochrome" }]
     },
     {
       "name": "Learning progress",
       "short_name": "Progress",
       "description": "Review coverage, accuracy, and backups.",
       "url": "./#progress",
-      "icons": [{ "src": "./icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+      "icons": [{ "src": "./icons/shortcut-progress.png", "sizes": "192x192", "type": "image/png", "purpose": "any monochrome" }]
     }
   ]
 }

@@ -1,4 +1,4 @@
-const CACHE = "shengtu-v16";
+const CACHE = "shengtu-v17";
 const APP_SHELL = [
   "./",
   "./manifest.webmanifest",
@@ -7,6 +7,9 @@ const APP_SHELL = [
   "./icons/icon-512.png",
   "./icons/icon-maskable-512.png",
   "./icons/apple-touch-icon.png",
+  "./icons/shortcut-today.png",
+  "./icons/shortcut-library.png",
+  "./icons/shortcut-progress.png",
   "./og.png",
 ];
 

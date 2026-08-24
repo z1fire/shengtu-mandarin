@@ -510,18 +510,26 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
   assert.ok(manifest.icons.some((icon) => icon.sizes === "512x512" && icon.purpose === "any"));
   assert.ok(manifest.icons.some((icon) => icon.sizes === "512x512" && icon.purpose === "maskable"));
   assert.equal(manifest.shortcuts.length, 3);
+  assert.deepEqual(
+    manifest.shortcuts.map((shortcut) => shortcut.icons[0].src),
+    ["./icons/shortcut-today.png", "./icons/shortcut-library.png", "./icons/shortcut-progress.png"],
+  );
+  assert.ok(manifest.shortcuts.every((shortcut) => shortcut.icons[0].purpose.includes("monochrome")));
 
-  for (const [file, size] of [["icon-192.png", 192], ["icon-512.png", 512], ["icon-maskable-512.png", 512], ["apple-touch-icon.png", 180]]) {
+  for (const [file, size] of [["icon-192.png", 192], ["icon-512.png", 512], ["icon-maskable-512.png", 512], ["apple-touch-icon.png", 180], ["shortcut-today.png", 192], ["shortcut-library.png", 192], ["shortcut-progress.png", 192]]) {
     const png = await readFile(new URL(`../public/icons/${file}`, import.meta.url));
     assert.equal(png.subarray(1, 4).toString("ascii"), "PNG");
     assert.equal(png.readUInt32BE(16), size);
     assert.equal(png.readUInt32BE(20), size);
   }
 
-  assert.match(serviceWorker, /shengtu-v16/);
+  assert.match(serviceWorker, /shengtu-v17/);
   assert.match(serviceWorker, /request\.mode === "navigate"/);
   assert.match(serviceWorker, /url\.pathname\.includes\("\/api\/"\)/);
   assert.match(serviceWorker, /icon-maskable-512\.png/);
+  assert.match(serviceWorker, /shortcut-today\.png/);
+  assert.match(serviceWorker, /shortcut-library\.png/);
+  assert.match(serviceWorker, /shortcut-progress\.png/);
   assert.match(source, /beforeinstallprompt/);
   assert.match(source, /appinstalled/);
   assert.match(source, /Install app/);
@@ -532,7 +540,7 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
   assert.match(layoutSource, /crossOrigin="use-credentials"/);
   assert.match(source, /className="app-version"/);
   assert.match(source, /v\{APP_VERSION\}/);
-  assert.match(versionSource, /APP_VERSION = "1\.2\.1"/);
+  assert.match(versionSource, /APP_VERSION = "1\.2\.2"/);
   assert.match(pagesHtml, /mobile-web-app-capable/);
   assert.match(pagesHtml, /apple-touch-icon\.png/);
   assert.match(pagesHtml, /viewport-fit=cover/);
