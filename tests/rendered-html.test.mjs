@@ -512,7 +512,11 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
   assert.equal(manifest.shortcuts.length, 3);
   assert.deepEqual(
     manifest.shortcuts.map((shortcut) => shortcut.icons[0].src),
-    ["./icons/shortcut-today.png", "./icons/shortcut-library.png", "./icons/shortcut-progress.png"],
+    [
+      "https://z1fire.github.io/shengtu-mandarin/icons/shortcut-today.png",
+      "https://z1fire.github.io/shengtu-mandarin/icons/shortcut-library.png",
+      "https://z1fire.github.io/shengtu-mandarin/icons/shortcut-progress.png",
+    ],
   );
   assert.ok(manifest.shortcuts.every((shortcut) => shortcut.icons[0].purpose.includes("monochrome")));
 
@@ -523,7 +527,7 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
     assert.equal(png.readUInt32BE(20), size);
   }
 
-  assert.match(serviceWorker, /shengtu-v17/);
+  assert.match(serviceWorker, /shengtu-v18/);
   assert.match(serviceWorker, /request\.mode === "navigate"/);
   assert.match(serviceWorker, /url\.pathname\.includes\("\/api\/"\)/);
   assert.match(serviceWorker, /icon-maskable-512\.png/);
@@ -540,7 +544,7 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
   assert.match(layoutSource, /crossOrigin="use-credentials"/);
   assert.match(source, /className="app-version"/);
   assert.match(source, /v\{APP_VERSION\}/);
-  assert.match(versionSource, /APP_VERSION = "1\.2\.2"/);
+  assert.match(versionSource, /APP_VERSION = "1\.2\.3"/);
   assert.match(pagesHtml, /mobile-web-app-capable/);
   assert.match(pagesHtml, /apple-touch-icon\.png/);
   assert.match(pagesHtml, /viewport-fit=cover/);
