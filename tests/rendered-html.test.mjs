@@ -136,7 +136,9 @@ test("uses focused app views instead of one scrolling curriculum page", async ()
   assert.match(source, /AUTOMATIC CORRECTION LOOP/);
   assert.match(source, /LISTENING LADDER/);
   assert.match(source, /GRADED READING/);
-  assert.match(source, /TWO-LINE ROLE-PLAY/);
+  assert.match(source, /FOUR-LINE ROLE-PLAY/);
+  assert.match(source, /missionAllLinesPassed/);
+  assert.match(source, /Record or self-check all four conversation lines first/);
   assert.match(source, /OBJECTIVE ACCURACY/);
   assert.match(source, /\/api\/progress/);
   assert.match(source, /EXAMPLE SENTENCE/);
@@ -312,7 +314,8 @@ test("objectively scores practice and resolves misses over two correct days", ()
   assert.equal(progress.pinyinConfidence["1:4"], 3);
 });
 
-test("builds recall, dictation, reading, and two-line conversation exercises for every level", () => {
+test("builds recall, dictation, reading, and logical four-line conversations for every level", () => {
+  const allOpeners = new Set();
   for (const level of levelOrder) {
     const words = getStudyVocabulary(level);
     const missions = getCourseMissions(level);
@@ -327,17 +330,28 @@ test("builds recall, dictation, reading, and two-line conversation exercises for
     const reading = buildGradedReading(missions, 0, 2);
     assert.equal(reading.lines.length, 2);
     assert.ok(reading.options.includes(reading.answer));
-    const followUps = [];
-    for (const phase of [0, 1, 2]) {
-      const conversation = buildMissionConversation(missions[0], phase);
-      assert.equal(conversation.length, 4);
-      assert.equal(conversation.filter((turn) => turn.learner).length, 2);
-      assert.ok(!conversation.some((turn) => turn.hanzi === "请说。"));
-      assert.ok(conversation.every((turn) => !/[\u3400-\u9fff]/.test(turn.pinyin)));
-      followUps.push(conversation.filter((turn) => turn.learner)[1].hanzi);
+    for (const mission of missions) {
+      for (const phase of [0, 1, 2]) {
+        const conversation = buildMissionConversation(mission, phase);
+        assert.equal(conversation.length, 4);
+        assert.deepEqual(conversation.map((turn) => turn.speaker), ["PARTNER", "YOU", "PARTNER", "YOU"]);
+        assert.equal(conversation.filter((turn) => turn.learner).length, 2);
+        assert.ok(!conversation.some((turn) => turn.hanzi === "请说。"));
+        assert.ok(conversation.every((turn) => turn.hanzi && turn.pinyin && turn.translation));
+        assert.ok(conversation.every((turn) => !/[\u3400-\u9fff]/.test(turn.pinyin)));
+        allOpeners.add(conversation[0].hanzi);
+      }
     }
-    assert.equal(new Set(followUps).size, 3);
   }
+  assert.ok(allOpeners.size >= 12);
+
+  const hsk1 = getCourseMissions("1");
+  const hsk2 = getCourseMissions("2");
+  const advanced = getCourseMissions("7-9");
+  assert.match(buildMissionConversation(hsk1[0], 0)[0].translation, /name/i);
+  assert.match(buildMissionConversation(hsk1[5], 0)[0].translation, /ask/i);
+  assert.match(buildMissionConversation(hsk2[9], 0)[0].translation, /which way/i);
+  assert.match(buildMissionConversation(advanced[0], 0)[0].translation, /action.*recommend/i);
 });
 
 test("guarantees a new grammar target while retaining due reviews", () => {
@@ -535,7 +549,7 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
     assert.equal(png.readUInt32BE(20), size);
   }
 
-  assert.match(serviceWorker, /shengtu-v21/);
+  assert.match(serviceWorker, /shengtu-v22/);
   assert.match(serviceWorker, /request\.mode === "navigate"/);
   assert.match(serviceWorker, /url\.pathname\.includes\("\/api\/"\)/);
   assert.match(serviceWorker, /icon-maskable-512\.png/);
@@ -559,7 +573,7 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
   assert.match(layoutSource, /crossOrigin="use-credentials"/);
   assert.match(source, /className="app-version"/);
   assert.match(source, /v\{APP_VERSION\}/);
-  assert.match(versionSource, /APP_VERSION = "1\.2\.6"/);
+  assert.match(versionSource, /APP_VERSION = "1\.2\.7"/);
   assert.match(pagesHtml, /mobile-web-app-capable/);
   assert.match(pagesHtml, /apple-touch-icon\.png/);
   assert.match(pagesHtml, /viewport-fit=cover/);
