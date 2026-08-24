@@ -1,4 +1,4 @@
-const CACHE = "shengtu-v18";
+const CACHE = "shengtu-v19";
 const APP_SHELL = [
   "./",
   "./manifest.webmanifest",
@@ -10,6 +10,9 @@ const APP_SHELL = [
   "./icons/shortcut-today.png",
   "./icons/shortcut-library.png",
   "./icons/shortcut-progress.png",
+  "./icons/shortcut-today-dark.png",
+  "./icons/shortcut-library-dark.png",
+  "./icons/shortcut-progress-dark.png",
   "./og.png",
 ];
 
