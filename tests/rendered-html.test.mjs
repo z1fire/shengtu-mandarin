@@ -496,6 +496,7 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
   const manifest = JSON.parse(await readFile(new URL("../public/manifest.webmanifest", import.meta.url), "utf8"));
   const serviceWorker = await readFile(new URL("../public/sw.js", import.meta.url), "utf8");
   const source = await readFile(new URL("../src/MandarinApp.tsx", import.meta.url), "utf8");
+  const appCss = await readFile(new URL("../src/mandarin.css", import.meta.url), "utf8");
   const layoutSource = await readFile(new URL("../app/layout.tsx", import.meta.url), "utf8");
   const versionSource = await readFile(new URL("../src/app-version.ts", import.meta.url), "utf8");
   const pagesHtml = await readFile(new URL("../pages-site/index.html", import.meta.url), "utf8");
@@ -527,7 +528,7 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
     assert.equal(png.readUInt32BE(20), size);
   }
 
-  assert.match(serviceWorker, /shengtu-v19/);
+  assert.match(serviceWorker, /shengtu-v20/);
   assert.match(serviceWorker, /request\.mode === "navigate"/);
   assert.match(serviceWorker, /url\.pathname\.includes\("\/api\/"\)/);
   assert.match(serviceWorker, /icon-maskable-512\.png/);
@@ -543,11 +544,15 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
   assert.match(source, /Add to Home screen/);
   assert.match(source, /display-mode: standalone/);
   assert.match(source, /updateViaCache: "none"/);
+  assert.match(source, /audioRecallPrompt/);
+  assert.match(source, /prompt-audio-actions/);
+  assert.match(appCss, /\.study-card\.audio-recall-prompt \.card-audio-actions/);
+  assert.match(appCss, /\.study-card\.audio-recall-prompt \.audio-link \{[^}]*background: var\(--ink\)/);
   assert.match(layoutSource, /rel="manifest"/);
   assert.match(layoutSource, /crossOrigin="use-credentials"/);
   assert.match(source, /className="app-version"/);
   assert.match(source, /v\{APP_VERSION\}/);
-  assert.match(versionSource, /APP_VERSION = "1\.2\.4"/);
+  assert.match(versionSource, /APP_VERSION = "1\.2\.5"/);
   assert.match(pagesHtml, /mobile-web-app-capable/);
   assert.match(pagesHtml, /apple-touch-icon\.png/);
   assert.match(pagesHtml, /viewport-fit=cover/);
