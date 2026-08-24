@@ -8,6 +8,13 @@
       "when": 1787331201679,
       "tag": "0000_careful_wong",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1787564259396,
+      "tag": "0001_stiff_stryfe",
+      "breakpoints": true
     }
   ]
 }

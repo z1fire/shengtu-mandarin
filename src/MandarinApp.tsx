@@ -85,11 +85,39 @@ type AccountState =
   | { mode: "signed-out" }
   | { mode: "device-only" }
   | { mode: "unavailable" };
+type SyncStatus = "checking" | "saving" | "synced" | "local" | "error" | "conflict";
+type SyncConflict = { local: Progress; remote: Progress; remoteUpdatedAt: number };
 
 const STORAGE_KEY = "shengtu-hsk-progress";
 const LEGACY_STORAGE_KEY = "shengtu-hsk1-progress";
 const LOCAL_SYNC_TIME_KEY = "shengtu-progress-saved-at";
+const LOCAL_RECOVERY_KEY = "shengtu-recovery-copy";
+const SYNCED_APP_URL = "https://shengtu-mandarin.z1ifre.chatgpt.site";
 const today = localDate();
+
+function completedStudySteps(progress: Progress) {
+  return Object.values(progress.studyHistory).flatMap((days) => days ?? [])
+    .reduce((total, day) => total + day.completedSteps.length, 0);
+}
+
+function hasLearningActivity(progress: Progress) {
+  return progress.xp > 0
+    || progress.minutes > 0
+    || progress.mastered.length > 0
+    || progress.grammarMastered.length > 0
+    || progress.missionSteps.length > 0
+    || progress.daily.length > 0
+    || completedStudySteps(progress) > 0;
+}
+
+function progressCopySummary(progress: Progress) {
+  return {
+    steps: completedStudySteps(progress),
+    xp: progress.xp,
+    minutes: progress.minutes,
+    words: progress.mastered.length,
+  };
+}
 
 const missionPhaseCopy = [
   { title: "Build the language", detail: "Learn the key words and one grammar pattern." },
@@ -407,13 +435,16 @@ export default function MandarinApp() {
   const [showInstallHelp, setShowInstallHelp] = useState(false);
   const [showAccount, setShowAccount] = useState(false);
   const [account, setAccount] = useState<AccountState>({ mode: "checking" });
-  const [syncStatus, setSyncStatus] = useState<"checking" | "saving" | "synced" | "local" | "error">("checking");
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>("checking");
   const [syncReady, setSyncReady] = useState(false);
   const [syncEnabled, setSyncEnabled] = useState(false);
+  const [syncConflict, setSyncConflict] = useState<SyncConflict | null>(null);
   const [correctionResult, setCorrectionResult] = useState("");
   const importRef = useRef<HTMLInputElement>(null);
   const wasReplaying = useRef(false);
   const replayCompletionKey = useRef("");
+  const cloudUpdatedAtRef = useRef(0);
+  const lastSyncedPayloadRef = useRef("");
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -457,15 +488,27 @@ export default function MandarinApp() {
             return;
           }
           setAccount({ mode: "signed-in", user: remote.user });
-          setSyncEnabled(true);
-          if (remote.progress && Number(remote.updatedAt) > localSavedAt) {
+          const remoteUpdatedAt = Number(remote.updatedAt) || 0;
+          cloudUpdatedAtRef.current = remoteUpdatedAt;
+          if (remote.progress) {
             const remoteLevel = isHskLevel((remote.progress as { selectedLevel?: unknown }).selectedLevel)
               ? (remote.progress as { selectedLevel: HskLevel }).selectedLevel
               : "1";
             const normalized = normalizeProgress(remote.progress, getStudyVocabulary(remoteLevel).length, getLibraryGrammar(remoteLevel, false).length, today);
-            setProgress(normalized);
-            setOnboardingGoal(normalized.dailyNew);
+            lastSyncedPayloadRef.current = JSON.stringify(recordStudyDay(normalized, today));
+            const localPayload = JSON.stringify(recordStudyDay(localProgress, today));
+            if (remoteUpdatedAt > localSavedAt && hasLearningActivity(localProgress) && localPayload !== lastSyncedPayloadRef.current) {
+              setSyncConflict({ local: localProgress, remote: normalized, remoteUpdatedAt });
+              setSyncStatus("conflict");
+              return;
+            }
+            if (remoteUpdatedAt > localSavedAt) {
+              setProgress(normalized);
+              setOnboardingGoal(normalized.dailyNew);
+              window.localStorage.setItem(LOCAL_SYNC_TIME_KEY, String(remoteUpdatedAt));
+            }
           }
+          setSyncEnabled(true);
           setSyncStatus("synced");
         } catch {
           setSyncStatus("local");
@@ -487,7 +530,7 @@ export default function MandarinApp() {
 
     const captureInstallPrompt = (event: Event) => {
       event.preventDefault();
-      setInstallPrompt(event as BeforeInstallPromptEvent);
+      if (window.location.hostname.endsWith(".chatgpt.site")) setInstallPrompt(event as BeforeInstallPromptEvent);
     };
     const confirmInstall = () => {
       setIsInstalled(true);
@@ -525,21 +568,61 @@ export default function MandarinApp() {
 
   useEffect(() => {
     if (!ready || !syncReady || !syncEnabled) return;
+    const snapshot = recordStudyDay(progress, today);
+    const payload = JSON.stringify(snapshot);
+    if (payload === lastSyncedPayloadRef.current) {
+      setSyncStatus("synced");
+      return;
+    }
     const timer = window.setTimeout(() => {
       setSyncStatus("saving");
       void fetch("/api/progress", {
         method: "PUT",
         headers: { "content-type": "application/json", accept: "application/json" },
-        body: JSON.stringify({ progress: recordStudyDay(progress, today) }),
+        body: JSON.stringify({ progress: snapshot, expectedUpdatedAt: cloudUpdatedAtRef.current }),
       }).then(async (response) => {
+        const result = await response.json() as { conflict?: boolean; progress?: unknown; updatedAt?: number };
+        if (response.status === 409 && result.conflict && result.progress) {
+          const remoteLevel = isHskLevel((result.progress as { selectedLevel?: unknown }).selectedLevel)
+            ? (result.progress as { selectedLevel: HskLevel }).selectedLevel
+            : "1";
+          const remote = normalizeProgress(result.progress, getStudyVocabulary(remoteLevel).length, getLibraryGrammar(remoteLevel, false).length, today);
+          const remoteUpdatedAt = Number(result.updatedAt) || 0;
+          cloudUpdatedAtRef.current = remoteUpdatedAt;
+          lastSyncedPayloadRef.current = JSON.stringify(recordStudyDay(remote, today));
+          setSyncEnabled(false);
+          setSyncConflict({ local: snapshot, remote, remoteUpdatedAt });
+          setSyncStatus("conflict");
+          return;
+        }
         if (!response.ok) throw new Error("Sync unavailable");
-        const result = await response.json() as { updatedAt?: number };
-        window.localStorage.setItem(LOCAL_SYNC_TIME_KEY, String(result.updatedAt ?? Date.now()));
+        const updatedAt = Number(result.updatedAt) || Date.now();
+        cloudUpdatedAtRef.current = updatedAt;
+        lastSyncedPayloadRef.current = payload;
+        window.localStorage.setItem(LOCAL_SYNC_TIME_KEY, String(updatedAt));
         setSyncStatus("synced");
       }).catch(() => setSyncStatus("error"));
     }, 700);
     return () => window.clearTimeout(timer);
   }, [progress, ready, syncEnabled, syncReady]);
+
+  function resolveSyncConflict(choice: "device" | "cloud") {
+    if (!syncConflict) return;
+    cloudUpdatedAtRef.current = syncConflict.remoteUpdatedAt;
+    lastSyncedPayloadRef.current = JSON.stringify(recordStudyDay(syncConflict.remote, today));
+    if (choice === "cloud") {
+      window.localStorage.setItem(LOCAL_RECOVERY_KEY, JSON.stringify({ savedAt: Date.now(), progress: syncConflict.local }));
+      window.localStorage.setItem(LOCAL_SYNC_TIME_KEY, String(syncConflict.remoteUpdatedAt));
+      setProgress(syncConflict.remote);
+      setOnboardingGoal(syncConflict.remote.dailyNew);
+      setSyncStatus("synced");
+    } else {
+      setProgress(syncConflict.local);
+      setSyncStatus("saving");
+    }
+    setSyncConflict(null);
+    setSyncEnabled(true);
+  }
 
   useEffect(() => {
     if (!toast) return;
@@ -1480,6 +1563,10 @@ export default function MandarinApp() {
   }
 
   async function installApp() {
+    if (!window.location.hostname.endsWith(".chatgpt.site")) {
+      setShowAccount(true);
+      return;
+    }
     if (isInstalled) {
       setToast("Shēngtú is already installed");
       return;
@@ -1509,6 +1596,8 @@ export default function MandarinApp() {
         <div className="header-actions"><button className="level-switch" onClick={() => setShowLevelPicker(true)}><span>{meta.label}</span><small>Change level</small></button><span className="streak-pill"><span>火</span> {progress.streak} day streak</span><button className={`sync-pill ${syncStatus}`} onClick={() => setShowAccount(true)} aria-label={`Open account · ${account.mode === "signed-in" ? "signed in and synced" : account.mode === "checking" ? "checking status" : account.mode === "signed-out" ? "signed out" : "device-only progress"}`}>{account.mode === "signed-in" ? "● Account" : account.mode === "checking" ? "☁ Account" : account.mode === "signed-out" ? "↪ Sign in" : "▣ Device"}</button><button className="round-button" onClick={() => setProgress((current) => ({ ...current, showPinyin: !current.showPinyin }))} title="Toggle pinyin">{progress.showPinyin ? "PĪN" : "汉"}</button></div>
       </header>
 
+      {ready && syncReady && account.mode === "device-only" && <div className="device-only-banner" role="status"><div><strong>Device-only copy</strong><span>Progress here cannot reach your account. Export a backup before moving to the synced Sites app.</span></div><button onClick={() => setShowAccount(true)}>Move to synced app</button></div>}
+
       <div className="app-content">
       {appView === "today" && todayScreen === "plan" && <>
       <section className="hero" id="top">
@@ -1516,7 +1605,7 @@ export default function MandarinApp() {
           <div className="eyebrow"><span>HSK 3.0</span> {meta.label.toUpperCase()} · CURRENT 2026 SYLLABUS</div>
           <h1>Stop studying Mandarin.<br /><em>Start using it.</em></h1>
           <p className="hero-lede">A guided, speaking-first {meta.label} course that schedules the right words each day—never the whole level at once.</p>
-          <div className="hero-actions"><button className="primary-button" onClick={() => goToPractice(nextRecommended)}>Continue: {practiceLabels[nextRecommended]} <span>→</span></button><button className="history-button" onClick={() => setShowStudyHistory(true)}><span>↶</span> Study history</button>{!isInstalled && <button className="install-app-button" onClick={() => void installApp()}><span>↓</span> Install app</button>}<button className="text-button" onClick={() => navigate("course")}><span className="play-dot">▶</span> See the mission path</button></div>
+          <div className="hero-actions"><button className="primary-button" onClick={() => goToPractice(nextRecommended)}>Continue: {practiceLabels[nextRecommended]} <span>→</span></button><button className="history-button" onClick={() => setShowStudyHistory(true)}><span>↶</span> Study history</button>{!isInstalled && account.mode !== "checking" && account.mode !== "device-only" && <button className="install-app-button" onClick={() => void installApp()}><span>↓</span> Install app</button>}<button className="text-button" onClick={() => navigate("course")}><span className="play-dot">▶</span> See the mission path</button></div>
           <div className="hero-proof"><div><strong>{meta.newWords.toLocaleString()}</strong><span>new words</span></div><div><strong>{meta.newCharacters.toLocaleString()}</strong><span>new characters</span></div><div><strong>{meta.grammarTargets}</strong><span>grammar targets</span></div><div><strong>{meta.cumulativeWords.toLocaleString()}</strong><span>cumulative words</span></div></div>
         </div>
 
@@ -1685,7 +1774,7 @@ export default function MandarinApp() {
           <div className="stat-grid"><article className="stat-card coral"><span>火</span><strong>{progress.streak}</strong><p>day streak</p><small>Counts practice days, not visits.</small></article><article className="stat-card jade"><span>字</span><strong>{progress.mastered.length}</strong><p>cycled words</p><small>Seen on at least three scheduled study days.</small></article><article className="stat-card blue"><span>时</span><strong>{progress.minutes}</strong><p>minutes trained</p><small>Uses each task’s real target time.</small></article><article className="stat-card yellow"><span>光</span><strong>{progress.xp}</strong><p>practice XP</p><small>Every reward can be earned only once.</small></article></div>
           <div className="coverage-dashboard"><div><span>VOCABULARY COVERAGE</span><strong>{wordsIntroduced.toLocaleString()} <small>/ {vocabulary.length.toLocaleString()} taught</small></strong><div><i style={{ width: `${wordCoveragePercent}%` }} /></div><p>{progress.mastered.length.toLocaleString()} on cadence step 3+ · {Math.max(0, vocabulary.length - wordsIntroduced).toLocaleString()} still to introduce</p></div><div><span>GRAMMAR COVERAGE</span><strong>{grammarIntroduced} <small>/ {levelGrammar.length} taught</small></strong><div><i style={{ width: `${grammarCoveragePercent}%` }} /></div><p>{progress.grammarMastered.length} stable · {Math.max(0, levelGrammar.length - grammarIntroduced)} still to introduce</p></div></div>
           <div className="skill-dashboard"><div className="skill-dashboard-head"><div><span className="section-kicker">OBJECTIVE ACCURACY</span><h3>Know exactly what needs attention.</h3></div><p>{weakestSkill ? `${skillLabels[weakestSkill.skill]} is currently the best place to focus at ${weakestSkill.accuracy}% accuracy.` : "Complete objective checks to build your first accuracy profile."} {progress.corrections.length} correction{progress.corrections.length === 1 ? "" : "s"} remain across all levels.</p></div><div className="skill-score-grid">{skillScores.map((item) => <article key={item.skill}><span>{skillLabels[item.skill]}</span><strong>{item.attempts ? `${item.accuracy}%` : "—"}</strong><div><i style={{ width: `${item.accuracy}%` }} /></div><small>{item.attempts} objective attempt{item.attempts === 1 ? "" : "s"}</small></article>)}</div></div>
-          <div className={`backup-note sync-${syncStatus}`}><strong>{syncStatus === "synced" ? "Progress synced across devices." : syncStatus === "saving" || syncStatus === "checking" ? "Checking your cloud progress…" : "Progress is saved on this device."}</strong><span>{syncStatus === "synced" ? "Your signed-in Sites account keeps the newest course state available on your phone and computer." : "Cloud sync requires the signed-in Sites version. Export a backup before clearing browser data when using GitHub Pages or offline mode."}</span><button className="account-manage-link" onClick={() => setShowAccount(true)}>View account</button></div>
+          <div className={`backup-note sync-${syncStatus}`}><strong>{syncStatus === "synced" ? "Progress synced across devices." : syncStatus === "conflict" ? "Choose which progress copy to keep." : syncStatus === "saving" || syncStatus === "checking" ? "Checking your cloud progress…" : "Progress is saved on this device."}</strong><span>{syncStatus === "synced" ? "Your signed-in Sites account keeps the newest course state available on your phone and computer." : syncStatus === "conflict" ? "Nothing will be overwritten until you choose the device or cloud copy." : "Cloud sync requires the signed-in Sites version. Export a backup before clearing browser data when using GitHub Pages or offline mode."}</span><button className="account-manage-link" onClick={() => syncConflict ? undefined : setShowAccount(true)}>{syncConflict ? "Decision required" : "View account"}</button></div>
           <div className="level-roadmap"><div><span className="section-kicker">THE COMPLETE PATH</span><h3>All nine HSK levels are ready.</h3><p>Choose any level now. Each one keeps its own cadence, missions, exam history, and cycled-word count.</p></div><ol>{levelOrder.map((level) => { const item = levelMeta[level]; const current = level === selectedLevel; return <li key={level} className={current ? "current" : "available"}><button onClick={() => chooseLevel(level)}><span>{current ? "NOW" : "OPEN"}</span><strong>{item.label}</strong><small>{item.stage} · {item.cumulativeWords.toLocaleString()} cumulative words</small></button></li>; })}</ol></div>
           <div className="app-about"><div><span className="brand-mark">声</span><div><strong>SHĒNGTÚ</strong><p>Hear it. Say it. Own it.</p></div></div><div><span>SOURCES</span><a href="https://www.chinesetest.cn/syllabus" target="_blank" rel="noreferrer">Official HSK 3.0 ↗</a><a href="https://hsk.cn-bj.ufileos.com/3.0/%E6%96%B0%E7%89%88HSK%E8%80%83%E8%AF%95%E5%A4%A7%E7%BA%B2%EF%BC%88%E8%AF%8D%E6%B1%87%E3%80%81%E6%B1%89%E5%AD%97%E3%80%81%E8%AF%AD%E6%B3%95%EF%BC%89.pdf" target="_blank" rel="noreferrer">2025 syllabus PDF ↗</a><a href="https://cc-cedict.org/editor/editor.php?handler=Download" target="_blank" rel="noreferrer">English glosses · CC-CEDICT ↗</a></div><small>Independent learning tool. Not affiliated with Chinese Test International.</small></div>
         </section>
@@ -1735,19 +1824,23 @@ export default function MandarinApp() {
             <h2 id="account-title">Your Shēngtú account</h2>
             {account.mode === "signed-in" && <>
               <div className="account-identity"><span aria-hidden="true">{(account.user.displayName || account.user.email).slice(0, 1).toUpperCase()}</span><div><strong>{account.user.displayName}</strong><small>{account.user.email}</small></div></div>
-              <div className={`account-sync-state ${syncStatus === "error" ? "warning" : "active"}`}><i aria-hidden="true" /><div><strong>{syncStatus === "error" ? "Cloud sync needs attention" : syncStatus === "saving" ? "Saving your latest progress…" : "Cloud sync is on"}</strong><p>{syncStatus === "error" ? "Your lesson is safe on this device. Reopen the app while online to retry cloud sync." : "Your newest completed lessons, recall cadence, and course progress follow this account across the Sites app on your devices."}</p></div></div>
+              <div className={`account-sync-state ${syncStatus === "error" || syncStatus === "conflict" ? "warning" : "active"}`}><i aria-hidden="true" /><div><strong>{syncStatus === "conflict" ? "A sync decision is waiting" : syncStatus === "error" ? "Cloud sync needs attention" : syncStatus === "saving" ? "Saving your latest progress…" : "Cloud sync is on"}</strong><p>{syncStatus === "conflict" ? "Two different progress copies were found. Close this panel and choose which one to keep; neither has been overwritten." : syncStatus === "error" ? "Your lesson is safe on this device. Reopen the app while online to retry cloud sync." : "Your newest completed lessons, recall cadence, and course progress follow this account across the Sites app on your devices."}</p></div></div>
               <div className="account-actions"><button onClick={() => setShowAccount(false)}>Done</button><a href="/signout-with-chatgpt?return_to=%2F">Sign out</a></div>
             </>}
             {account.mode === "checking" && <div className="account-message"><span className="account-spinner" aria-hidden="true" /><strong>Checking your account…</strong><p>This should only take a moment.</p></div>}
             {account.mode === "signed-out" && <div className="account-message"><span aria-hidden="true">人</span><strong>You are not signed in.</strong><p>Sign in with ChatGPT to restore cloud progress and continue on another device.</p><a className="account-primary" href="/signin-with-chatgpt?return_to=%2F">Sign in with ChatGPT</a></div>}
-            {account.mode === "device-only" && <div className="account-message"><span aria-hidden="true">▣</span><strong>This copy saves only on this device.</strong><p>GitHub Pages and offline copies cannot connect to your account. Use the secure Sites app for automatic cross-device sync.</p><a className="account-primary" href="https://shengtu-mandarin.z1ifre.chatgpt.site">Open the synced app</a></div>}
+            {account.mode === "device-only" && <div className="account-message"><span aria-hidden="true">▣</span><strong>This copy saves only on this device.</strong><p>GitHub Pages cannot connect to your account. Export a backup here, then open the secure Sites app and import it before installing that version.</p><a className="account-primary" href={SYNCED_APP_URL}>Open the synced app</a></div>}
             {account.mode === "unavailable" && <div className="account-message"><span aria-hidden="true">!</span><strong>Your account could not be checked.</strong><p>Your lesson remains saved on this device. Reconnect to the internet, then try again.</p><button className="account-primary" onClick={() => window.location.reload()}>Try again</button></div>}
           </div>
         </div>
       )}
 
+      {ready && syncConflict && (() => { const local = progressCopySummary(syncConflict.local); const remote = progressCopySummary(syncConflict.remote); return <div className="sync-conflict-backdrop" role="dialog" aria-modal="true" aria-labelledby="sync-conflict-title"><div className="sync-conflict-sheet"><span className="section-kicker">SYNC PROTECTION</span><h2 id="sync-conflict-title">Two progress copies were found.</h2><p>Shēngtú paused before overwriting anything. Compare both copies, then choose the one you want to continue with.</p><div className="sync-copy-grid"><article><span>THIS DEVICE</span><strong>{local.steps} completed steps</strong><small>{local.xp} XP · {local.minutes} minutes · {local.words} cycled words</small><button onClick={() => resolveSyncConflict("device")}>Keep this device</button></article><article><span>CLOUD</span><strong>{remote.steps} completed steps</strong><small>{remote.xp} XP · {remote.minutes} minutes · {remote.words} cycled words</small><button onClick={() => resolveSyncConflict("cloud")}>Use cloud copy</button></article></div><small className="sync-conflict-note">If you use the cloud copy, the device copy is retained locally as a recovery backup. If you keep this device, the current cloud copy becomes a server recovery snapshot.</small></div></div>; })()}
+
+      {ready && !syncReady && !progress.onboarded && <div className="sync-startup-backdrop" role="status" aria-live="polite"><div className="sync-startup-card"><span className="account-spinner" aria-hidden="true" /><strong>Checking for your saved course…</strong><small>First-time setup will appear only if no account progress is found.</small></div></div>}
+
       {ready && showLevelPicker && <div className="onboarding-backdrop level-picker-backdrop" role="dialog" aria-modal="true" aria-labelledby="level-picker-title"><div className="onboarding-card level-picker-card"><div className="picker-top"><div><span className="section-kicker">COMPLETE HSK 3.0 PATH</span><h2 id="level-picker-title">Choose your active level.</h2><p>Switch whenever you need. Vocabulary cadence and mission progress are saved separately for every level.</p></div><button className="picker-close" onClick={() => setShowLevelPicker(false)} aria-label="Close level picker">×</button></div><div className="level-picker-grid">{levelOrder.map((level) => { const item = levelMeta[level]; const active = level === selectedLevel; const savedCount = active ? progress.mastered.length : progress.levelArchives[level]?.mastered.length ?? 0; return <button key={level} className={active ? "active" : ""} onClick={() => chooseLevel(level)}><span>{active ? "CURRENT" : savedCount ? `${savedCount} CYCLED` : "AVAILABLE"}</span><strong>{item.label}</strong><b>{item.stage}</b><p>{item.description}</p><small>{item.newWords.toLocaleString()} new · {item.cumulativeWords.toLocaleString()} cumulative words</small></button>; })}</div><p className="picker-note">New to Mandarin? Start at HSK 1. If you already study Chinese, use a level checkpoint and move down if the recall feels shaky.</p></div></div>}
-      {ready && !showLevelPicker && !progress.onboarded && <div className="onboarding-backdrop" role="dialog" aria-modal="true" aria-labelledby="onboarding-title"><div className="onboarding-card"><span className="brand-mark">声</span><span className="section-kicker">YOUR FIRST TWO MINUTES</span><h2 id="onboarding-title">Set a pace you can repeat.</h2><p>You will not recall all {meta.newWords.toLocaleString()} words daily. Shēngtú gives you a small new set plus only the reviews that are due.</p><div className="goal-options">{[5, 8, 10].map((goal) => <button key={goal} className={onboardingGoal === goal ? "active" : ""} onClick={() => setOnboardingGoal(goal)}><strong>{goal}</strong><span>new words/day</span><small>{goal === 5 ? "gentle · ~27 min" : goal === 8 ? "recommended · ~33 min" : "fast · ~40 min"}</small></button>)}</div><ul><li>Pinyin fades automatically after three correct recalls; tap to reveal it anytime.</li><li>Every wrong answer enters the correction loop automatically.</li><li>Finish the six daily steps; stop when the mission checkpoint and corrections are done.</li></ul><button className="primary-button" onClick={startCourse}>Start my first lesson <span>→</span></button></div></div>}
+      {ready && syncReady && !syncConflict && !showLevelPicker && !progress.onboarded && <div className="onboarding-backdrop" role="dialog" aria-modal="true" aria-labelledby="onboarding-title"><div className="onboarding-card"><span className="brand-mark">声</span><span className="section-kicker">YOUR FIRST TWO MINUTES</span><h2 id="onboarding-title">Set a pace you can repeat.</h2><p>You will not recall all {meta.newWords.toLocaleString()} words daily. Shēngtú gives you a small new set plus only the reviews that are due.</p><div className="goal-options">{[5, 8, 10].map((goal) => <button key={goal} className={onboardingGoal === goal ? "active" : ""} onClick={() => setOnboardingGoal(goal)}><strong>{goal}</strong><span>new words/day</span><small>{goal === 5 ? "gentle · ~27 min" : goal === 8 ? "recommended · ~33 min" : "fast · ~40 min"}</small></button>)}</div><ul><li>Pinyin fades automatically after three correct recalls; tap to reveal it anytime.</li><li>Every wrong answer enters the correction loop automatically.</li><li>Finish the six daily steps; stop when the mission checkpoint and corrections are done.</li></ul><button className="primary-button" onClick={startCourse}>Start my first lesson <span>→</span></button></div></div>}
       {toast && <div className="toast" role="status">{toast}</div>}
     </main>
   );

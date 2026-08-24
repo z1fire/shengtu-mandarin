@@ -517,7 +517,7 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
     assert.equal(png.readUInt32BE(20), size);
   }
 
-  assert.match(serviceWorker, /shengtu-v14/);
+  assert.match(serviceWorker, /shengtu-v15/);
   assert.match(serviceWorker, /request\.mode === "navigate"/);
   assert.match(serviceWorker, /url\.pathname\.includes\("\/api\/"\)/);
   assert.match(serviceWorker, /icon-maskable-512\.png/);
@@ -528,7 +528,7 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
   assert.match(source, /display-mode: standalone/);
   assert.match(source, /className="app-version"/);
   assert.match(source, /v\{APP_VERSION\}/);
-  assert.match(versionSource, /APP_VERSION = "1\.1\.0"/);
+  assert.match(versionSource, /APP_VERSION = "1\.2\.0"/);
   assert.match(pagesHtml, /mobile-web-app-capable/);
   assert.match(pagesHtml, /apple-touch-icon\.png/);
   assert.match(pagesHtml, /viewport-fit=cover/);
@@ -537,17 +537,31 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
 test("configures authenticated cross-device progress sync with a device-local fallback", async () => {
   const hosting = JSON.parse(await readFile(new URL("../.openai/hosting.json", import.meta.url), "utf8"));
   const route = await readFile(new URL("../app/api/progress/route.ts", import.meta.url), "utf8");
+  const persistence = await readFile(new URL("../db/progress.ts", import.meta.url), "utf8");
   const schema = await readFile(new URL("../db/schema.ts", import.meta.url), "utf8");
+  const migration = await readFile(new URL("../drizzle/0001_stiff_stryfe.sql", import.meta.url), "utf8");
   const source = await readFile(new URL("../src/MandarinApp.tsx", import.meta.url), "utf8");
   const css = await readFile(new URL("../src/mandarin.css", import.meta.url), "utf8");
   assert.equal(hosting.d1, "DB");
   assert.match(route, /getChatGPTUser/);
   assert.match(route, /readLearnerProgress/);
   assert.match(route, /writeLearnerProgress/);
+  assert.match(route, /expectedUpdatedAt/);
+  assert.match(route, /status: 409/);
+  assert.match(route, /status: 428/);
   assert.match(schema, /learner_progress/);
+  assert.match(schema, /learnerProgressHistory/);
+  assert.match(migration, /learner_progress_history/);
+  assert.match(persistence, /WHERE user_id = \? AND updated_at = \?/);
+  assert.match(persistence, /LIMIT 20/);
   assert.match(source, /ACCOUNT &amp; SYNC/);
   assert.match(source, /\/signin-with-chatgpt\?return_to=%2F/);
   assert.match(source, /\/signout-with-chatgpt\?return_to=%2F/);
   assert.match(source, /Open the synced app/);
+  assert.match(source, /Two progress copies were found/);
+  assert.match(source, /syncReady && !syncConflict/);
+  assert.match(source, /Device-only copy/);
   assert.match(css, /\.account-sheet/);
+  assert.match(css, /\.sync-conflict-sheet/);
+  assert.match(css, /\.device-only-banner/);
 });

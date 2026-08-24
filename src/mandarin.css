@@ -534,7 +534,7 @@ button { color: inherit; }
 
 .sync-pill { padding: 7px 10px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); background: rgba(255,255,255,.5); cursor: pointer; font-size: 8px; font-weight: 900; letter-spacing: .05em; text-transform: uppercase; }
 .sync-pill.synced { color: var(--jade); border-color: #9bc7b6; background: #eaf5f0; }
-.sync-pill.error { color: var(--coral); }
+.sync-pill.error, .sync-pill.conflict { color: var(--coral); }
 .account-manage-link { flex: 0 0 auto; align-self: center; margin-left: auto; padding: 7px 10px; border: 1px solid currentColor; background: transparent; color: var(--jade); cursor: pointer; font-size: 8px; font-weight: 900; text-transform: uppercase; letter-spacing: .08em; }
 .correction-due { border: 0; background: transparent; color: var(--yellow); padding: 0; cursor: pointer; font: inherit; text-transform: inherit; letter-spacing: inherit; text-decoration: underline; text-underline-offset: 3px; }
 .recall-test-start { grid-column: 2; justify-self: end; width: min(100%, 570px); margin-top: -48px; border: 0; background: var(--blue); color: white; padding: 14px 18px; cursor: pointer; font-weight: 900; box-shadow: 5px 5px 0 #2c357b; }
@@ -598,7 +598,7 @@ button { color: inherit; }
 .skill-score-grid article > div { height: 4px; margin-bottom: 7px; background: #4b514d; }
 .skill-score-grid i { display: block; height: 100%; background: var(--yellow); }
 .backup-note.sync-synced { background: #e2ece8; border-color: var(--jade); }
-.backup-note.sync-local, .backup-note.sync-error { background: #fff4e7; border-color: var(--coral); }
+.backup-note.sync-local, .backup-note.sync-error, .backup-note.sync-conflict { background: #fff4e7; border-color: var(--coral); }
 
 .onboarding-backdrop { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; padding: 20px; background: rgba(12,18,16,.86); overflow-y: auto; }
 .onboarding-card { width: min(100%, 720px); padding: 42px; background: var(--paper); box-shadow: 12px 12px 0 var(--coral); }
@@ -750,6 +750,32 @@ button { color: inherit; }
 .account-spinner { border: 3px solid var(--line) !important; border-top-color: var(--coral) !important; background: transparent !important; animation: account-spin .8s linear infinite; }
 .account-primary { margin-top: 1px; }
 @keyframes account-spin { to { transform: rotate(360deg); } }
+
+.device-only-banner { max-width: 1460px; margin: 0 auto; padding: 11px 44px; display: flex; align-items: center; justify-content: space-between; gap: 20px; border-bottom: 1px solid #d6a638; background: #fff2c8; }
+.device-only-banner > div { display: flex; align-items: baseline; gap: 11px; }
+.device-only-banner strong { color: #7d5210; font-size: 10px; text-transform: uppercase; letter-spacing: .1em; }
+.device-only-banner span { color: #6f674f; font-size: 9px; }
+.device-only-banner button { flex: 0 0 auto; border: 0; background: transparent; color: #7d5210; cursor: pointer; font-size: 9px; font-weight: 900; text-decoration: underline; text-underline-offset: 3px; }
+
+.sync-conflict-backdrop { position: fixed; inset: 0; z-index: 410; display: grid; place-items: center; padding: 24px; background: rgba(12,18,16,.88); overflow-y: auto; }
+.sync-conflict-sheet { width: min(680px, 100%); padding: 37px 40px; border: 1px solid var(--ink); background: var(--paper); box-shadow: 14px 14px 0 var(--coral); }
+.sync-conflict-sheet > .section-kicker { color: var(--coral); }
+.sync-conflict-sheet h2 { margin: 9px 0 12px; font: 39px/1 Georgia, serif; letter-spacing: -.035em; }
+.sync-conflict-sheet > p { max-width: 560px; margin: 0; color: var(--muted); font-size: 11px; line-height: 1.6; }
+.sync-copy-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 25px 0 17px; }
+.sync-copy-grid article { min-height: 180px; padding: 20px; display: flex; flex-direction: column; align-items: flex-start; border: 1px solid var(--line); background: white; }
+.sync-copy-grid article > span { color: var(--coral); font-size: 8px; font-weight: 950; letter-spacing: .14em; }
+.sync-copy-grid article > strong { margin-top: 16px; font: 24px Georgia, serif; }
+.sync-copy-grid article > small { margin: 7px 0 20px; color: var(--muted); font-size: 9px; line-height: 1.5; }
+.sync-copy-grid button { width: 100%; margin-top: auto; padding: 12px 14px; border: 0; background: var(--ink); color: white; cursor: pointer; font-size: 10px; font-weight: 900; }
+.sync-copy-grid article:first-child button { background: var(--coral); }
+.sync-conflict-note { display: block; color: var(--muted); font-size: 8px; line-height: 1.55; }
+
+.sync-startup-backdrop { position: fixed; inset: 0; z-index: 390; display: grid; place-items: center; padding: 24px; background: rgba(12,18,16,.84); }
+.sync-startup-card { width: min(390px, 100%); padding: 34px; display: flex; flex-direction: column; align-items: center; border: 1px solid var(--ink); background: var(--paper); box-shadow: 10px 10px 0 var(--yellow); text-align: center; }
+.sync-startup-card .account-spinner { width: 44px; height: 44px; margin-bottom: 18px; }
+.sync-startup-card strong { font: 24px Georgia, serif; }
+.sync-startup-card small { margin-top: 9px; color: var(--muted); font-size: 9px; line-height: 1.5; }
 
 .app-about { margin-top: 70px; padding: 30px; display: grid; grid-template-columns: 1fr 1fr; gap: 30px; background: var(--ink); color: white; }
 .app-about > div { display: flex; align-items: flex-start; gap: 13px; }
@@ -953,6 +979,14 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
   .account-sheet { padding: 30px 21px 26px; box-shadow: 8px 8px 0 rgba(0,0,0,.28); }
   .account-sheet h2 { margin-right: 36px; font-size: 31px; }
   .account-actions button { flex: 1; }
+  .device-only-banner { padding: 10px 18px; align-items: flex-start; }
+  .device-only-banner > div { flex-direction: column; gap: 3px; }
+  .device-only-banner span { line-height: 1.4; }
+  .sync-conflict-backdrop { padding: 14px; }
+  .sync-conflict-sheet { padding: 29px 20px; box-shadow: 8px 8px 0 var(--coral); }
+  .sync-conflict-sheet h2 { font-size: 32px; }
+  .sync-copy-grid { grid-template-columns: 1fr; }
+  .sync-copy-grid article { min-height: 155px; }
   .onboarding-card { padding: 28px 20px; }
   .level-picker-card { margin: 0; }
   .picker-top h2 { font-size: 38px; }
