@@ -461,13 +461,13 @@ button { color: inherit; }
 .progress-tools { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
 .progress-tools button { border: 1px solid var(--ink); background: transparent; padding: 10px 12px; cursor: pointer; font-size: 10px; font-weight: 850; }
 .progress-tools .danger-link { border-color: transparent; color: var(--muted); text-decoration: underline; text-underline-offset: 4px; }
-.stat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+.stat-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; }
 .stat-card { min-height: 250px; padding: 25px; display: flex; flex-direction: column; color: white; position: relative; overflow: hidden; }
 .stat-card > span { width: 38px; height: 38px; display: grid; place-items: center; border: 1px solid rgba(255,255,255,.45); border-radius: 50%; font-family: "Noto Sans SC", sans-serif; }
 .stat-card > strong { margin-top: auto; font-family: Georgia, serif; font-size: 64px; font-weight: 400; line-height: 1; }
 .stat-card p { margin: 4px 0 12px; font-weight: 850; }
 .stat-card small { font-size: 9px; opacity: .7; }
-.stat-card.coral { background: var(--coral); }.stat-card.jade { background: var(--jade); }.stat-card.blue { background: var(--blue); }.stat-card.yellow { background: var(--yellow); color: var(--ink); }
+.stat-card.coral { background: var(--coral); }.stat-card.jade { background: var(--jade); }.stat-card.blue { background: var(--blue); }.stat-card.ink { background: var(--ink); }.stat-card.yellow { background: var(--yellow); color: var(--ink); }
 .coverage-dashboard { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 25px; }
 .coverage-dashboard > div { padding: 28px; border: 1px solid var(--line); background: var(--white); }
 .coverage-dashboard > div > span { color: var(--muted); font-size: 9px; font-weight: 900; letter-spacing: .13em; }
@@ -623,6 +623,10 @@ button { color: inherit; }
 .correction-card > p { display: grid; gap: 5px; margin: 0; padding: 10px; background: #fff1ed; }
 .correction-card > p.correct { background: #eaf5f0; color: var(--jade); }
 .correction-card > p small { color: var(--muted); }
+.correction-card > .correction-audio-actions { display: flex; grid-template-columns: none; gap: 8px; }
+.correction-audio-actions button { display: flex; align-items: center; justify-content: center; gap: 7px; border-color: var(--ink); background: var(--ink); color: white; text-align: center; font-weight: 900; }
+.correction-audio-actions button:last-child { background: white; color: var(--ink); }
+.correction-audio-actions button span { color: var(--yellow); }
 .graduation-progress-card { margin-top: 22px; padding: 24px; display: grid; grid-template-columns: 310px 1fr; gap: 28px; border: 1px solid var(--line); background: white; }
 .graduation-progress-card.ready { border-color: var(--coral); box-shadow: 7px 7px 0 var(--yellow); }
 .graduation-progress-card.graduated { border-color: var(--jade); background: #eaf4f0; }
@@ -1086,6 +1090,7 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
   .stat-grid { grid-template-columns: 1fr 1fr; gap: 7px; }
   .stat-card { min-height: 210px; padding: 18px; }
   .stat-card > strong { font-size: 50px; }
+  .stat-grid .stat-card:last-child { grid-column: 1 / -1; min-height: 155px; }
   .level-roadmap ol { grid-template-columns: repeat(2, 1fr); }
   footer { grid-template-columns: 1fr 1fr; padding: 45px 20px 85px; gap: 35px 22px; }
   .footer-brand { grid-column: 1/3; }
