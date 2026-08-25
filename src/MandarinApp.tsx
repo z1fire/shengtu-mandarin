@@ -130,6 +130,15 @@ function formatTrainingMinutes(seconds: number) {
   return minutes >= 100 ? Math.floor(minutes).toLocaleString() : minutes.toFixed(1).replace(/\.0$/, "");
 }
 
+function correctionDueLabel(date?: string) {
+  if (!date) return "Scheduled";
+  if (date <= today) return "Ready now";
+  const tomorrow = new Date(`${today}T12:00:00`);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  if (localDate(tomorrow) === date) return "Tomorrow";
+  return new Date(`${date}T12:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+}
+
 const missionPhaseCopy = [
   { title: "Build the language", detail: "Learn the key words and one grammar pattern." },
   { title: "Connect the pieces", detail: "Understand and produce the mission language." },
@@ -563,6 +572,7 @@ export default function MandarinApp() {
   const [isInstalled, setIsInstalled] = useState(false);
   const [showInstallHelp, setShowInstallHelp] = useState(false);
   const [showAccount, setShowAccount] = useState(false);
+  const [showCorrectionCenter, setShowCorrectionCenter] = useState(false);
   const [account, setAccount] = useState<AccountState>({ mode: "checking" });
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("checking");
   const [syncReady, setSyncReady] = useState(false);
@@ -922,6 +932,12 @@ export default function MandarinApp() {
     () => getLevelGraduationStatus(progress, vocabulary.length, levelGrammar.length, missions.length),
     [levelGrammar.length, missions.length, progress, vocabulary.length],
   );
+  const levelCorrections = progress.corrections
+    .filter((item) => item.level === selectedLevel)
+    .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+  const activeCorrections = dueCorrections(progress, selectedLevel, today);
+  const activeCorrection = activeCorrections[0];
+  const nextCorrectionDue = levelCorrections[0]?.dueDate;
   const selectedLevelPosition = levelOrder.indexOf(selectedLevel);
   const nextGraduationLevel = levelOrder[selectedLevelPosition + 1] ?? null;
   const currentLevelGraduated = progress.graduatedLevels.includes(selectedLevel);
@@ -930,7 +946,7 @@ export default function MandarinApp() {
     { id: "vocabulary", label: "Vocabulary taught", value: `${graduationStatus.vocabularyTaught.toLocaleString()} / ${vocabulary.length.toLocaleString()}`, complete: graduationStatus.requirements.vocabulary },
     { id: "grammar", label: "Grammar taught", value: `${graduationStatus.grammarTaught} / ${levelGrammar.length}`, complete: graduationStatus.requirements.grammar },
     { id: "missions", label: "Missions completed", value: `${graduationStatus.missionsCompleted} / ${missions.length}`, complete: graduationStatus.requirements.missions },
-    { id: "corrections", label: "Corrections cleared", value: graduationStatus.pendingCorrections ? `${graduationStatus.pendingCorrections} remaining` : "Clear", complete: graduationStatus.requirements.corrections },
+    { id: "corrections", label: "Corrections cleared", value: !graduationStatus.pendingCorrections ? "Clear" : activeCorrections.length ? `${activeCorrections.length} ready now` : `Next check ${correctionDueLabel(nextCorrectionDue)}`, complete: graduationStatus.requirements.corrections },
     { id: "checkpoint", label: "Checkpoint score", value: graduationStatus.bestCheckpointScore ? `${graduationStatus.bestCheckpointScore}% best` : "Not taken", complete: graduationStatus.requirements.checkpoint },
   ];
   const graduationRequirementCount = graduationChecks.filter((check) => check.complete).length;
@@ -972,8 +988,6 @@ export default function MandarinApp() {
   const missionConversation = useMemo(() => buildMissionConversation(activeMission, missionPhase), [activeMission, missionPhase]);
   const activeMissionSpeechTurn = missionConversation[missionSpeechLineIndex] ?? missionConversation[0];
   const missionAllLinesPassed = missionConversation.every((_, index) => missionSpeechPassed[index]);
-  const activeCorrections = dueCorrections(progress, selectedLevel, today);
-  const activeCorrection = activeCorrections[0];
   const skillScores = (Object.keys(skillLabels) as SkillArea[]).map((skill) => ({
     skill,
     accuracy: skillAccuracy(progress, skill),
@@ -1166,6 +1180,7 @@ export default function MandarinApp() {
     setReplaySession(null);
     setCurrentRecallReplayPosition(null);
     setShowLevelPicker(false);
+    setShowCorrectionCenter(false);
     setLibraryCumulative(true);
     setSearch("");
     setCharacterSearch("");
@@ -1916,7 +1931,7 @@ export default function MandarinApp() {
           <div className="task-list">
             {dailySteps.map((step) => { const done = progress.daily.includes(step.id); return <button key={step.id} className={`task-row ${done ? "done" : ""}`} onClick={() => goToPractice(step.mode)}><span className={`task-time ${step.accent}`}>{done ? "✓" : String(step.time).padStart(2, "0")}</span><span><strong>{step.title}</strong><small>{step.detail}</small></span><span className="task-arrow">{done ? "DONE" : "START →"}</span></button>; })}
           </div>
-          <div className="today-foot"><span>{formatTrainingMinutes(displayedTodayTrainingSeconds)} active min today</span>{activeCorrections.length > 0 && <button className="correction-due" onClick={() => goToPractice("speaking")}>{activeCorrections.length} correction{activeCorrections.length === 1 ? "" : "s"} due</button>}<span>{progress.daily.length}/6 complete</span></div>
+          <div className="today-foot"><span>{formatTrainingMinutes(displayedTodayTrainingSeconds)} active min today</span>{levelCorrections.length > 0 && <button className="correction-due" onClick={() => setShowCorrectionCenter(true)}>{activeCorrections.length > 0 ? `${activeCorrections.length} correction${activeCorrections.length === 1 ? "" : "s"} ready` : `Correction ${correctionDueLabel(nextCorrectionDue).toLowerCase()}`}</button>}<span>{progress.daily.length}/6 complete</span></div>
         </aside>
       </section>
 
@@ -2082,7 +2097,7 @@ export default function MandarinApp() {
           <div className="section-heading progress-heading"><div><span className="section-kicker">YOUR MOMENTUM</span><h2>Small proof,<br /><em>every day.</em></h2></div><div className="progress-tools"><button onClick={exportProgress}>Export backup</button><button onClick={() => importRef.current?.click()}>Import backup</button><button className="danger-link" onClick={resetProgress}>Reset</button><input ref={importRef} type="file" accept="application/json" onChange={(event) => void importProgress(event.target.files?.[0])} hidden /></div></div>
           <div className="stat-grid"><article className="stat-card coral"><span>火</span><strong>{progress.streak}</strong><p>day streak</p><small>Counts practice days, not visits.</small></article><article className="stat-card jade"><span>字</span><strong>{progress.mastered.length}</strong><p>cycled words</p><small>Seen on at least three scheduled study days.</small></article><article className="stat-card blue"><span>时</span><strong>{formatTrainingMinutes(displayedTrainingSeconds)}</strong><p>active minutes</p><small>Measured since v1.2.8; pauses when hidden or after 60 seconds idle.</small></article><article className="stat-card yellow"><span>光</span><strong>{progress.xp}</strong><p>practice XP</p><small>Every reward can be earned only once.</small></article></div>
           <div className="coverage-dashboard"><div><span>VOCABULARY COVERAGE</span><strong>{wordsIntroduced.toLocaleString()} <small>/ {vocabulary.length.toLocaleString()} taught</small></strong><div><i style={{ width: `${wordCoveragePercent}%` }} /></div><p>{progress.mastered.length.toLocaleString()} on cadence step 3+ · {Math.max(0, vocabulary.length - wordsIntroduced).toLocaleString()} still to introduce</p></div><div><span>GRAMMAR COVERAGE</span><strong>{grammarIntroduced} <small>/ {levelGrammar.length} taught</small></strong><div><i style={{ width: `${grammarCoveragePercent}%` }} /></div><p>{progress.grammarMastered.length} stable · {Math.max(0, levelGrammar.length - grammarIntroduced)} still to introduce</p></div></div>
-          <div className={`graduation-progress-card ${currentLevelGraduated ? "graduated" : levelReadyToGraduate ? "ready" : ""}`}><div className="graduation-progress-copy"><span className="section-kicker">LEVEL GRADUATION</span><h3>{currentLevelGraduated ? `${meta.label} graduated.` : levelReadyToGraduate ? "Your graduation is ready." : `${graduationRequirementCount} of 5 requirements complete.`}</h3><p>{currentLevelGraduated ? "This achievement is saved with your account. You can keep reviewing this level without losing your place above it." : "Finish the complete syllabus route, clear every correction, and score at least 80% on a checkpoint. The app will then offer a one-tap move to the next level."}</p>{levelReadyToGraduate && <button onClick={() => { setGraduationDismissedLevel(null); navigate("today"); }}>Open graduation screen →</button>}</div><div className="graduation-progress-checks">{graduationChecks.map((check) => <div key={check.id} className={check.complete ? "complete" : ""}><span>{check.complete ? "✓" : "○"}</span><strong>{check.label}</strong><small>{check.value}</small></div>)}</div></div>
+          <div className={`graduation-progress-card ${currentLevelGraduated ? "graduated" : levelReadyToGraduate ? "ready" : ""}`}><div className="graduation-progress-copy"><span className="section-kicker">LEVEL GRADUATION</span><h3>{currentLevelGraduated ? `${meta.label} graduated.` : levelReadyToGraduate ? "Your graduation is ready." : `${graduationRequirementCount} of 5 requirements complete.`}</h3><p>{currentLevelGraduated ? "This achievement is saved with your account. You can keep reviewing this level without losing your place above it." : "Finish the complete syllabus route, clear every correction, and score at least 80% on a checkpoint. The app will then offer a one-tap move to the next level."}</p>{levelCorrections.length > 0 && <button className="open-corrections-button" onClick={() => setShowCorrectionCenter(true)}>{activeCorrections.length > 0 ? `Clear ${activeCorrections.length} correction${activeCorrections.length === 1 ? "" : "s"} now →` : `See correction scheduled for ${correctionDueLabel(nextCorrectionDue).toLowerCase()} →`}</button>}{levelReadyToGraduate && <button onClick={() => { setGraduationDismissedLevel(null); navigate("today"); }}>Open graduation screen →</button>}</div><div className="graduation-progress-checks">{graduationChecks.map((check) => <div key={check.id} className={check.complete ? "complete" : ""}><span>{check.complete ? "✓" : "○"}</span><strong>{check.label}</strong><small>{check.value}</small></div>)}</div></div>
           <div className="skill-dashboard"><div className="skill-dashboard-head"><div><span className="section-kicker">OBJECTIVE ACCURACY</span><h3>Know exactly what needs attention.</h3></div><p>{weakestSkill ? `${skillLabels[weakestSkill.skill]} is currently the best place to focus at ${weakestSkill.accuracy}% accuracy.` : "Complete objective checks to build your first accuracy profile."} {progress.corrections.length} correction{progress.corrections.length === 1 ? "" : "s"} remain across all levels.</p></div><div className="skill-score-grid">{skillScores.map((item) => <article key={item.skill}><span>{skillLabels[item.skill]}</span><strong>{item.attempts ? `${item.accuracy}%` : "—"}</strong><div><i style={{ width: `${item.accuracy}%` }} /></div><small>{item.attempts} objective attempt{item.attempts === 1 ? "" : "s"}</small></article>)}</div></div>
           <div className={`backup-note sync-${syncStatus}`}><strong>{syncStatus === "synced" ? "Progress synced across devices." : syncStatus === "conflict" ? "Choose which progress copy to keep." : syncStatus === "saving" || syncStatus === "checking" ? "Checking your cloud progress…" : "Progress is saved on this device."}</strong><span>{syncStatus === "synced" ? "Your signed-in Sites account keeps the newest course state available on your phone and computer." : syncStatus === "conflict" ? "Nothing will be overwritten until you choose the device or cloud copy." : "Cloud sync requires the signed-in Sites version. Export a backup before clearing browser data when using GitHub Pages or offline mode."}</span><button className="account-manage-link" onClick={() => syncConflict ? undefined : setShowAccount(true)}>{syncConflict ? "Decision required" : "View account"}</button></div>
           <div className="level-roadmap"><div><span className="section-kicker">THE COMPLETE PATH</span><h3>All nine HSK levels are ready.</h3><p>Choose any level now. Each one keeps its own cadence, missions, exam history, graduation, and cycled-word count.</p></div><ol>{levelOrder.map((level) => { const item = levelMeta[level]; const current = level === selectedLevel; const graduated = progress.graduatedLevels.includes(level); return <li key={level} className={current ? "current" : graduated ? "graduated" : "available"}><button onClick={() => chooseLevel(level)}><span>{current ? "NOW" : graduated ? "✓ GRADUATED" : "OPEN"}</span><strong>{item.label}</strong><small>{item.stage} · {item.cumulativeWords.toLocaleString()} cumulative words</small></button></li>; })}</ol></div>
@@ -2146,6 +2161,8 @@ export default function MandarinApp() {
       )}
 
       {ready && syncConflict && (() => { const local = progressCopySummary(syncConflict.local); const remote = progressCopySummary(syncConflict.remote); return <div className="sync-conflict-backdrop" role="dialog" aria-modal="true" aria-labelledby="sync-conflict-title"><div className="sync-conflict-sheet"><span className="section-kicker">SYNC PROTECTION</span><h2 id="sync-conflict-title">Two progress copies were found.</h2><p>Shēngtú paused before overwriting anything. Compare both copies, then choose the one you want to continue with.</p><div className="sync-copy-grid"><article><span>THIS DEVICE</span><strong>{local.steps} completed steps</strong><small>{local.xp} XP · {local.minutes} minutes · {local.words} cycled words</small><button onClick={() => resolveSyncConflict("device")}>Keep this device</button></article><article><span>CLOUD</span><strong>{remote.steps} completed steps</strong><small>{remote.xp} XP · {remote.minutes} minutes · {remote.words} cycled words</small><button onClick={() => resolveSyncConflict("cloud")}>Use cloud copy</button></article></div><small className="sync-conflict-note">If you use the cloud copy, the device copy is retained locally as a recovery backup. If you keep this device, the current cloud copy becomes a server recovery snapshot.</small></div></div>; })()}
+
+      {ready && showCorrectionCenter && !syncConflict && <div className="correction-center-backdrop" role="dialog" aria-modal="true" aria-labelledby="correction-center-title"><div className="correction-center-sheet"><div className="correction-center-head"><div><span className="section-kicker">AUTOMATIC CORRECTION LOOP · {meta.label.toUpperCase()}</span><h2 id="correction-center-title">{activeCorrection ? `${activeCorrections.length} correction${activeCorrections.length === 1 ? "" : "s"} ready now.` : levelCorrections.length ? "Your next check is scheduled." : "All corrections are clear."}</h2></div><button onClick={() => setShowCorrectionCenter(false)} aria-label="Close correction center">×</button></div>{activeCorrection ? <><p className="correction-center-explainer">A miss clears after you answer it correctly now and correctly once more on the next day. This does not change your vocabulary cadence.</p><div className="correction-card"><span>{skillLabels[activeCorrection.skill]}</span><strong>{activeCorrection.prompt}</strong><div>{activeCorrection.options.map((option) => <button key={option} onClick={() => answerCorrection(option)}>{option}</button>)}</div>{correctionResult && <p className={correctionResult.startsWith("Correct") ? "correct" : ""}>{correctionResult}<small>{activeCorrection.explanation}</small></p>}</div></> : levelCorrections.length ? <div className="correction-waiting"><span>✓</span><div><strong>{levelCorrections[0].correctStreak >= 1 ? "First check complete" : "No correction is due yet"}</strong><p>{levelCorrections[0].correctStreak >= 1 ? `You answered this correctly once. The final check unlocks ${correctionDueLabel(levelCorrections[0].dueDate).toLowerCase()}; there is nothing else you need to do for it today.` : `This correction unlocks ${correctionDueLabel(levelCorrections[0].dueDate).toLowerCase()}.`}</p><small>Next check · {studyDayLabel(levelCorrections[0].dueDate)}</small></div></div> : <div className="correction-waiting cleared"><span>✓</span><div><strong>Nothing waiting</strong><p>You have completed both checks for every correction in {meta.label}.</p></div></div>}<button className="correction-center-done" onClick={() => setShowCorrectionCenter(false)}>Done</button></div></div>}
 
       {ready && !syncReady && !progress.onboarded && <div className="sync-startup-backdrop" role="status" aria-live="polite"><div className="sync-startup-card"><span className="account-spinner" aria-hidden="true" /><strong>Checking for your saved course…</strong><small>First-time setup will appear only if no account progress is found.</small></div></div>}
 
