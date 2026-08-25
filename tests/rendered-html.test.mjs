@@ -122,7 +122,13 @@ test("uses focused app views instead of one scrolling curriculum page", async ()
   assert.match(source, /aria-label="Search characters"/);
   assert.match(source, /aria-label="Search grammar"/);
   assert.match(source, /className="mobile-nav"/);
-  assert.match(source, /className="lesson-next-bar"/);
+  assert.match(source, /lesson-next-bar/);
+  assert.match(source, /function finishStudyDay/);
+  assert.match(source, /showDayComplete/);
+  assert.match(source, /Finish day →/);
+  assert.match(source, /Today’s learning/);
+  assert.match(source, /Optional: review today’s recall again/);
+  assert.match(source, /of 6/);
   assert.match(source, /function appRouteFromHash/);
   assert.match(source, /window\.history\.pushState/);
   assert.match(source, /addEventListener\("popstate"/);
@@ -619,8 +625,8 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
     assert.equal(png.readUInt32BE(20), size);
   }
 
-  assert.match(serviceWorker, /shengtu-v27/);
-  assert.match(versionSource, /1\.3\.2/);
+  assert.match(serviceWorker, /shengtu-v28/);
+  assert.match(versionSource, /1\.3\.3/);
   assert.match(serviceWorker, /request\.mode === "navigate"/);
   assert.match(serviceWorker, /url\.pathname\.includes\("\/api\/"\)/);
   assert.match(serviceWorker, /icon-maskable-512\.png/);
@@ -644,7 +650,7 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
   assert.match(layoutSource, /crossOrigin="use-credentials"/);
   assert.match(source, /className="app-version"/);
   assert.match(source, /v\{APP_VERSION\}/);
-  assert.match(versionSource, /APP_VERSION = "1\.3\.2"/);
+  assert.match(versionSource, /APP_VERSION = "1\.3\.3"/);
   assert.match(pagesHtml, /mobile-web-app-capable/);
   assert.match(pagesHtml, /apple-touch-icon\.png/);
   assert.match(pagesHtml, /viewport-fit=cover/);

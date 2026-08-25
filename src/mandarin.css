@@ -776,6 +776,29 @@ button { color: inherit; }
 .lesson-next-bar > div span { color: var(--coral); font-size: 7px; font-weight: 900; letter-spacing: .14em; }
 .lesson-next-bar > div strong { margin-top: 3px; font-size: 12px; }
 .lesson-next-bar .next-step-button { padding: 11px 15px; background: var(--yellow); color: var(--ink); }
+.lesson-next-bar .next-step-button:disabled { background: #56605b; color: #aeb5af; cursor: not-allowed; }
+.lesson-finish-bar { background: #173f32; }
+.lesson-finish-bar > div span { color: var(--yellow); }
+.lesson-finish-bar .finish-day-button:not(:disabled) { background: var(--coral); color: white; }
+.mission-day-note.complete { border-left-color: var(--jade); background: #e7f2ed; }
+.day-finished-button { background: var(--jade) !important; box-shadow: 5px 5px 0 var(--ink) !important; }
+.day-complete-backdrop { position: fixed; inset: 0; z-index: 435; display: grid; place-items: center; padding: 24px; background: rgba(12,18,16,.9); overflow-y: auto; }
+.day-complete-sheet { width: min(690px, 100%); position: relative; padding: 42px; border: 1px solid var(--ink); background: var(--paper); box-shadow: 13px 13px 0 var(--yellow); overflow: hidden; }
+.day-complete-sheet::after { content: "完成"; position: absolute; right: -4px; top: 28px; color: rgba(26,35,31,.05); font: 118px/.8 "Noto Sans SC", sans-serif; pointer-events: none; }
+.day-complete-close { width: 38px; height: 38px; position: absolute; right: 22px; top: 22px; z-index: 2; border: 1px solid var(--ink); background: white; cursor: pointer; font-size: 24px; line-height: 1; }
+.day-complete-seal { width: 64px; height: 64px; position: relative; z-index: 1; display: grid; place-items: center; margin-bottom: 20px; border-radius: 50%; background: var(--jade); color: white; box-shadow: 0 0 0 8px rgba(30,122,87,.12); font: 31px "Noto Sans SC", sans-serif; }
+.day-complete-sheet h2 { position: relative; z-index: 1; margin: 10px 0 15px; font: clamp(42px, 7vw, 62px)/.92 Georgia, serif; letter-spacing: -.045em; }
+.day-complete-sheet h2 em { color: var(--coral); }
+.day-complete-sheet > p { max-width: 570px; color: var(--muted); font-size: 12px; line-height: 1.65; }
+.day-complete-stats { margin: 25px 0; display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
+.day-complete-stats > div { min-height: 86px; padding: 15px; display: flex; flex-direction: column; justify-content: flex-end; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); background: white; }
+.day-complete-stats strong { font: 25px Georgia, serif; }
+.day-complete-stats span { margin-top: 4px; color: var(--muted); font-size: 8px; font-weight: 850; text-transform: uppercase; }
+.day-complete-actions { display: flex; gap: 12px; align-items: center; }
+.day-complete-actions button { border: 0; padding: 13px 15px; cursor: pointer; font-size: 9px; font-weight: 900; }
+.day-complete-actions .day-complete-done { background: var(--coral); color: white; box-shadow: 4px 4px 0 var(--ink); }
+.day-complete-actions button:last-child { border-bottom: 1px solid currentColor; background: transparent; color: var(--muted); padding-inline: 0; }
+.day-complete-sheet > small { display: block; margin-top: 18px; color: var(--muted); font-size: 8px; line-height: 1.5; }
 
 .history-backdrop { position: fixed; inset: 0; z-index: 300; display: grid; place-items: center; padding: 24px; background: rgba(12,18,16,.82); }
 .history-sheet { width: min(760px, 100%); max-height: min(760px, calc(100vh - 48px)); display: flex; flex-direction: column; overflow: hidden; background: var(--paper); border: 1px solid var(--ink); box-shadow: 14px 14px 0 rgba(0,0,0,.28); }
@@ -966,6 +989,14 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
   .lesson-next-bar > button:first-child { font-size: 0; }
   .lesson-next-bar > button:first-child::before { content: "Plan"; font-size: 9px; }
   .lesson-next-bar .next-step-button { padding: 10px 12px; }
+  .day-complete-backdrop { padding: 13px; place-items: start center; }
+  .day-complete-sheet { margin: 10px 0; padding: 29px 19px 25px; box-shadow: 8px 8px 0 var(--yellow); }
+  .day-complete-sheet::after { font-size: 80px; }
+  .day-complete-sheet h2 { margin-right: 45px; font-size: 39px; }
+  .day-complete-stats { grid-template-columns: 1fr; }
+  .day-complete-stats > div { min-height: 58px; }
+  .day-complete-actions { align-items: stretch; flex-direction: column; }
+  .day-complete-actions button { width: 100%; }
   .app-about { grid-template-columns: 1fr; }
   .app-about > small { grid-column: 1; }
 }
