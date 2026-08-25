@@ -165,6 +165,12 @@ test("uses focused app views instead of one scrolling curriculum page", async ()
   assert.match(source, /activeWord\.examplePinyin/);
   assert.match(source, /activeWord\.exampleTranslation/);
   assert.match(source, /Play example sentence/);
+  assert.match(source, /EXAMPLE SENTENCE SPEAKING/);
+  assert.match(source, /Choose recall speaking target/);
+  assert.match(source, /Hide pinyin/);
+  assert.match(source, /setCardPinyinOverride\(!showActivePinyin\)/);
+  assert.match(source, /setCardPinyinOverride\(null\)/);
+  assert.doesNotMatch(source, /pinyinPeeked/);
   assert.doesNotMatch(source, /gradeCard|>Again <|>Hard <|>Good <|>Easy </);
   const advanceSource = source.slice(source.indexOf("function advanceVocabularyCard"), source.indexOf("function answerListening"));
   assert.ok(advanceSource.indexOf("currentRecallReplayPosition !== null") < advanceSource.indexOf("scheduleCadenceReview"));
@@ -608,8 +614,8 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
     assert.equal(png.readUInt32BE(20), size);
   }
 
-  assert.match(serviceWorker, /shengtu-v25/);
-  assert.match(versionSource, /1\.3\.0/);
+  assert.match(serviceWorker, /shengtu-v26/);
+  assert.match(versionSource, /1\.3\.1/);
   assert.match(serviceWorker, /request\.mode === "navigate"/);
   assert.match(serviceWorker, /url\.pathname\.includes\("\/api\/"\)/);
   assert.match(serviceWorker, /icon-maskable-512\.png/);
@@ -633,7 +639,7 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
   assert.match(layoutSource, /crossOrigin="use-credentials"/);
   assert.match(source, /className="app-version"/);
   assert.match(source, /v\{APP_VERSION\}/);
-  assert.match(versionSource, /APP_VERSION = "1\.3\.0"/);
+  assert.match(versionSource, /APP_VERSION = "1\.3\.1"/);
   assert.match(pagesHtml, /mobile-web-app-capable/);
   assert.match(pagesHtml, /apple-touch-icon\.png/);
   assert.match(pagesHtml, /viewport-fit=cover/);

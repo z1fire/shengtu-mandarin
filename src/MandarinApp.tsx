@@ -334,6 +334,22 @@ function SpeechPractice({
   </div>;
 }
 
+function RecallSpeechPractice({ word, showPinyin, onAttempt }: { word: LevelVocabularyWord; showPinyin: boolean; onAttempt: (correct: boolean) => void }) {
+  const [target, setTarget] = useState<"word" | "example">("word");
+  const practicingExample = target === "example" && Boolean(word.example);
+  const speechTarget = practicingExample ? word.example ?? word.hanzi : word.hanzi;
+  const pinyin = practicingExample ? word.examplePinyin : word.pinyin;
+  const translation = practicingExample ? word.exampleTranslation : word.meaning;
+
+  return <div className="flashcard-speaking">
+    <div className="recall-speech-tabs" role="tablist" aria-label="Choose recall speaking target">
+      <button className={!practicingExample ? "active" : ""} onClick={() => setTarget("word")} role="tab" aria-selected={!practicingExample}>Word</button>
+      {word.example && <button className={practicingExample ? "active" : ""} onClick={() => setTarget("example")} role="tab" aria-selected={practicingExample}>Example sentence</button>}
+    </div>
+    <SpeechPractice key={`${target}-${speechTarget}`} target={speechTarget} pinyin={showPinyin ? pinyin : undefined} translation={translation} label={practicingExample ? "EXAMPLE SENTENCE SPEAKING" : "RECALL PRONUNCIATION CHECK"} className="recall-speech-panel" onAttempt={onAttempt} />
+  </div>;
+}
+
 type MixerTile = { id: string; text: string };
 
 function mixerTiles(tokens: string[]): MixerTile[] {
@@ -495,7 +511,7 @@ export default function MandarinApp() {
   const [recallVerified, setRecallVerified] = useState(false);
   const [recallTesting, setRecallTesting] = useState(false);
   const [recallResult, setRecallResult] = useState("");
-  const [pinyinPeeked, setPinyinPeeked] = useState(false);
+  const [cardPinyinOverride, setCardPinyinOverride] = useState<boolean | null>(null);
   const [search, setSearch] = useState("");
   const [characterSearch, setCharacterSearch] = useState("");
   const [grammarSearch, setGrammarSearch] = useState("");
@@ -926,7 +942,7 @@ export default function MandarinApp() {
     [activeReview?.repetitions, activeWordIndex, vocabulary],
   );
   const activePinyinConfidence = activeWordIndex === undefined ? 0 : progress.pinyinConfidence[`${selectedLevel}:${activeWordIndex}`] ?? 0;
-  const showActivePinyin = progress.showPinyin && (activePinyinConfidence < 3 || pinyinPeeked);
+  const showActivePinyin = cardPinyinOverride ?? (progress.showPinyin && activePinyinConfidence < 3);
   const testingRecall = Boolean(activeReview) || recallTesting;
   const audioRecallPrompt = testingRecall && !recallVerified && !cardRevealed && recallChallenge?.mode === "audio";
   const nextCadenceDays = Math.max(1, (activeReview?.intervalDays ?? 0) + 1);
@@ -1001,7 +1017,7 @@ export default function MandarinApp() {
       setRecallVerified(false);
       setRecallTesting(false);
       setRecallResult("");
-      setPinyinPeeked(false);
+      setCardPinyinOverride(null);
     }, 0);
     return () => window.clearTimeout(timer);
   }, [activeWordIndex, ready]);
@@ -1944,10 +1960,10 @@ export default function MandarinApp() {
                   {(cardRevealed || recallChallenge.mode === "audio") && <div className={`card-audio-actions ${audioRecallPrompt ? "prompt-audio-actions" : ""}`}>
                     <button className="audio-link" onClick={() => speak(activeWord.hanzi)} aria-label={`Play pronunciation for ${activeWord.hanzi}`}>▶ Word</button>
                     {activeWord.example && cardRevealed && <button className="audio-link" onClick={() => speak(activeWord.example)} aria-label={`Play example sentence ${activeWord.example}`}>▶ Example</button>}
-                    {cardRevealed && progress.showPinyin && activePinyinConfidence >= 3 && !pinyinPeeked && <button className="audio-link" onClick={() => setPinyinPeeked(true)}>Show pinyin</button>}
+                    {cardRevealed && <button className="audio-link" onClick={() => setCardPinyinOverride(!showActivePinyin)}>{showActivePinyin ? "Hide pinyin" : "Show pinyin"}</button>}
                   </div>}
                 </div>
-                {(cardRevealed || recallVerified) && <SpeechPractice key={`recall-${selectedLevel}-${activeWordIndex}`} target={activeWord.hanzi} pinyin={showActivePinyin ? activeWord.pinyin : undefined} translation={activeWord.meaning} label="RECALL PRONUNCIATION CHECK" className="flashcard-speaking" onAttempt={(correct) => setProgress((current) => recordSkillAttempt(current, "speaking", correct, today))} />}
+                {(cardRevealed || recallVerified) && <RecallSpeechPractice key={`recall-${selectedLevel}-${activeWordIndex}`} word={activeWord} showPinyin={showActivePinyin} onAttempt={(correct) => setProgress((current) => recordSkillAttempt(current, "speaking", correct, today))} />}
                 {!testingRecall && cardRevealed && !recallVerified && <button className="recall-test-start" onClick={() => { setRecallTesting(true); setCardRevealed(false); }}>Hide the answer &amp; verify recall →</button>}
                 {testingRecall && !recallVerified && <div className="recall-verification"><span>ANSWER WITHOUT SELF-RATING</span><div>{recallChallenge.options.map((option, index) => <button key={option} onClick={() => answerRecallChallenge(option)}><b>{String.fromCharCode(65 + index)}</b>{option}</button>)}</div>{recallResult && <p>{recallResult}</p>}</div>}
                 <div className="cadence-action"><span><b>{recallIsExtraPractice ? "EXTRA REP" : `STEP ${nextCadenceDays}`}</b><small>{recallIsExtraPractice ? "The scheduled cadence stays exactly where it is." : `Objective answer required · returns in ${nextCadenceDays} day${nextCadenceDays === 1 ? "" : "s"}.`}</small></span><button onClick={advanceVocabularyCard} disabled={!recallVerified}>{recallVerified ? "Continue →" : "Verify recall first"}</button></div>

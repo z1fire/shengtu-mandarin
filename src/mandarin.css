@@ -319,6 +319,11 @@ button { color: inherit; }
 .embedded-speech-practice > small { margin-top: 10px; color: #8f9992; font-size: 8px; line-height: 1.4; }
 .embedded-speech-practice .speech-meter { margin-top: -5px; }
 .flashcard-speaking { grid-column: 2; justify-self: end; width: min(100%, 570px); margin-top: -43px; }
+.recall-speech-tabs { display: grid; grid-template-columns: repeat(2, 1fr); border: 1px solid var(--ink); border-bottom: 0; background: var(--paper-deep); }
+.recall-speech-tabs button { min-height: 40px; border: 0; border-right: 1px solid var(--ink); background: transparent; color: var(--muted); cursor: pointer; font-size: 9px; font-weight: 900; }
+.recall-speech-tabs button:last-child { border-right: 0; }
+.recall-speech-tabs button.active { background: var(--yellow); color: var(--ink); }
+.recall-speech-panel { margin-top: 0; }
 .mixer-speaking-practice { margin-top: 10px; }
 .grammar-recall-speaking { margin: 14px 0; }
 .grammar-answer-review.dark .embedded-speech-practice { border-color: rgba(255,255,255,.25); }
