@@ -23,6 +23,7 @@ import {
   scheduleReview,
   similarityScore,
   switchProgressLevel,
+  uniqueQueueState,
 } from "../src/learning-engine.ts";
 import {
   grammarPoints,
@@ -325,6 +326,24 @@ test("builds the daily queue and advances vocabulary on a fixed calendar cadence
     reviews: Object.fromEntries(Array.from({ length: 30 }, (_, index) => [index, { ...first, dueAt: 0 }])),
   };
   assert.equal(buildDailyQueue(everyDueCard, 100, 0).length, 38);
+
+  const repairedQueue = uniqueQueueState([0, 0, 1, 2, 1, 3], 2, 300);
+  assert.deepEqual(repairedQueue.queue, [0, 1, 2, 3]);
+  assert.equal(repairedQueue.position, 1);
+
+  const repairedCompleteQueue = uniqueQueueState([0, 0, 1, 2, 1], 5, 300);
+  assert.deepEqual(repairedCompleteQueue.queue, [0, 1, 2]);
+  assert.equal(repairedCompleteQueue.position, 3);
+
+  const restored = normalizeProgress({
+    ...progress,
+    onboarded: true,
+    dailyQueue: [0, 0, 1, 2],
+    dailyQueueDate: "2026-08-20",
+    cardPosition: 2,
+  }, 300, grammarPoints.length, "2026-08-20");
+  assert.deepEqual(restored.dailyQueue, [0, 1, 2]);
+  assert.equal(restored.cardPosition, 1);
 });
 
 test("objectively scores practice and resolves misses over two correct days", () => {
@@ -631,8 +650,8 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
     assert.equal(png.readUInt32BE(20), size);
   }
 
-  assert.match(serviceWorker, /shengtu-v29/);
-  assert.match(versionSource, /1\.3\.4/);
+  assert.match(serviceWorker, /shengtu-v30/);
+  assert.match(versionSource, /1\.3\.5/);
   assert.match(serviceWorker, /request\.mode === "navigate"/);
   assert.match(serviceWorker, /url\.pathname\.includes\("\/api\/"\)/);
   assert.match(serviceWorker, /icon-maskable-512\.png/);
@@ -656,7 +675,7 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
   assert.match(layoutSource, /crossOrigin="use-credentials"/);
   assert.match(source, /className="app-version"/);
   assert.match(source, /v\{APP_VERSION\}/);
-  assert.match(versionSource, /APP_VERSION = "1\.3\.4"/);
+  assert.match(versionSource, /APP_VERSION = "1\.3\.5"/);
   assert.match(pagesHtml, /mobile-web-app-capable/);
   assert.match(pagesHtml, /apple-touch-icon\.png/);
   assert.match(pagesHtml, /viewport-fit=cover/);

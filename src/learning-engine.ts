@@ -181,6 +181,17 @@ function cleanIndexList(value: unknown) {
     : [];
 }
 
+export function uniqueQueueState(value: unknown, position: unknown, itemCount: number) {
+  const raw = Array.isArray(value)
+    ? value.filter((index): index is number => Number.isInteger(index) && index >= 0 && index < itemCount)
+    : [];
+  const completedCount = Math.max(0, Math.min(raw.length, Number(position) || 0));
+  const completed = new Set(cleanIndexList(raw.slice(0, completedCount)));
+  const queue = cleanIndexList(raw);
+  const nextPosition = queue.findIndex((index) => !completed.has(index));
+  return { queue, position: nextPosition < 0 ? queue.length : nextPosition };
+}
+
 function cleanStudyDay(value: unknown): StudyDay | null {
   if (!value || typeof value !== "object") return null;
   const day = value as Partial<StudyDay>;
@@ -302,13 +313,14 @@ export function buildDailyQueue(progress: Progress, vocabularySize: number, now 
   const due = Object.entries(progress.reviews)
     .filter(([, review]) => review.dueAt <= now)
     .sort((a, b) => a[1].dueAt - b[1].dueAt)
-    .map(([index]) => Number(index));
+    .map(([index]) => Number(index))
+    .filter((index) => Number.isInteger(index) && index >= 0 && index < vocabularySize);
   const dueSet = new Set(due);
   const unseen: number[] = [];
   for (let index = 0; index < vocabularySize && unseen.length < progress.dailyNew; index += 1) {
     if (!progress.reviews[index] && !dueSet.has(index)) unseen.push(index);
   }
-  return [...due, ...unseen];
+  return [...new Set([...due, ...unseen])];
 }
 
 export function buildDailyGrammarQueue(progress: Progress, grammarSize: number, now = Date.now()) {
@@ -420,8 +432,9 @@ export function normalizeProgress(raw: unknown, vocabularySize: number, grammarS
     progress.dailyQueueDate = date;
     progress.cardPosition = 0;
   } else {
-    progress.dailyQueue = legacy.dailyQueue.filter((index) => Number.isInteger(index) && index >= 0 && index < vocabularySize);
-    progress.cardPosition = Math.min(Number(legacy.cardPosition) || 0, progress.dailyQueue.length);
+    const uniqueVocabularyQueue = uniqueQueueState(legacy.dailyQueue, legacy.cardPosition, vocabularySize);
+    progress.dailyQueue = uniqueVocabularyQueue.queue;
+    progress.cardPosition = uniqueVocabularyQueue.position;
   }
   if (legacy.grammarQueueDate !== date || !Array.isArray(legacy.grammarQueue)) {
     progress.grammarQueue = buildDailyGrammarQueue(progress, grammarSize);
@@ -525,8 +538,9 @@ export function switchProgressLevel(progress: Progress, selectedLevel: HskLevel,
       cardPosition: 0,
     };
   } else {
-    switched.dailyQueue = active.dailyQueue.filter((index) => Number.isInteger(index) && index >= 0 && index < vocabularySize);
-    switched.cardPosition = Math.min(active.cardPosition, switched.dailyQueue.length);
+    const uniqueVocabularyQueue = uniqueQueueState(active.dailyQueue, active.cardPosition, vocabularySize);
+    switched.dailyQueue = uniqueVocabularyQueue.queue;
+    switched.cardPosition = uniqueVocabularyQueue.position;
   }
   if (active.grammarQueueDate !== date) {
     switched = {
