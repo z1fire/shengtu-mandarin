@@ -993,7 +993,8 @@ export default function MandarinApp() {
   const testingRecall = Boolean(activeReview) || recallTesting;
   const audioRecallPrompt = testingRecall && !cardRevealed && recallChallenge?.mode === "audio";
   const visibleChineseRecallPrompt = testingRecall && !cardRevealed && recallChallenge?.mode === "meaning";
-  const recallPromptHasAudio = audioRecallPrompt || visibleChineseRecallPrompt;
+  const repeatingRecallPrompt = repeatingCurrentRecall && testingRecall && !cardRevealed;
+  const recallPromptHasAudio = repeatingRecallPrompt || audioRecallPrompt || visibleChineseRecallPrompt;
   const nextCadenceDays = Math.max(1, (activeReview?.intervalDays ?? 0) + 1);
   const queuePercent = sessionVocabularyQueue.length ? Math.round((sessionCardPosition / sessionVocabularyQueue.length) * 100) : 100;
   const activeSentence = sentenceChallenges[buildIndex];
