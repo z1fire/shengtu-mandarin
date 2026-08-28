@@ -661,8 +661,8 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
     assert.equal(png.readUInt32BE(20), size);
   }
 
-  assert.match(serviceWorker, /shengtu-v31/);
-  assert.match(versionSource, /1\.3\.6/);
+  assert.match(serviceWorker, /shengtu-v32/);
+  assert.match(versionSource, /1\.3\.7/);
   assert.match(serviceWorker, /request\.mode === "navigate"/);
   assert.match(serviceWorker, /url\.pathname\.includes\("\/api\/"\)/);
   assert.match(serviceWorker, /icon-maskable-512\.png/);
@@ -679,14 +679,18 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
   assert.match(source, /display-mode: standalone/);
   assert.match(source, /updateViaCache: "none"/);
   assert.match(source, /audioRecallPrompt/);
+  assert.match(source, /visibleChineseRecallPrompt/);
+  assert.match(source, /recallPromptHasAudio = audioRecallPrompt \|\| visibleChineseRecallPrompt/);
   assert.match(source, /prompt-audio-actions/);
-  assert.match(appCss, /\.study-card\.audio-recall-prompt \.card-audio-actions/);
-  assert.match(appCss, /\.study-card\.audio-recall-prompt \.audio-link \{[^}]*background: var\(--ink\)/);
+  assert.match(source, /cardRevealed \|\| recallPromptHasAudio/);
+  assert.match(source, /▶ Hear word/);
+  assert.match(appCss, /\.study-card\.recall-prompt-with-audio \.card-audio-actions/);
+  assert.match(appCss, /\.study-card\.recall-prompt-with-audio \.audio-link \{[^}]*background: var\(--ink\)/);
   assert.match(layoutSource, /rel="manifest"/);
   assert.match(layoutSource, /crossOrigin="use-credentials"/);
   assert.match(source, /className="app-version"/);
   assert.match(source, /v\{APP_VERSION\}/);
-  assert.match(versionSource, /APP_VERSION = "1\.3\.6"/);
+  assert.match(versionSource, /APP_VERSION = "1\.3\.7"/);
   assert.match(pagesHtml, /mobile-web-app-capable/);
   assert.match(pagesHtml, /apple-touch-icon\.png/);
   assert.match(pagesHtml, /viewport-fit=cover/);

@@ -175,11 +175,11 @@ button { color: inherit; }
 .card-audio-actions { position: absolute; right: 22px; bottom: 18px; z-index: 2; display: flex; gap: 8px; }
 .audio-link { border: 1px solid rgba(255,255,255,.6); border-radius: 999px; padding: 8px 12px; background: transparent; color: white; cursor: pointer; font-size: 10px; font-weight: 800; letter-spacing: .08em; }
 .audio-link:hover { background: rgba(255,255,255,.13); }
-.study-card.audio-recall-prompt .card-face-button { padding-bottom: 132px; }
-.study-card.audio-recall-prompt .flip-hint { left: 24px; right: 24px; bottom: 20px; text-align: center; }
-.study-card.audio-recall-prompt .card-audio-actions { left: 50%; right: auto; bottom: 62px; transform: translateX(-50%); }
-.study-card.audio-recall-prompt .audio-link { min-width: 150px; border-color: var(--ink); background: var(--ink); color: white; box-shadow: 4px 4px 0 var(--yellow); }
-.study-card.audio-recall-prompt .audio-link:hover { background: var(--coral); border-color: var(--coral); }
+.study-card.recall-prompt-with-audio .card-face-button { padding-bottom: 132px; }
+.study-card.recall-prompt-with-audio .flip-hint { left: 24px; right: 24px; bottom: 20px; text-align: center; }
+.study-card.recall-prompt-with-audio .card-audio-actions { left: 50%; right: auto; bottom: 62px; transform: translateX(-50%); }
+.study-card.recall-prompt-with-audio .audio-link { min-width: 150px; border-color: var(--ink); background: var(--ink); color: white; box-shadow: 4px 4px 0 var(--yellow); }
+.study-card.recall-prompt-with-audio .audio-link:hover { background: var(--coral); border-color: var(--coral); }
 
 .big-listen-button { display: flex; align-items: center; gap: 14px; padding: 14px 20px; background: var(--blue); color: white; border: 0; margin-top: 26px; cursor: pointer; font-weight: 850; box-shadow: 5px 5px 0 #2c357b; }
 .big-listen-button span { width: 30px; height: 30px; display: grid; place-items: center; border: 1px solid rgba(255,255,255,.5); border-radius: 50%; font-size: 9px; }
