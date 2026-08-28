@@ -1469,7 +1469,7 @@ export default function MandarinApp() {
     setToast("Speaking-only round started · listen, record, then continue");
   }
 
-  function continueAfterFlashcards() {
+  function markFlashcardsComplete() {
     setCardRevealed(false);
     setCardPinyinOverride(null);
     if (replaySession) {
@@ -1481,15 +1481,38 @@ export default function MandarinApp() {
     } else {
       setProgress((current) => completeDailyStep({ ...current, flashcardPosition: current.dailyQueue.length }, "flashcards", 0, today));
     }
+  }
+
+  function finishFlashcardPass() {
+    markFlashcardsComplete();
+    setToast("Flashcard pass complete · review it again or start recall when ready");
+  }
+
+  function continueAfterFlashcards() {
+    markFlashcardsComplete();
     setPractice("recall");
     setToast("Flashcards complete · now retrieve the same words without the answers");
+  }
+
+  function reviewFlashcardsAgain() {
+    if (!sessionVocabularyQueue.length) return;
+    if (replaySession) {
+      setReplaySession((current) => current ? { ...current, flashcardPosition: 0 } : current);
+    } else {
+      setProgress((current) => ({ ...current, flashcardPosition: 0 }));
+    }
+    setCardRevealed(false);
+    setCardPinyinOverride(null);
+    setPractice("flashcards");
+    centerRecallCard();
+    setToast("Flashcards restarted · recall progress and cadence are unchanged");
   }
 
   function completeFlashcardCard() {
     if (activeWordIndex === undefined || practice !== "flashcards") return;
     const finishing = activeVocabularyPosition + 1 >= sessionVocabularyQueue.length;
     if (finishing) {
-      continueAfterFlashcards();
+      finishFlashcardPass();
       return;
     }
     recallAdvancingRef.current = true;
@@ -2214,8 +2237,8 @@ export default function MandarinApp() {
                   </div>
                 </div>
                 {cardRevealed && <RecallSpeechPractice key={`flashcard-${selectedLevel}-${activeWordIndex}`} word={activeWord} showPinyin onAttempt={(correct) => setProgress((current) => recordSkillAttempt(current, "speaking", correct, today))} />}
-                {cardRevealed && <button className="recall-test-start flashcard-next" onClick={completeFlashcardCard}>{activeVocabularyPosition + 1 >= sessionVocabularyQueue.length ? "Finish flashcards & start recall →" : "Next flashcard →"}</button>}
-              </> : <div className="queue-complete"><span>学</span><h3>Flashcards complete.</h3><p>You have seen the full answer for every scheduled word. The next section tests the same vocabulary without showing pinyin, meanings, or examples first.</p><div className="queue-complete-actions"><button className="primary-button" onClick={continueAfterFlashcards}>Start recall test <span>→</span></button></div></div>}
+                {cardRevealed && <button className="recall-test-start flashcard-next" onClick={completeFlashcardCard}>{activeVocabularyPosition + 1 >= sessionVocabularyQueue.length ? "Finish this flashcard pass →" : "Next flashcard →"}</button>}
+              </> : <div className="queue-complete"><span>学</span><h3>Flashcard pass complete.</h3><p>You can repeat the complete scheduled set as many times as you want. Extra flashcard passes never change recall progress, cadence, return dates, XP, or today’s completion.</p><div className="queue-complete-actions"><button className="repeat-recall-button" onClick={reviewFlashcardsAgain}>↻ Review flashcards again</button><button className="primary-button" onClick={continueAfterFlashcards}>{sessionDaily.includes("review") ? "Open recall options" : "Start recall test"} <span>→</span></button></div></div>}
             </div>
           )}
 

@@ -152,7 +152,10 @@ test("uses focused app views instead of one scrolling curriculum page", async ()
   assert.match(source, /CHOOSE FROM MEMORY/);
   assert.match(source, /FULL-CARD STUDY/);
   assert.match(source, /Learn first\. Test second\./);
-  assert.match(source, /Finish flashcards & start recall/);
+  assert.match(source, /Finish this flashcard pass/);
+  assert.match(source, /function reviewFlashcardsAgain/);
+  assert.match(source, /Review flashcards again/);
+  assert.match(source, /recall progress and cadence are unchanged/);
   assert.match(source, /I don’t recall/);
   assert.match(source, /Miss recorded · study the answer/);
   assert.match(source, /flashcardPosition/);
@@ -702,8 +705,8 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
     assert.equal(png.readUInt32BE(20), size);
   }
 
-  assert.match(serviceWorker, /shengtu-v38/);
-  assert.match(versionSource, /1\.5\.0/);
+  assert.match(serviceWorker, /shengtu-v39/);
+  assert.match(versionSource, /1\.5\.1/);
   assert.match(serviceWorker, /request\.mode === "navigate"/);
   assert.match(serviceWorker, /url\.pathname\.includes\("\/api\/"\)/);
   assert.match(serviceWorker, /icon-maskable-512\.png/);
@@ -732,7 +735,7 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
   assert.match(layoutSource, /crossOrigin="use-credentials"/);
   assert.match(source, /className="app-version"/);
   assert.match(source, /v\{APP_VERSION\}/);
-  assert.match(versionSource, /APP_VERSION = "1\.5\.0"/);
+  assert.match(versionSource, /APP_VERSION = "1\.5\.1"/);
   assert.match(pagesHtml, /mobile-web-app-capable/);
   assert.match(pagesHtml, /apple-touch-icon\.png/);
   assert.match(pagesHtml, /viewport-fit=cover/);
