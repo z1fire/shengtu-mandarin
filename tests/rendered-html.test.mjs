@@ -199,6 +199,12 @@ test("uses focused app views instead of one scrolling curriculum page", async ()
   assert.doesNotMatch(source, /gradeCard|>Again <|>Hard <|>Good <|>Easy </);
   assert.match(source, /scrollIntoView\(\{ behavior: "smooth", block: "center" \}\)/);
   assert.match(source, /function beginRecallVerification/);
+  assert.match(source, /function showRecallCardBack/);
+  assert.match(source, /function returnToRecallQuestion/);
+  assert.match(source, /View card &amp; speak/);
+  assert.match(source, /Return to recall question/);
+  assert.match(source, /testingRecall && !cardRevealed \? <>/);
+  assert.match(source, /testingRecall && cardRevealed && <button className="recall-test-start"/);
   const recallAnswerSource = source.slice(source.indexOf("function answerRecallChallenge"), source.indexOf("function beginRecallVerification"));
   assert.match(recallAnswerSource, /if \(!correct\) return;\s*recallAdvancingRef\.current = true;\s*completeVocabularyCard\(\);/);
   assert.doesNotMatch(recallAnswerSource, /setCardRevealed\(true\)|setRecallVerified/);
@@ -668,8 +674,8 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
     assert.equal(png.readUInt32BE(20), size);
   }
 
-  assert.match(serviceWorker, /shengtu-v34/);
-  assert.match(versionSource, /1\.3\.9/);
+  assert.match(serviceWorker, /shengtu-v35/);
+  assert.match(versionSource, /1\.3\.10/);
   assert.match(serviceWorker, /request\.mode === "navigate"/);
   assert.match(serviceWorker, /url\.pathname\.includes\("\/api\/"\)/);
   assert.match(serviceWorker, /icon-maskable-512\.png/);
@@ -698,7 +704,7 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
   assert.match(layoutSource, /crossOrigin="use-credentials"/);
   assert.match(source, /className="app-version"/);
   assert.match(source, /v\{APP_VERSION\}/);
-  assert.match(versionSource, /APP_VERSION = "1\.3\.9"/);
+  assert.match(versionSource, /APP_VERSION = "1\.3\.10"/);
   assert.match(pagesHtml, /mobile-web-app-capable/);
   assert.match(pagesHtml, /apple-touch-icon\.png/);
   assert.match(pagesHtml, /viewport-fit=cover/);
