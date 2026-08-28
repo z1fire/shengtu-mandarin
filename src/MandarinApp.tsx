@@ -649,7 +649,6 @@ export default function MandarinApp() {
   const trainingEligibleRef = useRef(false);
   const studyCardRef = useRef<HTMLDivElement>(null);
   const recallAdvancingRef = useRef(false);
-  const recallAdvanceTimerRef = useRef<number | null>(null);
 
   const centerRecallCard = useCallback(() => {
     window.requestAnimationFrame(() => {
@@ -1102,10 +1101,6 @@ export default function MandarinApp() {
     if (!ready) return;
     const shouldCenterNextCard = recallAdvancingRef.current;
     recallAdvancingRef.current = false;
-    if (recallAdvanceTimerRef.current !== null) {
-      window.clearTimeout(recallAdvanceTimerRef.current);
-      recallAdvanceTimerRef.current = null;
-    }
     const timer = window.setTimeout(() => {
       setCardRevealed(speakingOnlyRecall);
       setRecallTesting(false);
@@ -1117,10 +1112,6 @@ export default function MandarinApp() {
     }, 0);
     return () => window.clearTimeout(timer);
   }, [activeWordIndex, centerRecallCard, ready, speakingOnlyRecall]);
-
-  useEffect(() => () => {
-    if (recallAdvanceTimerRef.current !== null) window.clearTimeout(recallAdvanceTimerRef.current);
-  }, []);
 
   useEffect(() => {
     if (!ready) return;
@@ -1179,12 +1170,6 @@ export default function MandarinApp() {
     });
   }
 
-  function cancelRecallAutoAdvance() {
-    if (recallAdvanceTimerRef.current === null) return;
-    window.clearTimeout(recallAdvanceTimerRef.current);
-    recallAdvanceTimerRef.current = null;
-  }
-
   function registerRecallAttempt(correct: boolean) {
     if (!recallChallenge || activeWordIndex === undefined || !activeWord) return;
     registerObjectiveAttempt("vocabulary", correct, {
@@ -1201,7 +1186,6 @@ export default function MandarinApp() {
 
   function openRecallRemediation(message: string) {
     if (activeWordIndex === undefined) return;
-    cancelRecallAutoAdvance();
     setRecallMissedIndices((current) => current.includes(activeWordIndex) ? current : [...current, activeWordIndex]);
     setRecallFeedback("remediation");
     setRecallExpansion(null);
@@ -1212,7 +1196,6 @@ export default function MandarinApp() {
 
   function advanceAfterRecallConfirmation() {
     if (recallAdvancingRef.current) return;
-    cancelRecallAutoAdvance();
     recallAdvancingRef.current = true;
     completeVocabularyCard();
   }
@@ -1225,15 +1208,10 @@ export default function MandarinApp() {
       openRecallRemediation("Not yet · review the complete card, say it aloud, then retry.");
       return;
     }
-    setRecallResult("Correct · confirming the word before the next card.");
+    setRecallResult("Correct · review the word, then continue when ready.");
     setRecallFeedback("correct");
     setRecallExpansion(null);
     setCardRevealed(false);
-    cancelRecallAutoAdvance();
-    recallAdvanceTimerRef.current = window.setTimeout(() => {
-      recallAdvanceTimerRef.current = null;
-      advanceAfterRecallConfirmation();
-    }, 1800);
   }
 
   function requestRecallHelp() {
@@ -1243,7 +1221,6 @@ export default function MandarinApp() {
   }
 
   function beginRecallVerification() {
-    cancelRecallAutoAdvance();
     setRecallTesting(true);
     setCardRevealed(false);
     setRecallResult("");
@@ -1252,13 +1229,11 @@ export default function MandarinApp() {
     centerRecallCard();
   }
 
-  function pauseRecallConfirmation(expansion: Exclude<RecallExpansion, null>) {
-    cancelRecallAutoAdvance();
+  function expandRecallConfirmation(expansion: Exclude<RecallExpansion, null>) {
     setRecallExpansion(expansion);
   }
 
   function retryRecallQuestion() {
-    cancelRecallAutoAdvance();
     setCardRevealed(false);
     setCardPinyinOverride(null);
     setRecallResult("");
@@ -1382,7 +1357,6 @@ export default function MandarinApp() {
   }
 
   function navigate(view: AppView) {
-    cancelRecallAutoAdvance();
     const hash = view === "today" ? "#today" : `#${view}`;
     if (window.location.hash !== hash) window.history.pushState(null, "", hash);
     setAppView(view);
@@ -1417,7 +1391,6 @@ export default function MandarinApp() {
   }
 
   function goToPractice(mode: PracticeMode, preserveReplay = false) {
-    if (mode !== "flashcards") cancelRecallAutoAdvance();
     if (window.location.hash !== "#today/lesson") window.history.pushState(null, "", "#today/lesson");
     if (!preserveReplay) setReplaySession(null);
     setAppView("today");
@@ -1459,7 +1432,6 @@ export default function MandarinApp() {
 
   function reviewTodaysRecallAgain() {
     if (!progress.dailyQueue.length) return;
-    cancelRecallAutoAdvance();
     const replayQueue = nextShuffledTodayRecallQueue();
     setReplaySession(null);
     setCurrentRecallReplayQueue(replayQueue);
@@ -1475,7 +1447,6 @@ export default function MandarinApp() {
 
   function startMissedRecallRound() {
     if (!recallMissedIndices.length) return;
-    cancelRecallAutoAdvance();
     setReplaySession(null);
     setCurrentRecallReplayQueue(shuffle(recallMissedIndices));
     setCurrentRecallReplayPosition(0);
@@ -1490,7 +1461,6 @@ export default function MandarinApp() {
 
   function startRecallSpeakingRound() {
     if (!progress.dailyQueue.length) return;
-    cancelRecallAutoAdvance();
     setReplaySession(null);
     setCurrentRecallReplayQueue(nextShuffledTodayRecallQueue());
     setCurrentRecallReplayPosition(0);
@@ -1810,7 +1780,6 @@ export default function MandarinApp() {
   }
 
   function continueAfterRecall() {
-    cancelRecallAutoAdvance();
     setRecallSpeakingRound(false);
     setRecallFeedback("question");
     setRecallExpansion(null);
@@ -2191,7 +2160,7 @@ export default function MandarinApp() {
                         {showActivePinyin && <span>{activeWord.examplePinyin}</span>}
                         <em>{activeWord.exampleTranslation}</em>
                       </span>}
-                      <span className="flip-hint">{recallExpansion ? "Auto-advance paused · continue when ready" : "Next card starts automatically"}</span>
+                      <span className="flip-hint">Review the confirmation, then continue when ready</span>
                     </> : testingRecall && !cardRevealed ? <>
                       <span className="card-caption">VERIFIED RECALL · {recallChallenge.mode.toUpperCase()}</span>
                       <strong className={`${recallChallenge.mode === "meaning" ? "hanzi-prompt" : "english-prompt"} ${promptLengthClass(recallChallenge.prompt)}`}>{recallChallenge.prompt}</strong>
@@ -2220,11 +2189,11 @@ export default function MandarinApp() {
                   </div>}
                 </div>
                 {recallFeedback === "correct" && <div className="recall-confirmation-controls" aria-label="Correct answer options">
-                  <button onClick={() => { cancelRecallAutoAdvance(); speak(activeWord.hanzi); }}>▶ Hear word</button>
-                  <button onClick={() => pauseRecallConfirmation("speaking")}>● Practice speaking</button>
-                  {activeWord.example && <button onClick={() => pauseRecallConfirmation("example")}>例 See example</button>}
-                  <button onClick={() => { cancelRecallAutoAdvance(); setCardPinyinOverride(!showActivePinyin); }}>{showActivePinyin ? "Hide pinyin" : "Show pinyin"}</button>
-                  <button className="confirmation-next" onClick={advanceAfterRecallConfirmation}>Next card →</button>
+                  <button onClick={() => speak(activeWord.hanzi)}>▶ Hear word</button>
+                  <button onClick={() => expandRecallConfirmation("speaking")}>● Practice speaking</button>
+                  {activeWord.example && <button onClick={() => expandRecallConfirmation("example")}>例 See example</button>}
+                  <button onClick={() => setCardPinyinOverride(!showActivePinyin)}>{showActivePinyin ? "Hide pinyin" : "Show pinyin"}</button>
+                  <button className="confirmation-next" onClick={advanceAfterRecallConfirmation}>Continue to next card →</button>
                 </div>}
                 {recallFeedback === "remediation" && <p className="recall-remediation-note">{recallResult}</p>}
                 {(cardRevealed || recallExpansion === "speaking") && <RecallSpeechPractice key={`recall-${selectedLevel}-${activeWordIndex}`} word={activeWord} showPinyin={showRecallPinyin} onAttempt={(correct) => setProgress((current) => recordSkillAttempt(current, "speaking", correct, today))} />}

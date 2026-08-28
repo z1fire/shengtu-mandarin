@@ -204,15 +204,15 @@ test("uses focused app views instead of one scrolling curriculum page", async ()
   assert.match(source, /function requestRecallHelp/);
   assert.match(source, /function retryRecallQuestion/);
   assert.match(source, /CORRECT · QUICK CONFIRMATION/);
-  assert.match(source, /Next card starts automatically/);
+  assert.match(source, /Review the confirmation, then continue when ready/);
+  assert.match(source, /Continue to next card/);
   assert.match(source, /Practice missed words/);
   assert.match(source, /Speaking-only round/);
   assert.match(source, /Need help/);
   const recallAnswerSource = source.slice(source.indexOf("function answerRecallChallenge"), source.indexOf("function beginRecallVerification"));
   assert.match(recallAnswerSource, /if \(!correct\) \{\s*openRecallRemediation/);
   assert.match(recallAnswerSource, /setRecallFeedback\("correct"\)/);
-  assert.match(recallAnswerSource, /window\.setTimeout\(\(\) => \{/);
-  assert.match(source, /}, 1800\);/);
+  assert.doesNotMatch(source, /recallAdvanceTimerRef|cancelRecallAutoAdvance|}, 1800\);/);
   assert.doesNotMatch(recallAnswerSource, /setRecallVerified/);
   assert.match(css, /\.recall-confirmation-controls/);
   assert.match(css, /\.recall-remediation-note/);
@@ -682,8 +682,8 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
     assert.equal(png.readUInt32BE(20), size);
   }
 
-  assert.match(serviceWorker, /shengtu-v36/);
-  assert.match(versionSource, /1\.4\.0/);
+  assert.match(serviceWorker, /shengtu-v37/);
+  assert.match(versionSource, /1\.4\.1/);
   assert.match(serviceWorker, /request\.mode === "navigate"/);
   assert.match(serviceWorker, /url\.pathname\.includes\("\/api\/"\)/);
   assert.match(serviceWorker, /icon-maskable-512\.png/);
@@ -712,7 +712,7 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
   assert.match(layoutSource, /crossOrigin="use-credentials"/);
   assert.match(source, /className="app-version"/);
   assert.match(source, /v\{APP_VERSION\}/);
-  assert.match(versionSource, /APP_VERSION = "1\.4\.0"/);
+  assert.match(versionSource, /APP_VERSION = "1\.4\.1"/);
   assert.match(pagesHtml, /mobile-web-app-capable/);
   assert.match(pagesHtml, /apple-touch-icon\.png/);
   assert.match(pagesHtml, /viewport-fit=cover/);
