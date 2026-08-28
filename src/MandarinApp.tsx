@@ -539,7 +539,6 @@ export default function MandarinApp() {
   const [libraryView, setLibraryView] = useState<LibraryView>("words");
   const [practice, setPractice] = useState<PracticeMode>("flashcards");
   const [cardRevealed, setCardRevealed] = useState(false);
-  const [recallVerified, setRecallVerified] = useState(false);
   const [recallTesting, setRecallTesting] = useState(false);
   const [recallResult, setRecallResult] = useState("");
   const [cardPinyinOverride, setCardPinyinOverride] = useState<boolean | null>(null);
@@ -611,6 +610,14 @@ export default function MandarinApp() {
   const currentProgressRef = useRef(progress);
   const pendingTrainingMsRef = useRef(0);
   const trainingEligibleRef = useRef(false);
+  const studyCardRef = useRef<HTMLDivElement>(null);
+  const recallAdvancingRef = useRef(false);
+
+  const centerRecallCard = useCallback(() => {
+    window.requestAnimationFrame(() => {
+      studyCardRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  }, []);
 
   useEffect(() => {
     currentProgressRef.current = progress;
@@ -984,7 +991,7 @@ export default function MandarinApp() {
   const activePinyinConfidence = activeWordIndex === undefined ? 0 : progress.pinyinConfidence[`${selectedLevel}:${activeWordIndex}`] ?? 0;
   const showActivePinyin = cardPinyinOverride ?? (progress.showPinyin && activePinyinConfidence < 3);
   const testingRecall = Boolean(activeReview) || recallTesting;
-  const audioRecallPrompt = testingRecall && !recallVerified && !cardRevealed && recallChallenge?.mode === "audio";
+  const audioRecallPrompt = testingRecall && !cardRevealed && recallChallenge?.mode === "audio";
   const nextCadenceDays = Math.max(1, (activeReview?.intervalDays ?? 0) + 1);
   const queuePercent = sessionVocabularyQueue.length ? Math.round((sessionCardPosition / sessionVocabularyQueue.length) * 100) : 100;
   const activeSentence = sentenceChallenges[buildIndex];
@@ -1050,15 +1057,17 @@ export default function MandarinApp() {
 
   useEffect(() => {
     if (!ready) return;
+    const shouldCenterNextCard = recallAdvancingRef.current;
+    recallAdvancingRef.current = false;
     const timer = window.setTimeout(() => {
       setCardRevealed(false);
-      setRecallVerified(false);
       setRecallTesting(false);
       setRecallResult("");
       setCardPinyinOverride(null);
+      if (shouldCenterNextCard) centerRecallCard();
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [activeWordIndex, ready]);
+  }, [activeWordIndex, centerRecallCard, ready]);
 
   useEffect(() => {
     if (!ready) return;
@@ -1118,13 +1127,9 @@ export default function MandarinApp() {
   }
 
   function answerRecallChallenge(option: string) {
-    if (!recallChallenge || activeWordIndex === undefined || !activeWord || recallVerified) return;
+    if (!recallChallenge || activeWordIndex === undefined || !activeWord || recallAdvancingRef.current) return;
     const correct = option === recallChallenge.answer;
-    setRecallResult(correct ? "Correct · retrieval verified." : "Not yet · use the clue, then choose again.");
-    if (correct) {
-      setRecallVerified(true);
-      setCardRevealed(true);
-    }
+    setRecallResult(correct ? "Correct · moving to the next card." : "Not yet · use the clue, then choose again.");
     registerObjectiveAttempt("vocabulary", correct, {
       id: `vocabulary:${selectedLevel}:${activeWordIndex}`,
       level: selectedLevel,
@@ -1135,6 +1140,16 @@ export default function MandarinApp() {
       explanation: `${activeWord.hanzi} (${activeWord.pinyin}) means ${activeWord.meaning}.`,
       dueDate: today,
     }, activeWordIndex);
+    if (!correct) return;
+    recallAdvancingRef.current = true;
+    completeVocabularyCard();
+  }
+
+  function beginRecallVerification() {
+    setRecallTesting(true);
+    setCardRevealed(false);
+    setRecallResult("");
+    centerRecallCard();
   }
 
   function answerCorrection(option: string) {
@@ -1320,8 +1335,8 @@ export default function MandarinApp() {
     setToast("Extra recall started · return dates and rewards stay unchanged");
   }
 
-  function advanceVocabularyCard() {
-    if (activeWordIndex === undefined || !recallVerified) return;
+  function completeVocabularyCard() {
+    if (activeWordIndex === undefined) return;
     if (replaySession) {
       setReplaySession((current) => {
         if (!current) return current;
@@ -1991,9 +2006,9 @@ export default function MandarinApp() {
             <div className="flashcard-lab">
               <div className="lab-instructions"><span className="micro-label">{recallIsExtraPractice ? "EXTRA RECALL PRACTICE" : "AUTOMATIC RECALL CADENCE"} · {Math.min(sessionCardPosition + 1, sessionVocabularyQueue.length)} / {sessionVocabularyQueue.length}</span><h3>Say it before you flip it.</h3><p>{replaySession ? `This is extra practice from ${studyDayLabel(replaySession.day.date)}. It does not move the card’s automatic return date.` : repeatingCurrentRecall ? "You are repeating today’s completed recall queue. Practice as often as you like—return dates, XP, and completion stay unchanged." : `Today mixes ${progress.dailyNew} new words with every card due on its fixed cadence. Each scheduled word needs one successful check today.`}</p><div className="cadence-preview"><span>THIS CARD’S NEXT STEP</span><strong>{recallIsExtraPractice ? "Schedule unchanged" : `${nextCadenceDays} day${nextCadenceDays === 1 ? "" : "s"}`}</strong><small>{recallIsExtraPractice ? "Extra practice only" : nextCadenceDays === 1 ? "Tomorrow" : `After ${nextCadenceDays} calendar days`}</small></div><div className="lab-progress"><span style={{ width: `${queuePercent}%` }} /></div></div>
               {activeWord && recallChallenge ? <>
-                <div className={`study-card ${cardRevealed ? "revealed" : ""} ${recallVerified ? "verified" : ""} ${audioRecallPrompt ? "audio-recall-prompt" : ""}`}>
-                  <button className="card-face-button" onClick={() => !testingRecall && setCardRevealed(true)} disabled={testingRecall || recallVerified} aria-label={testingRecall ? "Vocabulary recall prompt" : "Reveal vocabulary card"}>
-                    {testingRecall && !recallVerified ? <>
+                <div ref={studyCardRef} className={`study-card ${cardRevealed ? "revealed" : ""} ${audioRecallPrompt ? "audio-recall-prompt" : ""}`}>
+                  <button className="card-face-button" onClick={() => !testingRecall && setCardRevealed(true)} disabled={testingRecall} aria-label={testingRecall ? "Vocabulary recall prompt" : "Reveal vocabulary card"}>
+                    {testingRecall ? <>
                       <span className="card-caption">VERIFIED RECALL · {recallChallenge.mode.toUpperCase()}</span>
                       <strong className={`${recallChallenge.mode === "meaning" ? "hanzi-prompt" : "english-prompt"} ${promptLengthClass(recallChallenge.prompt)}`}>{recallChallenge.prompt}</strong>
                       <span className="flip-hint">{recallChallenge.instruction}</span>
@@ -2002,7 +2017,7 @@ export default function MandarinApp() {
                       <strong className={`english-prompt ${promptLengthClass(activeWord.meaning)}`}>{activeWord.meaning}</strong>
                       <span className="flip-hint">Tap to learn ↗</span>
                     </> : <>
-                      <span className="card-caption">{recallVerified ? "RETRIEVAL VERIFIED" : "LISTEN & SHADOW"}</span>
+                      <span className="card-caption">LISTEN &amp; SHADOW</span>
                       <strong className={`hanzi-prompt ${activeWord.hanzi.length > 6 ? "very-long" : activeWord.hanzi.length > 3 ? "long" : ""}`}>{activeWord.hanzi}</strong>
                       {showActivePinyin && <span className={`pinyin-prompt ${promptLengthClass(activeWord.pinyin)}`}>{activeWord.pinyin}</span>}
                       {activeWord.example && <span className="card-example">
@@ -2019,10 +2034,9 @@ export default function MandarinApp() {
                     {cardRevealed && <button className="audio-link" onClick={() => setCardPinyinOverride(!showActivePinyin)}>{showActivePinyin ? "Hide pinyin" : "Show pinyin"}</button>}
                   </div>}
                 </div>
-                {(cardRevealed || recallVerified) && <RecallSpeechPractice key={`recall-${selectedLevel}-${activeWordIndex}`} word={activeWord} showPinyin={showActivePinyin} onAttempt={(correct) => setProgress((current) => recordSkillAttempt(current, "speaking", correct, today))} />}
-                {!testingRecall && cardRevealed && !recallVerified && <button className="recall-test-start" onClick={() => { setRecallTesting(true); setCardRevealed(false); }}>Hide the answer &amp; verify recall →</button>}
-                {testingRecall && !recallVerified && <div className="recall-verification"><span>ANSWER WITHOUT SELF-RATING</span><div>{recallChallenge.options.map((option, index) => <button key={option} onClick={() => answerRecallChallenge(option)}><b>{String.fromCharCode(65 + index)}</b>{option}</button>)}</div>{recallResult && <p>{recallResult}</p>}</div>}
-                <div className="cadence-action"><span><b>{recallIsExtraPractice ? "EXTRA REP" : `STEP ${nextCadenceDays}`}</b><small>{recallIsExtraPractice ? "The scheduled cadence stays exactly where it is." : `Objective answer required · returns in ${nextCadenceDays} day${nextCadenceDays === 1 ? "" : "s"}.`}</small></span><button onClick={advanceVocabularyCard} disabled={!recallVerified}>{recallVerified ? "Continue →" : "Verify recall first"}</button></div>
+                {cardRevealed && <RecallSpeechPractice key={`recall-${selectedLevel}-${activeWordIndex}`} word={activeWord} showPinyin={showActivePinyin} onAttempt={(correct) => setProgress((current) => recordSkillAttempt(current, "speaking", correct, today))} />}
+                {!testingRecall && cardRevealed && <button className="recall-test-start" onClick={beginRecallVerification}>Hide the answer &amp; verify recall →</button>}
+                {testingRecall && <div className="recall-verification"><span>ANSWER WITHOUT SELF-RATING</span><div>{recallChallenge.options.map((option, index) => <button key={option} onClick={() => answerRecallChallenge(option)}><b>{String.fromCharCode(65 + index)}</b>{option}</button>)}</div>{recallResult && <p>{recallResult}</p>}</div>}
               </> : <div className="queue-complete"><span>好</span><h3>{replaySession ? "This day’s recall is complete." : repeatingCurrentRecall ? "Extra review complete." : "Today’s recall is complete."}</h3><p>{replaySession ? "You reviewed the same vocabulary again without changing its scheduled cadence." : repeatingCurrentRecall ? "You repeated every card without changing its return date, XP, or today’s completion. You can run the queue again whenever you want." : "Every card was objectively checked and now has its next automatic calendar date. Any miss is waiting in the correction loop."}</p><div className="queue-complete-actions">{!replaySession && <button className="repeat-recall-button" onClick={reviewTodaysRecallAgain}>↻ Review today’s cards again</button>}<button className="primary-button" onClick={continueAfterRecall}>Continue to grammar <span>→</span></button></div></div>}
             </div>
           )}

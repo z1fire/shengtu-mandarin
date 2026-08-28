@@ -137,7 +137,7 @@ test("uses focused app views instead of one scrolling curriculum page", async ()
   assert.match(source, /function startStudyDayReplay/);
   assert.match(source, /Repeating \{studyDayLabel/);
   assert.match(source, /today’s course position is unchanged/);
-  assert.match(source, /function advanceVocabularyCard/);
+  assert.match(source, /function completeVocabularyCard/);
   assert.match(source, /function reviewTodaysRecallAgain/);
   assert.match(source, /Review today’s cards again/);
   assert.match(source, /return dates, XP, and completion stay unchanged/);
@@ -190,7 +190,13 @@ test("uses focused app views instead of one scrolling curriculum page", async ()
   assert.match(source, /setCardPinyinOverride\(null\)/);
   assert.doesNotMatch(source, /pinyinPeeked/);
   assert.doesNotMatch(source, /gradeCard|>Again <|>Hard <|>Good <|>Easy </);
-  const advanceSource = source.slice(source.indexOf("function advanceVocabularyCard"), source.indexOf("function answerListening"));
+  assert.match(source, /scrollIntoView\(\{ behavior: "smooth", block: "center" \}\)/);
+  assert.match(source, /function beginRecallVerification/);
+  const recallAnswerSource = source.slice(source.indexOf("function answerRecallChallenge"), source.indexOf("function beginRecallVerification"));
+  assert.match(recallAnswerSource, /if \(!correct\) return;\s*recallAdvancingRef\.current = true;\s*completeVocabularyCard\(\);/);
+  assert.doesNotMatch(recallAnswerSource, /setCardRevealed\(true\)|setRecallVerified/);
+  assert.doesNotMatch(source, /cadence-action|Verify recall first|RETRIEVAL VERIFIED/);
+  const advanceSource = source.slice(source.indexOf("function completeVocabularyCard"), source.indexOf("function answerListening"));
   assert.ok(advanceSource.indexOf("currentRecallReplayPosition !== null") < advanceSource.indexOf("scheduleCadenceReview"));
   assert.match(css, /\.mobile-nav\s*\{[^}]*display:\s*none/s);
   assert.match(css, /@media \(max-width:\s*850px\)[\s\S]*\.mobile-nav\s*\{[^}]*display:\s*grid/s);
@@ -208,7 +214,12 @@ test("ships the complete Level 1 curriculum and practice pools", () => {
   assert.equal(mockExamQuestions.filter((question) => question.section === "Listening").length, 20);
   assert.equal(mockExamQuestions.filter((question) => question.section === "Reading").length, 20);
   assert.ok(vocabulary.every((word) => word.example && word.examplePinyin && word.exampleTranslation && word.collocation));
+  assert.ok(vocabulary.every((word) => word.example.includes(word.hanzi)));
   assert.ok(vocabulary.every((word) => !/\p{Script=Han}/u.test(word.examplePinyin)));
+  assert.ok(vocabulary.every((word) => word.example !== `这是${word.hanzi}。`));
+  assert.ok(vocabulary.every((word) => word.exampleTranslation !== `This is ${word.meaning.split(";")[0].trim()}.`));
+  assert.equal(vocabulary.find((word) => word.hanzi === "到")?.example, "我早上八点到公司。");
+  assert.equal(vocabulary.find((word) => word.hanzi === "便宜")?.example, "这件衣服很好看，也很便宜。");
   assert.deepEqual(
     vocabulary.find((word) => word.hanzi === "爱"),
     {
@@ -650,8 +661,8 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
     assert.equal(png.readUInt32BE(20), size);
   }
 
-  assert.match(serviceWorker, /shengtu-v30/);
-  assert.match(versionSource, /1\.3\.5/);
+  assert.match(serviceWorker, /shengtu-v31/);
+  assert.match(versionSource, /1\.3\.6/);
   assert.match(serviceWorker, /request\.mode === "navigate"/);
   assert.match(serviceWorker, /url\.pathname\.includes\("\/api\/"\)/);
   assert.match(serviceWorker, /icon-maskable-512\.png/);
@@ -675,7 +686,7 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
   assert.match(layoutSource, /crossOrigin="use-credentials"/);
   assert.match(source, /className="app-version"/);
   assert.match(source, /v\{APP_VERSION\}/);
-  assert.match(versionSource, /APP_VERSION = "1\.3\.5"/);
+  assert.match(versionSource, /APP_VERSION = "1\.3\.6"/);
   assert.match(pagesHtml, /mobile-web-app-capable/);
   assert.match(pagesHtml, /apple-touch-icon\.png/);
   assert.match(pagesHtml, /viewport-fit=cover/);

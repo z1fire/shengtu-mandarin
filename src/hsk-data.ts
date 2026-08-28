@@ -412,26 +412,239 @@ const guidedExamples: Record<string, Pick<VocabularyWord, "examplePinyin" | "exa
   坐: { examplePinyin: "Wǒ zuò chūzūchē qù yīyuàn.", exampleTranslation: "I take a taxi to the hospital." },
 };
 
-const actionWords = new Set("唱 穿 打电话 到 读 读书 飞 工作 回 见 叫 开 开车 看 看病 看见 来 买 卖 起床 请 去 上班 上课 上学 生病 睡 睡觉 说 说话 听 听见 玩 问 写 休息 学 学习 找 住 做 做饭".split(" "));
 const adjectiveWords = new Set("大 多 高兴 贵 好 好吃 好看 好听 好玩儿 冷 忙 漂亮 热 少 晚 小 新 早".split(" "));
 const numberWords = new Set("零 一 二 两 三 四 五 六 七 八 九 十 百 千 半".split(" "));
+
+type ContextScript = Pick<VocabularyWord, "example" | "examplePinyin" | "exampleTranslation" | "collocation">;
+
+const contextualScripts: Record<string, ContextScript> = {
+  白天: { example: "我白天上班，晚上学习。", examplePinyin: "Wǒ báitiān shàngbān, wǎnshang xuéxí.", exampleTranslation: "I work during the day and study in the evening.", collocation: "白天上班" },
+  病: { example: "他的病已经好了。", examplePinyin: "Tā de bìng yǐjīng hǎo le.", exampleTranslation: "He has recovered from his illness.", collocation: "生病 / 病好了" },
+  不客气: { example: "谢谢你！不客气。", examplePinyin: "Xièxie nǐ! Bú kèqi.", exampleTranslation: "Thank you! You’re welcome.", collocation: "谢谢 / 不客气" },
+  不要: { example: "不要担心，我们还有时间。", examplePinyin: "Búyào dānxīn, wǒmen hái yǒu shíjiān.", exampleTranslation: "Don’t worry; we still have time.", collocation: "不要担心" },
+  大家: { example: "大家都准备好了。", examplePinyin: "Dàjiā dōu zhǔnbèi hǎo le.", exampleTranslation: "Everyone is ready.", collocation: "大家都……" },
+  第: { example: "这是我第一次来中国。", examplePinyin: "Zhè shì wǒ dì-yī cì lái Zhōngguó.", exampleTranslation: "This is my first time coming to China.", collocation: "第一次" },
+  都: { example: "我们都喜欢学中文。", examplePinyin: "Wǒmen dōu xǐhuan xué Zhōngwén.", exampleTranslation: "We all like learning Chinese.", collocation: "我们都……" },
+  对不起: { example: "对不起，我来晚了。", examplePinyin: "Duìbuqǐ, wǒ lái wǎn le.", exampleTranslation: "Sorry, I’m late.", collocation: "说对不起" },
+  多少: { example: "这个苹果多少钱？", examplePinyin: "Zhège píngguǒ duōshao qián?", exampleTranslation: "How much is this apple?", collocation: "多少钱" },
+  非常: { example: "我今天非常高兴。", examplePinyin: "Wǒ jīntiān fēicháng gāoxìng.", exampleTranslation: "I’m extremely happy today.", collocation: "非常高兴" },
+  分: { example: "现在八点十分。", examplePinyin: "Xiànzài bā diǎn shí fēn.", exampleTranslation: "It is 8:10 now.", collocation: "十分" },
+  分钟: { example: "请等我五分钟。", examplePinyin: "Qǐng děng wǒ wǔ fēnzhōng.", exampleTranslation: "Please wait for me for five minutes.", collocation: "五分钟" },
+  还: { example: "我还想再看一次。", examplePinyin: "Wǒ hái xiǎng zài kàn yí cì.", exampleTranslation: "I still want to watch it one more time.", collocation: "还想……" },
+  号: { example: "今天是五月十号。", examplePinyin: "Jīntiān shì wǔ yuè shí hào.", exampleTranslation: "Today is May 10th.", collocation: "十号" },
+  喝: { example: "我每天早上喝牛奶。", examplePinyin: "Wǒ měitiān zǎoshang hē niúnǎi.", exampleTranslation: "I drink milk every morning.", collocation: "喝牛奶" },
+  后: { example: "下课后我们去吃饭。", examplePinyin: "Xiàkè hòu wǒmen qù chīfàn.", exampleTranslation: "We’ll go eat after class.", collocation: "下课后" },
+  几: { example: "你家有几口人？", examplePinyin: "Nǐ jiā yǒu jǐ kǒu rén?", exampleTranslation: "How many people are in your family?", collocation: "几个 / 几口人" },
+  今年: { example: "我今年开始学中文。", examplePinyin: "Wǒ jīnnián kāishǐ xué Zhōngwén.", exampleTranslation: "I started learning Chinese this year.", collocation: "今年开始" },
+  今天: { example: "我今天有中文课。", examplePinyin: "Wǒ jīntiān yǒu Zhōngwén kè.", exampleTranslation: "I have Chinese class today.", collocation: "今天下午" },
+  觉得: { example: "我觉得这本书很好看。", examplePinyin: "Wǒ juéde zhè běn shū hěn hǎokàn.", exampleTranslation: "I think this book is very good.", collocation: "我觉得……" },
+  可以: { example: "你可以坐在这里。", examplePinyin: "Nǐ kěyǐ zuò zài zhèlǐ.", exampleTranslation: "You may sit here.", collocation: "可以坐" },
+  口: { example: "我家有四口人。", examplePinyin: "Wǒ jiā yǒu sì kǒu rén.", exampleTranslation: "There are four people in my family.", collocation: "四口人" },
+  块: { example: "这个面包十块钱。", examplePinyin: "Zhège miànbāo shí kuài qián.", exampleTranslation: "This bread costs ten yuan.", collocation: "十块钱" },
+  里: { example: "书在包里。", examplePinyin: "Shū zài bāo lǐ.", exampleTranslation: "The book is in the bag.", collocation: "在……里" },
+  没关系: { example: "没关系，我们再试一次。", examplePinyin: "Méi guānxi, wǒmen zài shì yí cì.", exampleTranslation: "No problem; let’s try again.", collocation: "说没关系" },
+  没事: { example: "我没事，不用担心。", examplePinyin: "Wǒ méishì, búyòng dānxīn.", exampleTranslation: "I’m okay; don’t worry.", collocation: "我没事" },
+  们: { example: "我们都是学生。", examplePinyin: "Wǒmen dōu shì xuésheng.", exampleTranslation: "We are all students.", collocation: "我们 / 他们" },
+  明年: { example: "我们明年去中国。", examplePinyin: "Wǒmen míngnián qù Zhōngguó.", exampleTranslation: "We’re going to China next year.", collocation: "明年去" },
+  明天: { example: "我们明天下午见。", examplePinyin: "Wǒmen míngtiān xiàwǔ jiàn.", exampleTranslation: "We’ll meet tomorrow afternoon.", collocation: "明天见" },
+  名字: { example: "请写下你的名字。", examplePinyin: "Qǐng xiě xià nǐ de míngzi.", exampleTranslation: "Please write down your name.", collocation: "叫什么名字" },
+  哪个: { example: "哪个是你的杯子？", examplePinyin: "Nǎge shì nǐ de bēizi?", exampleTranslation: "Which one is your cup?", collocation: "哪个……" },
+  哪里: { example: "医院在哪里？", examplePinyin: "Yīyuàn zài nǎlǐ?", exampleTranslation: "Where is the hospital?", collocation: "在哪里" },
+  哪儿: { example: "你想去哪儿？", examplePinyin: "Nǐ xiǎng qù nǎr?", exampleTranslation: "Where do you want to go?", collocation: "去哪儿" },
+  哪些: { example: "你喜欢哪些书？", examplePinyin: "Nǐ xǐhuan nǎxiē shū?", exampleTranslation: "Which books do you like?", collocation: "哪些书" },
+  那: { example: "那本书是我的。", examplePinyin: "Nà běn shū shì wǒ de.", exampleTranslation: "That book is mine.", collocation: "那本书" },
+  那边: { example: "医院就在那边。", examplePinyin: "Yīyuàn jiù zài nàbiān.", exampleTranslation: "The hospital is right over there.", collocation: "在那边" },
+  那个: { example: "那个杯子是我的。", examplePinyin: "Nàge bēizi shì wǒ de.", exampleTranslation: "That cup is mine.", collocation: "那个人 / 那个杯子" },
+  那里: { example: "我的朋友住在那里。", examplePinyin: "Wǒ de péngyou zhù zài nàlǐ.", exampleTranslation: "My friend lives there.", collocation: "在那里" },
+  那儿: { example: "我的朋友住在那儿。", examplePinyin: "Wǒ de péngyou zhù zài nàr.", exampleTranslation: "My friend lives there.", collocation: "在那儿" },
+  那些: { example: "那些学生在上课。", examplePinyin: "Nàxiē xuésheng zài shàngkè.", exampleTranslation: "Those students are in class.", collocation: "那些学生" },
+  男: { example: "他是男的，她是女的。", examplePinyin: "Tā shì nán de, tā shì nǚ de.", exampleTranslation: "He is male, and she is female.", collocation: "男的" },
+  你: { example: "你今天忙吗？", examplePinyin: "Nǐ jīntiān máng ma?", exampleTranslation: "Are you busy today?", collocation: "你好吗" },
+  你好: { example: "你好，我叫安娜。", examplePinyin: "Nǐhǎo, wǒ jiào Ānnà.", exampleTranslation: "Hello, my name is Anna.", collocation: "说你好" },
+  你们: { example: "你们想喝什么？", examplePinyin: "Nǐmen xiǎng hē shénme?", exampleTranslation: "What would you all like to drink?", collocation: "你们好" },
+  年: { example: "我学中文一年了。", examplePinyin: "Wǒ xué Zhōngwén yì nián le.", exampleTranslation: "I have studied Chinese for one year.", collocation: "一年" },
+  您: { example: "您好，请问您叫什么名字？", examplePinyin: "Nín hǎo, qǐngwèn nín jiào shénme míngzi?", exampleTranslation: "Hello, may I ask your name?", collocation: "您好" },
+  女: { example: "她是女的，他是男的。", examplePinyin: "Tā shì nǚ de, tā shì nán de.", exampleTranslation: "She is female, and he is male.", collocation: "女的" },
+  前: { example: "学校前面有一家书店。", examplePinyin: "Xuéxiào qiánmiàn yǒu yì jiā shūdiàn.", exampleTranslation: "There is a bookstore in front of the school.", collocation: "前面" },
+  钱: { example: "我今天没有带钱。", examplePinyin: "Wǒ jīntiān méiyǒu dài qián.", exampleTranslation: "I didn’t bring any money today.", collocation: "多少钱" },
+  请问: { example: "请问，医院在哪里？", examplePinyin: "Qǐngwèn, yīyuàn zài nǎlǐ?", exampleTranslation: "Excuse me, where is the hospital?", collocation: "请问……" },
+  去年: { example: "我去年去了北京。", examplePinyin: "Wǒ qùnián qù le Běijīng.", exampleTranslation: "I went to Beijing last year.", collocation: "去年去了" },
+  认识: { example: "很高兴认识你。", examplePinyin: "Hěn gāoxìng rènshi nǐ.", exampleTranslation: "It’s nice to meet you.", collocation: "认识你" },
+  日: { example: "今天是五月一日。", examplePinyin: "Jīntiān shì wǔ yuè yí rì.", exampleTranslation: "Today is May 1st.", collocation: "一日" },
+  上: { example: "书在桌子上。", examplePinyin: "Shū zài zhuōzi shàng.", exampleTranslation: "The book is on the table.", collocation: "在……上" },
+  时候: { example: "你什么时候有时间？", examplePinyin: "Nǐ shénme shíhou yǒu shíjiān?", exampleTranslation: "When do you have time?", collocation: "什么时候" },
+  时间: { example: "我下午有时间。", examplePinyin: "Wǒ xiàwǔ yǒu shíjiān.", exampleTranslation: "I have time this afternoon.", collocation: "有时间" },
+  岁: { example: "我妹妹十八岁。", examplePinyin: "Wǒ mèimei shíbā suì.", exampleTranslation: "My younger sister is eighteen years old.", collocation: "十八岁" },
+  他: { example: "他是我的中文老师。", examplePinyin: "Tā shì wǒ de Zhōngwén lǎoshī.", exampleTranslation: "He is my Chinese teacher.", collocation: "他是……" },
+  它: { example: "它是一只很小的猫。", examplePinyin: "Tā shì yì zhī hěn xiǎo de māo.", exampleTranslation: "It is a very small cat.", collocation: "它是……" },
+  她: { example: "她是我的同学。", examplePinyin: "Tā shì wǒ de tóngxué.", exampleTranslation: "She is my classmate.", collocation: "她是……" },
+  他们: { example: "他们都在学校学习。", examplePinyin: "Tāmen dōu zài xuéxiào xuéxí.", exampleTranslation: "They are all studying at school.", collocation: "他们都……" },
+  它们: { example: "它们是我家的猫。", examplePinyin: "Tāmen shì wǒ jiā de māo.", exampleTranslation: "They are my family’s cats.", collocation: "它们是……" },
+  她们: { example: "她们都是我的朋友。", examplePinyin: "Tāmen dōu shì wǒ de péngyou.", exampleTranslation: "They are all my friends.", collocation: "她们都……" },
+  天: { example: "我学了三天中文。", examplePinyin: "Wǒ xué le sān tiān Zhōngwén.", exampleTranslation: "I studied Chinese for three days.", collocation: "三天" },
+  外: { example: "学校外有一家饭店。", examplePinyin: "Xuéxiào wài yǒu yì jiā fàndiàn.", exampleTranslation: "There is a restaurant outside the school.", collocation: "学校外" },
+  外边: { example: "外边正在下雨。", examplePinyin: "Wàibian zhèngzài xià yǔ.", exampleTranslation: "It is raining outside.", collocation: "在外边" },
+  喂: { example: "喂，请问王老师在吗？", examplePinyin: "Wèi, qǐngwèn Wáng lǎoshī zài ma?", exampleTranslation: "Hello, may I speak to Teacher Wang?", collocation: "喂，你好" },
+  我: { example: "我每天学习中文。", examplePinyin: "Wǒ měitiān xuéxí Zhōngwén.", exampleTranslation: "I study Chinese every day.", collocation: "我是……" },
+  我们: { example: "我们明天一起去学校。", examplePinyin: "Wǒmen míngtiān yìqǐ qù xuéxiào.", exampleTranslation: "We’ll go to school together tomorrow.", collocation: "我们一起……" },
+  喜欢: { example: "我喜欢看中国电影。", examplePinyin: "Wǒ xǐhuan kàn Zhōngguó diànyǐng.", exampleTranslation: "I like watching Chinese movies.", collocation: "喜欢看" },
+  下: { example: "猫在桌子下。", examplePinyin: "Māo zài zhuōzi xià.", exampleTranslation: "The cat is under the table.", collocation: "在……下" },
+  下雨: { example: "外边正在下雨。", examplePinyin: "Wàibian zhèngzài xià yǔ.", exampleTranslation: "It is raining outside.", collocation: "正在下雨" },
+  下班: { example: "我下午五点下班。", examplePinyin: "Wǒ xiàwǔ wǔ diǎn xiàbān.", exampleTranslation: "I finish work at five in the afternoon.", collocation: "五点下班" },
+  下课: { example: "下课以后我们去吃饭。", examplePinyin: "Xiàkè yǐhòu wǒmen qù chīfàn.", exampleTranslation: "We’ll go eat after class.", collocation: "下课以后" },
+  现在: { example: "我现在正在学习中文。", examplePinyin: "Wǒ xiànzài zhèngzài xuéxí Zhōngwén.", exampleTranslation: "I am studying Chinese now.", collocation: "现在几点" },
+  小时: { example: "我每天学习一个小时。", examplePinyin: "Wǒ měitiān xuéxí yí ge xiǎoshí.", exampleTranslation: "I study for one hour every day.", collocation: "一个小时" },
+  谢谢: { example: "谢谢你今天来帮我。", examplePinyin: "Xièxie nǐ jīntiān lái bāng wǒ.", exampleTranslation: "Thank you for coming to help me today.", collocation: "谢谢你" },
+  星期: { example: "我每个星期都学习中文。", examplePinyin: "Wǒ měi ge xīngqī dōu xuéxí Zhōngwén.", exampleTranslation: "I study Chinese every week.", collocation: "每个星期" },
+  星期日: { example: "我们星期日休息。", examplePinyin: "Wǒmen xīngqīrì xiūxi.", exampleTranslation: "We rest on Sunday.", collocation: "星期日见" },
+  星期天: { example: "我们星期天去公园。", examplePinyin: "Wǒmen xīngqītiān qù gōngyuán.", exampleTranslation: "We’re going to the park on Sunday.", collocation: "星期天见" },
+  雪: { example: "昨天晚上下了很大的雪。", examplePinyin: "Zuótiān wǎnshang xià le hěn dà de xuě.", exampleTranslation: "It snowed heavily last night.", collocation: "下雪" },
+  一半: { example: "这个面包我只吃了一半。", examplePinyin: "Zhège miànbāo wǒ zhǐ chī le yíbàn.", exampleTranslation: "I ate only half of this bread.", collocation: "一半" },
+  一下: { example: "请等我一下。", examplePinyin: "Qǐng děng wǒ yíxià.", exampleTranslation: "Please wait for me a moment.", collocation: "等一下" },
+  一点儿: { example: "我会说一点儿中文。", examplePinyin: "Wǒ huì shuō yìdiǎnr Zhōngwén.", exampleTranslation: "I can speak a little Chinese.", collocation: "一点儿中文" },
+  一些: { example: "我买了一些水果。", examplePinyin: "Wǒ mǎi le yìxiē shuǐguǒ.", exampleTranslation: "I bought some fruit.", collocation: "一些水果" },
+  有的: { example: "有的人喜欢茶，有的人喜欢牛奶。", examplePinyin: "Yǒude rén xǐhuan chá, yǒude rén xǐhuan niúnǎi.", exampleTranslation: "Some people like tea; others like milk.", collocation: "有的人……" },
+  有点儿: { example: "今天有点儿冷。", examplePinyin: "Jīntiān yǒudiǎnr lěng.", exampleTranslation: "It is a little cold today.", collocation: "有点儿冷" },
+  有些: { example: "有些问题需要时间。", examplePinyin: "Yǒuxiē wèntí xūyào shíjiān.", exampleTranslation: "Some problems take time.", collocation: "有些问题" },
+  雨: { example: "今天的雨下得很大。", examplePinyin: "Jīntiān de yǔ xià de hěn dà.", exampleTranslation: "It is raining heavily today.", collocation: "下雨" },
+  元: { example: "这本书二十元。", examplePinyin: "Zhè běn shū èrshí yuán.", exampleTranslation: "This book costs twenty yuan.", collocation: "二十元" },
+  月: { example: "下个月我去中国。", examplePinyin: "Xià ge yuè wǒ qù Zhōngguó.", exampleTranslation: "I’m going to China next month.", collocation: "下个月" },
+  再见: { example: "我们明天见，再见！", examplePinyin: "Wǒmen míngtiān jiàn, zàijiàn!", exampleTranslation: "See you tomorrow. Goodbye!", collocation: "说再见" },
+  怎么: { example: "这个汉字怎么写？", examplePinyin: "Zhège Hànzì zěnme xiě?", exampleTranslation: "How do you write this Chinese character?", collocation: "怎么写" },
+  怎么样: { example: "今天天气怎么样？", examplePinyin: "Jīntiān tiānqì zěnmeyàng?", exampleTranslation: "How is the weather today?", collocation: "怎么样" },
+  这: { example: "这本书很好看。", examplePinyin: "Zhè běn shū hěn hǎokàn.", exampleTranslation: "This book is very good.", collocation: "这本书" },
+  这边: { example: "请到这边来。", examplePinyin: "Qǐng dào zhèbiān lái.", exampleTranslation: "Please come over here.", collocation: "到这边来" },
+  这个: { example: "这个苹果很好吃。", examplePinyin: "Zhège píngguǒ hěn hǎochī.", exampleTranslation: "This apple is delicious.", collocation: "这个苹果" },
+  这里: { example: "我在这里等你。", examplePinyin: "Wǒ zài zhèlǐ děng nǐ.", exampleTranslation: "I’ll wait for you here.", collocation: "在这里" },
+  这儿: { example: "你可以坐这儿。", examplePinyin: "Nǐ kěyǐ zuò zhèr.", exampleTranslation: "You can sit here.", collocation: "坐这儿" },
+  这些: { example: "这些书都是我的。", examplePinyin: "Zhèxiē shū dōu shì wǒ de.", exampleTranslation: "These books are all mine.", collocation: "这些书" },
+  真: { example: "这部电影真好看。", examplePinyin: "Zhè bù diànyǐng zhēn hǎokàn.", exampleTranslation: "This movie is really good.", collocation: "真好看" },
+  知道: { example: "我知道他的名字。", examplePinyin: "Wǒ zhīdào tā de míngzi.", exampleTranslation: "I know his name.", collocation: "我知道……" },
+  国: { example: "国与国之间需要交流。", examplePinyin: "Guó yǔ guó zhījiān xūyào jiāoliú.", exampleTranslation: "Countries need to communicate with one another.", collocation: "国与国之间" },
+  字: { example: "请把这个字写在纸上。", examplePinyin: "Qǐng bǎ zhège zì xiě zài zhǐ shàng.", exampleTranslation: "Please write this character on the paper.", collocation: "写字" },
+  昨天: { example: "我昨天去了书店。", examplePinyin: "Wǒ zuótiān qù le shūdiàn.", exampleTranslation: "I went to the bookstore yesterday.", collocation: "昨天去了" },
+  边: { example: "河边有很多人在散步。", examplePinyin: "Hé biān yǒu hěn duō rén zài sànbù.", exampleTranslation: "Many people are walking by the river.", collocation: "河边" },
+  电话: { example: "有事请给我打电话。", examplePinyin: "Yǒu shì qǐng gěi wǒ dǎ diànhuà.", exampleTranslation: "Please call me if you need anything.", collocation: "打电话" },
+  电脑: { example: "我用电脑学习中文。", examplePinyin: "Wǒ yòng diànnǎo xuéxí Zhōngwén.", exampleTranslation: "I use a computer to study Chinese.", collocation: "用电脑" },
+  电视: { example: "我们晚上一起看电视。", examplePinyin: "Wǒmen wǎnshang yìqǐ kàn diànshì.", exampleTranslation: "We watch television together in the evening.", collocation: "看电视" },
+  电影: { example: "这部电影非常好看。", examplePinyin: "Zhè bù diànyǐng fēicháng hǎokàn.", exampleTranslation: "This movie is very good.", collocation: "看电影" },
+  东西: { example: "我把东西放在桌子上了。", examplePinyin: "Wǒ bǎ dōngxi fàng zài zhuōzi shàng le.", exampleTranslation: "I put the things on the table.", collocation: "买东西" },
+  歌: { example: "我很喜欢这首歌。", examplePinyin: "Wǒ hěn xǐhuan zhè shǒu gē.", exampleTranslation: "I really like this song.", collocation: "一首歌" },
+  孩子: { example: "孩子们在房间里读书。", examplePinyin: "Háizimen zài fángjiān lǐ dúshū.", exampleTranslation: "The children are reading in the room.", collocation: "孩子们" },
+  汉字: { example: "我今天学了五个汉字。", examplePinyin: "Wǒ jīntiān xué le wǔ ge Hànzì.", exampleTranslation: "I learned five Chinese characters today.", collocation: "写汉字" },
+  课: { example: "我们下午有一节中文课。", examplePinyin: "Wǒmen xiàwǔ yǒu yì jié Zhōngwén kè.", exampleTranslation: "We have a Chinese class this afternoon.", collocation: "上课 / 中文课" },
+  便宜: { example: "这件衣服很好看，也很便宜。", examplePinyin: "Zhè jiàn yīfu hěn hǎokàn, yě hěn piányi.", exampleTranslation: "This piece of clothing looks good and is inexpensive.", collocation: "很便宜" },
+  上午: { example: "我上午九点开始上班。", examplePinyin: "Wǒ shàngwǔ jiǔ diǎn kāishǐ shàngbān.", exampleTranslation: "I start work at nine in the morning.", collocation: "上午九点" },
+  事: { example: "我今天有一件重要的事。", examplePinyin: "Wǒ jīntiān yǒu yí jiàn zhòngyào de shì.", exampleTranslation: "I have something important to do today.", collocation: "一件事" },
+  手机: { example: "我的手机放在桌子上。", examplePinyin: "Wǒ de shǒujī fàng zài zhuōzi shàng.", exampleTranslation: "My mobile phone is on the table.", collocation: "用手机" },
+  书: { example: "我每天晚上读一本书。", examplePinyin: "Wǒ měitiān wǎnshang dú yì běn shū.", exampleTranslation: "I read a book every evening.", collocation: "一本书" },
+  天气: { example: "今天天气很好。", examplePinyin: "Jīntiān tiānqì hěn hǎo.", exampleTranslation: "The weather is nice today.", collocation: "今天天气" },
+  晚上: { example: "我晚上在家学习。", examplePinyin: "Wǒ wǎnshang zài jiā xuéxí.", exampleTranslation: "I study at home in the evening.", collocation: "今天晚上" },
+  问题: { example: "老师回答了我的问题。", examplePinyin: "Lǎoshī huídá le wǒ de wèntí.", exampleTranslation: "The teacher answered my question.", collocation: "回答问题" },
+  下午: { example: "我们下午三点见面。", examplePinyin: "Wǒmen xiàwǔ sān diǎn jiànmiàn.", exampleTranslation: "We’ll meet at three in the afternoon.", collocation: "下午三点" },
+  衣服: { example: "我今天穿了一件新衣服。", examplePinyin: "Wǒ jīntiān chuān le yí jiàn xīn yīfu.", exampleTranslation: "I wore a new piece of clothing today.", collocation: "穿衣服" },
+  椅子: { example: "请坐在这把椅子上。", examplePinyin: "Qǐng zuò zài zhè bǎ yǐzi shàng.", exampleTranslation: "Please sit on this chair.", collocation: "一把椅子" },
+  早上: { example: "我每天早上七点起床。", examplePinyin: "Wǒ měitiān zǎoshang qī diǎn qǐchuáng.", exampleTranslation: "I get up at seven every morning.", collocation: "每天早上" },
+  中国: { example: "我明年想去中国旅行。", examplePinyin: "Wǒ míngnián xiǎng qù Zhōngguó lǚxíng.", exampleTranslation: "I want to travel to China next year.", collocation: "去中国" },
+  中午: { example: "我们中午一起吃饭。", examplePinyin: "Wǒmen zhōngwǔ yìqǐ chīfàn.", exampleTranslation: "We eat lunch together at noon.", collocation: "中午吃饭" },
+  桌子: { example: "书和手机都在桌子上。", examplePinyin: "Shū hé shǒujī dōu zài zhuōzi shàng.", exampleTranslation: "The book and mobile phone are both on the table.", collocation: "在桌子上" },
+  人: { example: "教室里有很多人。", examplePinyin: "Jiàoshì lǐ yǒu hěn duō rén.", exampleTranslation: "There are many people in the classroom.", collocation: "很多人" },
+  小朋友: { example: "那个小朋友在看书。", examplePinyin: "Nàge xiǎopéngyǒu zài kàn shū.", exampleTranslation: "That child is reading a book.", collocation: "那个小朋友" },
+  大: { example: "这个房间很大。", examplePinyin: "Zhège fángjiān hěn dà.", exampleTranslation: "This room is large.", collocation: "很大" },
+  多: { example: "今天公园里的人很多。", examplePinyin: "Jīntiān gōngyuán lǐ de rén hěn duō.", exampleTranslation: "There are many people in the park today.", collocation: "很多人" },
+  高兴: { example: "今天见到你，我很高兴。", examplePinyin: "Jīntiān jiàn dào nǐ, wǒ hěn gāoxìng.", exampleTranslation: "I’m happy to see you today.", collocation: "很高兴" },
+  贵: { example: "这件衣服太贵了。", examplePinyin: "Zhè jiàn yīfu tài guì le.", exampleTranslation: "This piece of clothing is too expensive.", collocation: "太贵了" },
+  好: { example: "今天天气很好。", examplePinyin: "Jīntiān tiānqì hěn hǎo.", exampleTranslation: "The weather is nice today.", collocation: "很好" },
+  好吃: { example: "这家饭店的饺子很好吃。", examplePinyin: "Zhè jiā fàndiàn de jiǎozi hěn hǎochī.", exampleTranslation: "The dumplings at this restaurant are delicious.", collocation: "很好吃" },
+  好看: { example: "这部电影很好看。", examplePinyin: "Zhè bù diànyǐng hěn hǎokàn.", exampleTranslation: "This movie is very good.", collocation: "很好看" },
+  好听: { example: "这首中文歌很好听。", examplePinyin: "Zhè shǒu Zhōngwén gē hěn hǎotīng.", exampleTranslation: "This Chinese song sounds beautiful.", collocation: "很好听" },
+  好玩儿: { example: "这个游戏很好玩儿。", examplePinyin: "Zhège yóuxì hěn hǎowánr.", exampleTranslation: "This game is fun.", collocation: "很好玩儿" },
+  冷: { example: "今天外边很冷。", examplePinyin: "Jīntiān wàibian hěn lěng.", exampleTranslation: "It is cold outside today.", collocation: "很冷" },
+  忙: { example: "老师今天很忙。", examplePinyin: "Lǎoshī jīntiān hěn máng.", exampleTranslation: "The teacher is busy today.", collocation: "很忙" },
+  漂亮: { example: "她今天穿的衣服很漂亮。", examplePinyin: "Tā jīntiān chuān de yīfu hěn piàoliang.", exampleTranslation: "The clothes she is wearing today are beautiful.", collocation: "很漂亮" },
+  热: { example: "今天的天气很热。", examplePinyin: "Jīntiān de tiānqì hěn rè.", exampleTranslation: "The weather is hot today.", collocation: "很热" },
+  少: { example: "今天商店里的人很少。", examplePinyin: "Jīntiān shāngdiàn lǐ de rén hěn shǎo.", exampleTranslation: "There are few people in the shop today.", collocation: "很少" },
+  晚: { example: "对不起，我今天来晚了。", examplePinyin: "Duìbuqǐ, wǒ jīntiān lái wǎn le.", exampleTranslation: "Sorry, I arrived late today.", collocation: "来晚了" },
+  小: { example: "我的房间很小，但是很舒服。", examplePinyin: "Wǒ de fángjiān hěn xiǎo, dànshì hěn shūfu.", exampleTranslation: "My room is small but comfortable.", collocation: "很小" },
+  新: { example: "我买了一件新衣服。", examplePinyin: "Wǒ mǎi le yí jiàn xīn yīfu.", exampleTranslation: "I bought a new piece of clothing.", collocation: "新衣服" },
+  早: { example: "我今天来得很早。", examplePinyin: "Wǒ jīntiān lái de hěn zǎo.", exampleTranslation: "I came very early today.", collocation: "很早" },
+  唱: { example: "妹妹很喜欢唱中文歌。", examplePinyin: "Mèimei hěn xǐhuan chàng Zhōngwén gē.", exampleTranslation: "My younger sister likes singing Chinese songs.", collocation: "唱歌" },
+  穿: { example: "我今天穿了一件新衣服。", examplePinyin: "Wǒ jīntiān chuān le yí jiàn xīn yīfu.", exampleTranslation: "I wore a new piece of clothing today.", collocation: "穿衣服" },
+  打电话: { example: "我晚上给妈妈打电话。", examplePinyin: "Wǒ wǎnshang gěi māma dǎ diànhuà.", exampleTranslation: "I call my mother in the evening.", collocation: "给妈妈打电话" },
+  到: { example: "我早上八点到公司。", examplePinyin: "Wǒ zǎoshang bā diǎn dào gōngsī.", exampleTranslation: "I arrive at the office at eight in the morning.", collocation: "到公司" },
+  读: { example: "我每天读一本中文书。", examplePinyin: "Wǒ měitiān dú yì běn Zhōngwén shū.", exampleTranslation: "I read a Chinese book every day.", collocation: "读书" },
+  读书: { example: "孩子们在房间里读书。", examplePinyin: "Háizimen zài fángjiān lǐ dúshū.", exampleTranslation: "The children are reading in the room.", collocation: "在家读书" },
+  工作: { example: "我爸爸在医院工作。", examplePinyin: "Wǒ bàba zài yīyuàn gōngzuò.", exampleTranslation: "My father works at a hospital.", collocation: "在医院工作" },
+  回: { example: "我下午五点回家。", examplePinyin: "Wǒ xiàwǔ wǔ diǎn huí jiā.", exampleTranslation: "I return home at five in the afternoon.", collocation: "回家" },
+  见: { example: "我们明天下午见。", examplePinyin: "Wǒmen míngtiān xiàwǔ jiàn.", exampleTranslation: "We’ll see each other tomorrow afternoon.", collocation: "明天见" },
+  叫: { example: "我叫安娜，你叫什么名字？", examplePinyin: "Wǒ jiào Ānnà, nǐ jiào shénme míngzi?", exampleTranslation: "My name is Anna. What is your name?", collocation: "叫安娜" },
+  开: { example: "请开门，我在外边。", examplePinyin: "Qǐng kāi mén, wǒ zài wàibian.", exampleTranslation: "Please open the door; I’m outside.", collocation: "开门" },
+  开车: { example: "我爸爸开车去公司。", examplePinyin: "Wǒ bàba kāichē qù gōngsī.", exampleTranslation: "My father drives to work.", collocation: "开车上班" },
+  看: { example: "我们晚上一起看电影。", examplePinyin: "Wǒmen wǎnshang yìqǐ kàn diànyǐng.", exampleTranslation: "We watch a movie together in the evening.", collocation: "看电影" },
+  看病: { example: "我生病了，要去医院看病。", examplePinyin: "Wǒ shēngbìng le, yào qù yīyuàn kànbìng.", exampleTranslation: "I’m sick and need to see a doctor at the hospital.", collocation: "去看病" },
+  看见: { example: "我在门口看见了王老师。", examplePinyin: "Wǒ zài ménkǒu kànjiàn le Wáng lǎoshī.", exampleTranslation: "I saw Teacher Wang at the entrance.", collocation: "看见了" },
+  来: { example: "请明天下午来我家。", examplePinyin: "Qǐng míngtiān xiàwǔ lái wǒ jiā.", exampleTranslation: "Please come to my home tomorrow afternoon.", collocation: "来我家" },
+  买: { example: "我去超市买水果。", examplePinyin: "Wǒ qù chāoshì mǎi shuǐguǒ.", exampleTranslation: "I’m going to the supermarket to buy fruit.", collocation: "买水果" },
+  卖: { example: "这家商店卖衣服。", examplePinyin: "Zhè jiā shāngdiàn mài yīfu.", exampleTranslation: "This shop sells clothing.", collocation: "卖衣服" },
+  起床: { example: "我每天早上七点起床。", examplePinyin: "Wǒ měitiān zǎoshang qī diǎn qǐchuáng.", exampleTranslation: "I get up at seven every morning.", collocation: "七点起床" },
+  上班: { example: "我坐地铁去上班。", examplePinyin: "Wǒ zuò dìtiě qù shàngbān.", exampleTranslation: "I take the subway to work.", collocation: "去上班" },
+  上课: { example: "我们上午九点开始上课。", examplePinyin: "Wǒmen shàngwǔ jiǔ diǎn kāishǐ shàngkè.", exampleTranslation: "Our class starts at nine in the morning.", collocation: "开始上课" },
+  上学: { example: "孩子们每天八点上学。", examplePinyin: "Háizimen měitiān bā diǎn shàngxué.", exampleTranslation: "The children go to school at eight every day.", collocation: "去上学" },
+  生病: { example: "他生病了，今天不能上班。", examplePinyin: "Tā shēngbìng le, jīntiān bù néng shàngbān.", exampleTranslation: "He is sick and cannot work today.", collocation: "生病了" },
+  睡: { example: "孩子已经睡了。", examplePinyin: "Háizi yǐjīng shuì le.", exampleTranslation: "The child is already asleep.", collocation: "睡了" },
+  睡觉: { example: "我晚上十一点睡觉。", examplePinyin: "Wǒ wǎnshang shíyī diǎn shuìjiào.", exampleTranslation: "I go to bed at eleven at night.", collocation: "去睡觉" },
+  说: { example: "请再说一遍。", examplePinyin: "Qǐng zài shuō yí biàn.", exampleTranslation: "Please say it one more time.", collocation: "说中文" },
+  说话: { example: "她正在和老师说话。", examplePinyin: "Tā zhèngzài hé lǎoshī shuōhuà.", exampleTranslation: "She is speaking with the teacher.", collocation: "和老师说话" },
+  听: { example: "我每天听中文歌。", examplePinyin: "Wǒ měitiān tīng Zhōngwén gē.", exampleTranslation: "I listen to Chinese songs every day.", collocation: "听音乐" },
+  听见: { example: "我听见有人叫我的名字。", examplePinyin: "Wǒ tīngjiàn yǒu rén jiào wǒ de míngzi.", exampleTranslation: "I heard someone call my name.", collocation: "听见声音" },
+  玩: { example: "孩子们在外边玩。", examplePinyin: "Háizimen zài wàibian wán.", exampleTranslation: "The children are playing outside.", collocation: "出去玩" },
+  问: { example: "我想问老师一个问题。", examplePinyin: "Wǒ xiǎng wèn lǎoshī yí ge wèntí.", exampleTranslation: "I want to ask the teacher a question.", collocation: "问问题" },
+  写: { example: "请写下你的名字。", examplePinyin: "Qǐng xiě xià nǐ de míngzi.", exampleTranslation: "Please write down your name.", collocation: "写名字" },
+  休息: { example: "你累了，先休息一下吧。", examplePinyin: "Nǐ lèi le, xiān xiūxi yíxià ba.", exampleTranslation: "You’re tired; take a short rest first.", collocation: "休息一下" },
+  学: { example: "我每天学五个汉字。", examplePinyin: "Wǒ měitiān xué wǔ ge Hànzì.", exampleTranslation: "I learn five Chinese characters every day.", collocation: "学中文" },
+  学习: { example: "我在大学学习中文。", examplePinyin: "Wǒ zài dàxué xuéxí Zhōngwén.", exampleTranslation: "I study Chinese at university.", collocation: "学习中文" },
+  找: { example: "我正在找我的手机。", examplePinyin: "Wǒ zhèngzài zhǎo wǒ de shǒujī.", exampleTranslation: "I’m looking for my mobile phone.", collocation: "找手机" },
+  住: { example: "我和家人住在北京。", examplePinyin: "Wǒ hé jiārén zhù zài Běijīng.", exampleTranslation: "I live in Beijing with my family.", collocation: "住在北京" },
+  做: { example: "我晚上在家做饭。", examplePinyin: "Wǒ wǎnshang zài jiā zuòfàn.", exampleTranslation: "I cook at home in the evening.", collocation: "做饭" },
+  做饭: { example: "爸爸正在厨房做饭。", examplePinyin: "Bàba zhèngzài chúfáng zuòfàn.", exampleTranslation: "Dad is cooking in the kitchen.", collocation: "在家做饭" },
+};
+
+const familyWords = new Set("爸爸 弟弟 儿子 哥哥 家人 姐姐 妈妈 妹妹 男朋友 女儿 女朋友 朋友".split(" "));
+const roleWords = new Set("大学生 老师 女士 人 同学 先生 小朋友 小学生 学生 医生 中学生".split(" "));
+const foodWords = new Set("包子 饭 鸡蛋 饺子 米饭 面包 面条儿 苹果 水果 早饭 午饭 晚饭".split(" "));
+const drinkWords = new Set("牛奶 水".split(" "));
+const placeWords = new Set("超市 大学 店 电影院 饭店 房间 公司 商店 书店 学校 小学 医院 中学".split(" "));
+const vehicleWords = new Set("出租车 飞机 火车".split(" "));
+const animalWords = new Set("狗 猫".split(" "));
+const languageWords = new Set("汉语 中文".split(" "));
 
 function primaryMeaning(meaning: string) {
   return meaning.split(";")[0].trim();
 }
 
-function actionMeaning(meaning: string) {
-  const phrase = primaryMeaning(meaning).replace(/^to\s+/, "");
-  return phrase.startsWith("be ") ? `am ${phrase.slice(3)}` : phrase;
+function contextualExample(word: Pick<VocabularyWord, "hanzi" | "pinyin" | "meaning">): ContextScript {
+  const scripted = contextualScripts[word.hanzi];
+  if (scripted) return scripted;
+  const meaning = primaryMeaning(word.meaning);
+  if (familyWords.has(word.hanzi)) return { example: `我的${word.hanzi}今天在家。`, examplePinyin: `Wǒ de ${word.pinyin} jīntiān zài jiā.`, exampleTranslation: `My ${meaning} is at home today.`, collocation: `我的${word.hanzi}` };
+  if (roleWords.has(word.hanzi)) return { example: `那位${word.hanzi}今天很忙。`, examplePinyin: `Nà wèi ${word.pinyin} jīntiān hěn máng.`, exampleTranslation: `That ${meaning} is busy today.`, collocation: `一位${word.hanzi}` };
+  if (foodWords.has(word.hanzi)) return { example: `我今天想吃${word.hanzi}。`, examplePinyin: `Wǒ jīntiān xiǎng chī ${word.pinyin}.`, exampleTranslation: `I want to eat ${meaning} today.`, collocation: `吃${word.hanzi}` };
+  if (drinkWords.has(word.hanzi)) return { example: `我早上想喝${word.hanzi}。`, examplePinyin: `Wǒ zǎoshang xiǎng hē ${word.pinyin}.`, exampleTranslation: `I’d like to drink ${meaning} this morning.`, collocation: `喝${word.hanzi}` };
+  if (placeWords.has(word.hanzi)) return { example: `我们下午在${word.hanzi}见面。`, examplePinyin: `Wǒmen xiàwǔ zài ${word.pinyin} jiànmiàn.`, exampleTranslation: `We’re meeting at the ${meaning} this afternoon.`, collocation: `在${word.hanzi}` };
+  if (vehicleWords.has(word.hanzi)) return { example: `我们坐${word.hanzi}去北京。`, examplePinyin: `Wǒmen zuò ${word.pinyin} qù Běijīng.`, exampleTranslation: `We’re taking the ${meaning} to Beijing.`, collocation: `坐${word.hanzi}` };
+  if (animalWords.has(word.hanzi)) return { example: `我在公园看见一只${word.hanzi}。`, examplePinyin: `Wǒ zài gōngyuán kànjiàn yì zhī ${word.pinyin}.`, exampleTranslation: `I saw a ${meaning} in the park.`, collocation: `一只${word.hanzi}` };
+  if (languageWords.has(word.hanzi)) return { example: `我每天学习${word.hanzi}。`, examplePinyin: `Wǒ měitiān xuéxí ${word.pinyin}.`, exampleTranslation: `I study ${meaning} every day.`, collocation: `学习${word.hanzi}` };
+  if (numberWords.has(word.hanzi)) return word.hanzi === "半"
+    ? { example: "我吃了半个苹果。", examplePinyin: "Wǒ chī le bàn ge píngguǒ.", exampleTranslation: "I ate half an apple.", collocation: "半个" }
+    : { example: `我买了${word.hanzi}个苹果。`, examplePinyin: `Wǒ mǎi le ${word.pinyin} ge píngguǒ.`, exampleTranslation: `I bought ${meaning} apples.`, collocation: `${word.hanzi}个` };
+  if (adjectiveWords.has(word.hanzi)) return { example: `今天这个地方很${word.hanzi}。`, examplePinyin: `Jīntiān zhège dìfang hěn ${word.pinyin}.`, exampleTranslation: `This place is ${meaning} today.`, collocation: `很${word.hanzi}` };
+  return { example: `今天我们谈到了${word.hanzi}。`, examplePinyin: `Jīntiān wǒmen tán dào le ${word.pinyin}.`, exampleTranslation: `We talked about ${meaning} today.`, collocation: `谈到${word.hanzi}` };
 }
 
 export const vocabulary: VocabularyWord[] = vocabularyBase.map((word) => {
   const detail = wordDetails[word.hanzi];
   if (detail) return { ...word, ...detail, ...guidedExamples[word.hanzi] };
-  if (actionWords.has(word.hanzi)) return { ...word, example: `我${word.hanzi}。`, examplePinyin: `Wǒ ${word.pinyin}.`, exampleTranslation: `I ${actionMeaning(word.meaning)}.`, collocation: `想${word.hanzi}` };
-  if (adjectiveWords.has(word.hanzi)) return { ...word, example: `这个很${word.hanzi}。`, examplePinyin: `Zhège hěn ${word.pinyin}.`, exampleTranslation: `This is ${primaryMeaning(word.meaning)}.`, collocation: `很${word.hanzi}` };
-  if (numberWords.has(word.hanzi)) return { ...word, example: `我有${word.hanzi}个。`, examplePinyin: `Wǒ yǒu ${word.pinyin} ge.`, exampleTranslation: `I have ${primaryMeaning(word.meaning)}.`, collocation: `${word.hanzi}个` };
-  return { ...word, example: `这是${word.hanzi}。`, examplePinyin: `Zhè shì ${word.pinyin}.`, exampleTranslation: `This is ${primaryMeaning(word.meaning)}.`, collocation: `认识“${word.hanzi}”` };
+  return { ...word, ...contextualExample(word) };
 });
 
 const charactersRaw = `
