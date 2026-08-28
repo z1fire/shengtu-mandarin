@@ -199,15 +199,23 @@ test("uses focused app views instead of one scrolling curriculum page", async ()
   assert.doesNotMatch(source, /gradeCard|>Again <|>Hard <|>Good <|>Easy </);
   assert.match(source, /scrollIntoView\(\{ behavior: "smooth", block: "center" \}\)/);
   assert.match(source, /function beginRecallVerification/);
-  assert.match(source, /function showRecallCardBack/);
-  assert.match(source, /function returnToRecallQuestion/);
-  assert.match(source, /View card &amp; speak/);
-  assert.match(source, /Return to recall question/);
-  assert.match(source, /testingRecall && !cardRevealed \? <>/);
-  assert.match(source, /testingRecall && cardRevealed && <button className="recall-test-start"/);
+  assert.match(source, /function openRecallRemediation/);
+  assert.match(source, /function advanceAfterRecallConfirmation/);
+  assert.match(source, /function requestRecallHelp/);
+  assert.match(source, /function retryRecallQuestion/);
+  assert.match(source, /CORRECT · QUICK CONFIRMATION/);
+  assert.match(source, /Next card starts automatically/);
+  assert.match(source, /Practice missed words/);
+  assert.match(source, /Speaking-only round/);
+  assert.match(source, /Need help/);
   const recallAnswerSource = source.slice(source.indexOf("function answerRecallChallenge"), source.indexOf("function beginRecallVerification"));
-  assert.match(recallAnswerSource, /if \(!correct\) return;\s*recallAdvancingRef\.current = true;\s*completeVocabularyCard\(\);/);
-  assert.doesNotMatch(recallAnswerSource, /setCardRevealed\(true\)|setRecallVerified/);
+  assert.match(recallAnswerSource, /if \(!correct\) \{\s*openRecallRemediation/);
+  assert.match(recallAnswerSource, /setRecallFeedback\("correct"\)/);
+  assert.match(recallAnswerSource, /window\.setTimeout\(\(\) => \{/);
+  assert.match(source, /}, 1800\);/);
+  assert.doesNotMatch(recallAnswerSource, /setRecallVerified/);
+  assert.match(css, /\.recall-confirmation-controls/);
+  assert.match(css, /\.recall-remediation-note/);
   assert.doesNotMatch(source, /cadence-action|Verify recall first|RETRIEVAL VERIFIED/);
   const advanceSource = source.slice(source.indexOf("function completeVocabularyCard"), source.indexOf("function answerListening"));
   assert.ok(advanceSource.indexOf("currentRecallReplayPosition !== null") < advanceSource.indexOf("scheduleCadenceReview"));
@@ -674,8 +682,8 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
     assert.equal(png.readUInt32BE(20), size);
   }
 
-  assert.match(serviceWorker, /shengtu-v35/);
-  assert.match(versionSource, /1\.3\.10/);
+  assert.match(serviceWorker, /shengtu-v36/);
+  assert.match(versionSource, /1\.4\.0/);
   assert.match(serviceWorker, /request\.mode === "navigate"/);
   assert.match(serviceWorker, /url\.pathname\.includes\("\/api\/"\)/);
   assert.match(serviceWorker, /icon-maskable-512\.png/);
@@ -693,10 +701,10 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
   assert.match(source, /updateViaCache: "none"/);
   assert.match(source, /audioRecallPrompt/);
   assert.match(source, /visibleChineseRecallPrompt/);
-  assert.match(source, /repeatingRecallPrompt = repeatingCurrentRecall && testingRecall && !cardRevealed/);
-  assert.match(source, /recallPromptHasAudio = repeatingRecallPrompt \|\| audioRecallPrompt \|\| visibleChineseRecallPrompt/);
+  assert.doesNotMatch(source, /repeatingRecallPrompt/);
+  assert.match(source, /recallPromptHasAudio = audioRecallPrompt \|\| visibleChineseRecallPrompt/);
   assert.match(source, /prompt-audio-actions/);
-  assert.match(source, /cardRevealed \|\| recallPromptHasAudio/);
+  assert.match(source, /cardRevealed \|\| recallPromptHasActions/);
   assert.match(source, /▶ Hear word/);
   assert.match(appCss, /\.study-card\.recall-prompt-with-audio \.card-audio-actions/);
   assert.match(appCss, /\.study-card\.recall-prompt-with-audio \.audio-link \{[^}]*background: var\(--ink\)/);
@@ -704,7 +712,7 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
   assert.match(layoutSource, /crossOrigin="use-credentials"/);
   assert.match(source, /className="app-version"/);
   assert.match(source, /v\{APP_VERSION\}/);
-  assert.match(versionSource, /APP_VERSION = "1\.3\.10"/);
+  assert.match(versionSource, /APP_VERSION = "1\.4\.0"/);
   assert.match(pagesHtml, /mobile-web-app-capable/);
   assert.match(pagesHtml, /apple-touch-icon\.png/);
   assert.match(pagesHtml, /viewport-fit=cover/);

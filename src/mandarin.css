@@ -180,6 +180,15 @@ button { color: inherit; }
 .study-card.recall-prompt-with-audio .card-audio-actions { left: 50%; right: auto; bottom: 62px; width: max-content; max-width: calc(100% - 28px); justify-content: center; transform: translateX(-50%); }
 .study-card.recall-prompt-with-audio .audio-link { min-width: 120px; border-color: var(--ink); background: var(--ink); color: white; box-shadow: 4px 4px 0 var(--yellow); }
 .study-card.recall-prompt-with-audio .audio-link:hover { background: var(--coral); border-color: var(--coral); }
+.study-card.recall-confirmation { background: #e7f2ed; border-color: var(--jade); box-shadow: 10px 10px 0 var(--jade); }
+.study-card.recall-confirmation .hanzi-prompt { font-size: clamp(48px, 6vw, 76px); }
+.recall-confirmation-meaning { max-width: 90%; margin-top: 12px; color: var(--jade); font: 21px Georgia, serif; line-height: 1.2; text-align: center; overflow-wrap: anywhere; }
+.recall-confirmation-example { border-top-color: rgba(24,32,29,.22); }
+.recall-confirmation-controls { grid-column: 2; justify-self: end; width: min(100%, 570px); margin-top: -48px; padding: 12px; display: flex; flex-wrap: wrap; gap: 7px; border: 1px solid var(--jade); background: #f5fbf8; box-shadow: 5px 5px 0 #a8cfc0; }
+.recall-confirmation-controls button { flex: 1 1 125px; min-height: 42px; border: 1px solid var(--jade); background: white; color: var(--jade); padding: 9px 11px; cursor: pointer; font-size: 9px; font-weight: 900; }
+.recall-confirmation-controls button:hover { background: #e0eee8; }
+.recall-confirmation-controls .confirmation-next { background: var(--jade); color: white; }
+.recall-remediation-note { grid-column: 2; justify-self: end; width: min(100%, 570px); margin: -48px 0 0; padding: 12px 15px; border: 1px solid #9e2c1f; background: #fff0ed; color: #7e2b20; font-size: 11px; font-weight: 800; line-height: 1.45; }
 
 .big-listen-button { display: flex; align-items: center; gap: 14px; padding: 14px 20px; background: var(--blue); color: white; border: 0; margin-top: 26px; cursor: pointer; font-weight: 850; box-shadow: 5px 5px 0 #2c357b; }
 .big-listen-button span { width: 30px; height: 30px; display: grid; place-items: center; border: 1px solid rgba(255,255,255,.5); border-radius: 50%; font-size: 9px; }
@@ -942,7 +951,7 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
   .sound-gym-toggle, .sound-gym { grid-column: 1; }
   .study-card { grid-column: 1; justify-self: stretch; width: 100%; }
   .flashcard-speaking { grid-column: 1; justify-self: stretch; width: 100%; margin-top: -15px; }
-  .recall-test-start, .recall-verification { grid-column: 1; justify-self: stretch; width: 100%; margin-top: -12px; }
+  .recall-test-start, .recall-verification, .recall-confirmation-controls, .recall-remediation-note { grid-column: 1; justify-self: stretch; width: 100%; margin-top: -12px; }
   .queue-complete { grid-column: 1; justify-self: stretch; width: 100%; }
   .practice-tabs button { text-align: center; font-size: 0; }
   .practice-tabs button span { margin: 0; font-size: 12px; }
