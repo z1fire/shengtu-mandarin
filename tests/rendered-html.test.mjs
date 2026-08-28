@@ -139,6 +139,13 @@ test("uses focused app views instead of one scrolling curriculum page", async ()
   assert.match(source, /today’s course position is unchanged/);
   assert.match(source, /function completeVocabularyCard/);
   assert.match(source, /function reviewTodaysRecallAgain/);
+  assert.match(source, /function shuffleUnseenRecallQueue/);
+  assert.match(source, /function nextQueuePermutation/);
+  assert.match(source, /recallReplayOrdersRef/);
+  assert.match(source, /orderRegistry\.signatures = new Set\(\[queueSignature\(progress\.dailyQueue\)\]\)/);
+  assert.match(source, /setCurrentRecallReplayQueue\(replayQueue\)/);
+  assert.match(source, /repeatingCurrentRecall \? currentRecallReplayQueue : progress\.dailyQueue/);
+  assert.match(source, /Extra recall shuffled/);
   assert.match(source, /Review today’s cards again/);
   assert.match(source, /return dates, XP, and completion stay unchanged/);
   assert.match(source, /AUTOMATIC RECALL CADENCE/);
@@ -661,8 +668,8 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
     assert.equal(png.readUInt32BE(20), size);
   }
 
-  assert.match(serviceWorker, /shengtu-v33/);
-  assert.match(versionSource, /1\.3\.8/);
+  assert.match(serviceWorker, /shengtu-v34/);
+  assert.match(versionSource, /1\.3\.9/);
   assert.match(serviceWorker, /request\.mode === "navigate"/);
   assert.match(serviceWorker, /url\.pathname\.includes\("\/api\/"\)/);
   assert.match(serviceWorker, /icon-maskable-512\.png/);
@@ -691,7 +698,7 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
   assert.match(layoutSource, /crossOrigin="use-credentials"/);
   assert.match(source, /className="app-version"/);
   assert.match(source, /v\{APP_VERSION\}/);
-  assert.match(versionSource, /APP_VERSION = "1\.3\.8"/);
+  assert.match(versionSource, /APP_VERSION = "1\.3\.9"/);
   assert.match(pagesHtml, /mobile-web-app-capable/);
   assert.match(pagesHtml, /apple-touch-icon\.png/);
   assert.match(pagesHtml, /viewport-fit=cover/);

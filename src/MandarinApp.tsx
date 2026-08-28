@@ -256,6 +256,35 @@ function shuffle<T>(items: T[]) {
   return copy;
 }
 
+function queueSignature(items: number[]) {
+  return items.join(",");
+}
+
+function nextQueuePermutation(items: number[]) {
+  const candidate = [...items];
+  let pivot = candidate.length - 2;
+  while (pivot >= 0 && candidate[pivot] >= candidate[pivot + 1]) pivot -= 1;
+  if (pivot < 0) return candidate.reverse();
+  let successor = candidate.length - 1;
+  while (candidate[successor] <= candidate[pivot]) successor -= 1;
+  [candidate[pivot], candidate[successor]] = [candidate[successor], candidate[pivot]];
+  return [...candidate.slice(0, pivot + 1), ...candidate.slice(pivot + 1).reverse()];
+}
+
+function shuffleUnseenRecallQueue(items: number[], seenOrders: Set<string>) {
+  if (items.length < 2) return [...items];
+  for (let attempt = 0; attempt < 32; attempt += 1) {
+    const candidate = shuffle(items);
+    if (!seenOrders.has(queueSignature(candidate))) return candidate;
+  }
+  let candidate = [...items];
+  for (let attempt = 0; attempt <= seenOrders.size; attempt += 1) {
+    candidate = nextQueuePermutation(candidate);
+    if (!seenOrders.has(queueSignature(candidate))) return candidate;
+  }
+  return shuffle(items);
+}
+
 function speak(text: string, rate = 0.82) {
   if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
   window.speechSynthesis.cancel();
@@ -535,6 +564,8 @@ export default function MandarinApp() {
   const [todayScreen, setTodayScreen] = useState<"plan" | "lesson">("plan");
   const [replaySession, setReplaySession] = useState<ReplaySession | null>(null);
   const [currentRecallReplayPosition, setCurrentRecallReplayPosition] = useState<number | null>(null);
+  const [currentRecallReplayQueue, setCurrentRecallReplayQueue] = useState<number[]>([]);
+  const recallReplayOrdersRef = useRef<{ date: string; signatures: Set<string> }>({ date: "", signatures: new Set() });
   const [showStudyHistory, setShowStudyHistory] = useState(false);
   const [libraryView, setLibraryView] = useState<LibraryView>("words");
   const [practice, setPractice] = useState<PracticeMode>("flashcards");
@@ -946,7 +977,7 @@ export default function MandarinApp() {
   const repeatingCurrentRecall = !replaySession && currentRecallReplayPosition !== null;
   const recallIsExtraPractice = Boolean(replaySession) || repeatingCurrentRecall;
   const sessionDaily = replaySession?.completedSteps ?? progress.daily;
-  const sessionVocabularyQueue = replaySession?.vocabularyQueue ?? progress.dailyQueue;
+  const sessionVocabularyQueue = replaySession?.vocabularyQueue ?? (repeatingCurrentRecall ? currentRecallReplayQueue : progress.dailyQueue);
   const sessionCardPosition = replaySession?.cardPosition ?? currentRecallReplayPosition ?? progress.cardPosition;
   const sessionGrammarQueue = replaySession?.grammarQueue ?? progress.grammarQueue;
   const sessionGrammarPosition = replaySession?.grammarPosition ?? progress.grammarPosition;
@@ -1331,11 +1362,22 @@ export default function MandarinApp() {
 
   function reviewTodaysRecallAgain() {
     if (!progress.dailyQueue.length) return;
+    const replayDate = progress.dailyQueueDate || today;
+    const orderRegistry = recallReplayOrdersRef.current;
+    if (orderRegistry.date !== replayDate) {
+      orderRegistry.date = replayDate;
+      orderRegistry.signatures = new Set([queueSignature(progress.dailyQueue)]);
+    } else if (!orderRegistry.signatures.size) {
+      orderRegistry.signatures.add(queueSignature(progress.dailyQueue));
+    }
+    const replayQueue = shuffleUnseenRecallQueue(progress.dailyQueue, orderRegistry.signatures);
+    orderRegistry.signatures.add(queueSignature(replayQueue));
     setReplaySession(null);
+    setCurrentRecallReplayQueue(replayQueue);
     setCurrentRecallReplayPosition(0);
     setCardRevealed(false);
     setPractice("flashcards");
-    setToast("Extra recall started · return dates and rewards stay unchanged");
+    setToast("Extra recall shuffled · return dates and rewards stay unchanged");
   }
 
   function completeVocabularyCard() {
