@@ -74,10 +74,10 @@ test("server-renders the finished Mandarin course", async () => {
   const html = await response.text();
   assert.match(html, /Shēngtú — HSK 1 Mandarin Sprint/i);
   assert.match(html, /Stop studying Mandarin/);
-  assert.match(html, /Continue:[\s\S]{0,40}Recall/);
+  assert.match(html, /Continue:[\s\S]{0,40}Flashcards/);
   assert.match(html, /MISSION[\s\S]{0,30}01[\s\S]{0,30}DAY[\s\S]{0,30}1[\s\S]{0,20}\/ 3/);
   assert.match(html, /Grammar coverage/);
-  assert.match(html, /0[\s\S]{0,20}\/6 complete/);
+  assert.match(html, /0[\s\S]{0,20}\/7 complete/);
   assert.match(html, /Listening ladder/);
   assert.match(html, /Read in context/);
   assert.match(html, /aria-label="App navigation"/);
@@ -96,7 +96,7 @@ test("uses focused app views instead of one scrolling curriculum page", async ()
   assert.match(source, /todayScreen === "lesson"/);
   assert.match(source, /appView === "course"/);
   assert.match(source, /libraryView === "grammar"/);
-  assert.match(source, /type PracticeMode = "flashcards" \| "grammar" \| "listening" \| "builder" \| "reading" \| "speaking"/);
+  assert.match(source, /type PracticeMode = "flashcards" \| "recall" \| "grammar" \| "listening" \| "builder" \| "reading" \| "speaking"/);
   assert.match(source, /function completeMissionCheckpoint/);
   assert.match(source, /missionSteps/);
   assert.match(source, /libraryVocabulary\.length\.toLocaleString\(\).*Words/);
@@ -128,8 +128,8 @@ test("uses focused app views instead of one scrolling curriculum page", async ()
   assert.match(source, /showDayComplete/);
   assert.match(source, /Finish day →/);
   assert.match(source, /Today’s learning/);
-  assert.match(source, /Optional: review today’s recall again/);
-  assert.match(source, /of 6/);
+  assert.match(source, /Optional: retry today’s recall test/);
+  assert.match(source, /of 7/);
   assert.match(source, /function appRouteFromHash/);
   assert.match(source, /window\.history\.pushState/);
   assert.match(source, /addEventListener\("popstate"/);
@@ -146,10 +146,16 @@ test("uses focused app views instead of one scrolling curriculum page", async ()
   assert.match(source, /setCurrentRecallReplayQueue\(replayQueue\)/);
   assert.match(source, /repeatingCurrentRecall \? currentRecallReplayQueue : progress\.dailyQueue/);
   assert.match(source, /Extra recall shuffled/);
-  assert.match(source, /Review today’s cards again/);
-  assert.match(source, /return dates, XP, and completion stay unchanged/);
+  assert.match(source, /Retry recall test/);
+  assert.match(source, /Return dates, XP, and today’s completion stay unchanged/);
   assert.match(source, /AUTOMATIC RECALL CADENCE/);
-  assert.match(source, /ANSWER WITHOUT SELF-RATING/);
+  assert.match(source, /CHOOSE FROM MEMORY/);
+  assert.match(source, /FULL-CARD STUDY/);
+  assert.match(source, /Learn first\. Test second\./);
+  assert.match(source, /Finish flashcards & start recall/);
+  assert.match(source, /I don’t recall/);
+  assert.match(source, /Miss recorded · study the answer/);
+  assert.match(source, /flashcardPosition/);
   assert.match(source, /AUTOMATIC CORRECTION LOOP/);
   assert.match(source, /showCorrectionCenter/);
   assert.match(source, /correction-center-backdrop/);
@@ -198,7 +204,8 @@ test("uses focused app views instead of one scrolling curriculum page", async ()
   assert.doesNotMatch(source, /pinyinPeeked/);
   assert.doesNotMatch(source, /gradeCard|>Again <|>Hard <|>Good <|>Easy </);
   assert.match(source, /scrollIntoView\(\{ behavior: "smooth", block: "center" \}\)/);
-  assert.match(source, /function beginRecallVerification/);
+  assert.match(source, /function completeFlashcardCard/);
+  assert.match(source, /function continueAfterFlashcards/);
   assert.match(source, /function openRecallRemediation/);
   assert.match(source, /function advanceAfterRecallConfirmation/);
   assert.match(source, /function requestRecallHelp/);
@@ -206,10 +213,10 @@ test("uses focused app views instead of one scrolling curriculum page", async ()
   assert.match(source, /CORRECT · QUICK CONFIRMATION/);
   assert.match(source, /Review the confirmation, then continue when ready/);
   assert.match(source, /Continue to next card/);
-  assert.match(source, /Practice missed words/);
+  assert.match(source, /Retest missed words/);
   assert.match(source, /Speaking-only round/);
-  assert.match(source, /Need help/);
-  const recallAnswerSource = source.slice(source.indexOf("function answerRecallChallenge"), source.indexOf("function beginRecallVerification"));
+  assert.match(source, /I don’t recall/);
+  const recallAnswerSource = source.slice(source.indexOf("function answerRecallChallenge"), source.indexOf("function expandRecallConfirmation"));
   assert.match(recallAnswerSource, /if \(!correct\) \{\s*openRecallRemediation/);
   assert.match(recallAnswerSource, /setRecallFeedback\("correct"\)/);
   assert.doesNotMatch(source, /recallAdvanceTimerRef|cancelRecallAutoAdvance|}, 1800\);/);
@@ -512,12 +519,25 @@ test("resets daily work, calculates real streaks, and prevents repeat rewards", 
   assert.deepEqual(normalized.listeningDone, []);
 
   const legacyMissionProgress = normalizeProgress({ ...stale, version: 2, missions: [0, 1], missionSteps: undefined }, 300, 70, "2026-08-19");
-  assert.equal(legacyMissionProgress.version, 10);
+  assert.equal(legacyMissionProgress.version, 11);
   assert.deepEqual(legacyMissionProgress.graduatedLevels, []);
   assert.equal(legacyMissionProgress.trainingSeconds, 0);
   assert.deepEqual(legacyMissionProgress.missionSteps, ["0:0", "0:1", "0:2", "1:0", "1:1", "1:2"]);
   assert.equal(legacyMissionProgress.missionSessionCount, 6);
   assert.equal(legacyMissionProgress.grammarQueue.at(-1), 0);
+
+  const splitVocabularyMigration = normalizeProgress({
+    ...makeStarterProgress("2026-08-18"),
+    version: 10,
+    daily: ["review"],
+    dailyDate: "2026-08-18",
+    dailyQueue: [0, 1, 2],
+    dailyQueueDate: "2026-08-18",
+    cardPosition: 3,
+  }, 300, 70, "2026-08-18");
+  assert.deepEqual(splitVocabularyMigration.daily.slice(0, 2), ["flashcards", "review"]);
+  assert.equal(splitVocabularyMigration.flashcardPosition, 3);
+  assert.equal(splitVocabularyMigration.cardPosition, 3);
 
   const lastReviewedAt = new Date(2026, 7, 15, 18).getTime();
   const cadenceMigration = normalizeProgress({
@@ -533,7 +553,7 @@ test("archives exact study days and preserves repeat counts across dates", () =>
   const studied = recordStudyDay({
     ...makeStarterProgress("2026-08-18"),
     onboarded: true,
-    daily: ["review", "grammar", "listen", "build", "reading", "speak"],
+    daily: ["flashcards", "review", "grammar", "listen", "build", "reading", "speak"],
     dailyQueue: [2, 4, 2, 8],
     dailyQueueDate: "2026-08-18",
     grammarQueue: [1, 3],
@@ -545,7 +565,7 @@ test("archives exact study days and preserves repeat counts across dates", () =>
   assert.deepEqual(day.grammarQueue, [1, 3]);
   assert.equal(day.missionIndex, 0);
   assert.equal(day.missionPhase, 0);
-  assert.deepEqual(day.completedSteps, ["review", "grammar", "listen", "build", "reading", "speak"]);
+  assert.deepEqual(day.completedSteps, ["flashcards", "review", "grammar", "listen", "build", "reading", "speak"]);
 
   const replayed = recordStudyDayReplay(studied, "1", "2026-08-18");
   assert.equal(replayed.studyHistory["1"][0].replayCount, 1);
@@ -682,8 +702,8 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
     assert.equal(png.readUInt32BE(20), size);
   }
 
-  assert.match(serviceWorker, /shengtu-v37/);
-  assert.match(versionSource, /1\.4\.1/);
+  assert.match(serviceWorker, /shengtu-v38/);
+  assert.match(versionSource, /1\.5\.0/);
   assert.match(serviceWorker, /request\.mode === "navigate"/);
   assert.match(serviceWorker, /url\.pathname\.includes\("\/api\/"\)/);
   assert.match(serviceWorker, /icon-maskable-512\.png/);
@@ -712,7 +732,7 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
   assert.match(layoutSource, /crossOrigin="use-credentials"/);
   assert.match(source, /className="app-version"/);
   assert.match(source, /v\{APP_VERSION\}/);
-  assert.match(versionSource, /APP_VERSION = "1\.4\.1"/);
+  assert.match(versionSource, /APP_VERSION = "1\.5\.0"/);
   assert.match(pagesHtml, /mobile-web-app-capable/);
   assert.match(pagesHtml, /apple-touch-icon\.png/);
   assert.match(pagesHtml, /viewport-fit=cover/);
