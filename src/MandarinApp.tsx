@@ -23,6 +23,7 @@ import {
   type LevelVocabularyWord,
 } from "./level-content";
 import {
+  advanceLearningSession,
   buildDailyQueue,
   buildDailyGrammarQueue,
   completeDailyStep,
@@ -1160,6 +1161,7 @@ export default function MandarinApp() {
   const currentPracticeComplete = currentPracticeStep ? sessionDaily.includes(currentPracticeStep.id) : false;
   const dailyLessonComplete = !replaySession && isStudySessionComplete(progress.daily);
   const resumingStudySession = !replaySession && !dailyLessonComplete && progress.dailyDate !== today;
+  const catchUpDayComplete = dailyLessonComplete && progress.dailyDate !== today && progress.sessionCompletedDate === today;
 
   function studyDayLabel(date: string) {
     return new Date(`${date}T12:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
@@ -1380,6 +1382,22 @@ export default function MandarinApp() {
     setProgress((current) => isStudySessionComplete(current.daily) ? { ...current, sessionCompletedDate: today } : current);
     navigate("today");
     setShowDayComplete(true);
+  }
+
+  function startNextLearningDay() {
+    setProgress((current) => advanceLearningSession(current, vocabulary.length, levelGrammar.length, today));
+    setShowDayComplete(false);
+    setCurrentRecallReplayPosition(null);
+    setCurrentRecallReplayQueue([]);
+    setRecallSpeakingRound(false);
+    setRecallMissedIndices([]);
+    setCardRevealed(false);
+    setCardPinyinOverride(null);
+    setDailyGrammarStage("learn");
+    setDailyGrammarResult("");
+    setDailyGrammarAnswered(false);
+    goToPractice("flashcards");
+    setToast("Next learning day started · this is today’s one catch-up advance");
   }
 
   function startOptionalRecallReview() {
@@ -2195,16 +2213,16 @@ export default function MandarinApp() {
           <div className="eyebrow"><span>HSK 3.0</span> {meta.label.toUpperCase()} · CURRENT 2026 SYLLABUS</div>
           <h1>Stop studying Mandarin.<br /><em>Start using it.</em></h1>
           <p className="hero-lede">A guided, speaking-first {meta.label} course that schedules the right words each learning day—never the whole level at once.</p>
-          <div className="hero-actions">{dailyLessonComplete ? <button className="primary-button day-finished-button" onClick={() => activeCorrections.length > 0 ? setShowCorrectionCenter(true) : setShowDayComplete(true)}>{activeCorrections.length > 0 ? `Finish: clear ${activeCorrections.length} correction${activeCorrections.length === 1 ? "" : "s"}` : "✓ Day complete"} <span>→</span></button> : <button className="primary-button" onClick={() => goToPractice(nextRecommended)}>Continue: {practiceLabels[nextRecommended]} <span>→</span></button>}<button className="history-button" onClick={() => setShowStudyHistory(true)}><span>↶</span> Study history</button>{!isInstalled && account.mode !== "checking" && account.mode !== "device-only" && <button className="install-app-button" onClick={() => void installApp()}><span>↓</span> Install app</button>}<button className="text-button" onClick={() => navigate("course")}><span className="play-dot">▶</span> See the mission path</button></div>
+          <div className="hero-actions">{dailyLessonComplete ? <button className="primary-button day-finished-button" onClick={() => activeCorrections.length > 0 ? setShowCorrectionCenter(true) : setShowDayComplete(true)}>{activeCorrections.length > 0 ? `Finish: clear ${activeCorrections.length} correction${activeCorrections.length === 1 ? "" : "s"}` : catchUpDayComplete ? "✓ Catch-up complete" : "✓ Day complete"} <span>→</span></button> : <button className="primary-button" onClick={() => goToPractice(nextRecommended)}>Continue: {practiceLabels[nextRecommended]} <span>→</span></button>}<button className="history-button" onClick={() => setShowStudyHistory(true)}><span>↶</span> Study history</button>{!isInstalled && account.mode !== "checking" && account.mode !== "device-only" && <button className="install-app-button" onClick={() => void installApp()}><span>↓</span> Install app</button>}<button className="text-button" onClick={() => navigate("course")}><span className="play-dot">▶</span> See the mission path</button></div>
           <div className="hero-proof"><div><strong>{meta.newWords.toLocaleString()}</strong><span>new words</span></div><div><strong>{meta.newCharacters.toLocaleString()}</strong><span>new characters</span></div><div><strong>{meta.grammarTargets}</strong><span>grammar targets</span></div><div><strong>{meta.cumulativeWords.toLocaleString()}</strong><span>cumulative words</span></div></div>
         </div>
 
         <aside className="today-card" aria-label="Today’s lesson plan">
           <div className="today-card-head"><div><span className="micro-label">{missionCycle ? `FLUENCY LOOP ${missionCycle + 1}` : `MISSION ${String(activeMissionIndex + 1).padStart(2, "0")}`} · DAY {missionPhase + 1} / 3</span><h2>{activeMission.title}</h2><button className="today-history-link" onClick={() => setShowStudyHistory(true)}>↶ Previous study days</button></div><div className="progress-orb" style={{ "--progress": `${dayPercent * 3.6}deg` } as React.CSSProperties}><span>{dayPercent}%</span></div></div>
           <div className={`mission-day-note ${dailyLessonComplete ? "complete" : resumingStudySession ? "resuming" : ""}`}>
-            <strong>{dailyLessonComplete ? "Learning day complete" : resumingStudySession ? "Resume your open learning day" : missionPhaseCopy[missionPhase].title}</strong>
+            <strong>{dailyLessonComplete ? catchUpDayComplete ? "Catch-up learning day complete" : "Learning day complete" : resumingStudySession ? "Resume your open learning day" : missionPhaseCopy[missionPhase].title}</strong>
             <span>{dailyLessonComplete
-              ? activeCorrections.length > 0 ? "Your seven lesson steps are complete. Clear today’s correction to finish." : "All required work is finished. Your next learning day will unlock when you return."
+              ? activeCorrections.length > 0 ? "Your seven lesson steps are complete. Clear today’s correction to finish." : catchUpDayComplete ? "You caught up. Start one new learning day now from the finish screen, or stop here." : "All required work is finished. Your next learning day will unlock when you return."
               : resumingStudySession ? `Started ${studyDayLabel(progress.dailyDate)} · skipped calendar days added no backlog. Finish this session to advance.` : missionPhaseCopy[missionPhase].detail}</span>
           </div>
           <div className="coverage-pulse" aria-label="Syllabus coverage"><span><b>{wordsIntroduced.toLocaleString()}</b> / {vocabulary.length.toLocaleString()} words taught</span><span><b>{grammarIntroduced}</b> / {levelGrammar.length} grammar taught</span></div>
@@ -2480,7 +2498,7 @@ export default function MandarinApp() {
 
       {ready && showCorrectionCenter && !syncConflict && <div className="correction-center-backdrop" role="dialog" aria-modal="true" aria-labelledby="correction-center-title"><div className="correction-center-sheet"><div className="correction-center-head"><div><span className="section-kicker">AUTOMATIC CORRECTION LOOP · {meta.label.toUpperCase()}</span><h2 id="correction-center-title">{activeCorrection ? `${activeCorrections.length} correction${activeCorrections.length === 1 ? "" : "s"} ready now.` : levelCorrections.length ? "Your next check is scheduled." : "All corrections are clear."}</h2></div><button onClick={() => setShowCorrectionCenter(false)} aria-label="Close correction center">×</button></div>{activeCorrection ? <><p className="correction-center-explainer">A miss clears after you answer it correctly now and correctly once more on the next day. This does not change your vocabulary cadence.</p><div className="correction-card"><span>{skillLabels[activeCorrection.skill]}</span><strong>{activeCorrection.prompt}</strong>{activeCorrectionAudio && <div className="correction-audio-actions"><button onClick={() => speak(activeCorrectionAudio)}><span>▶</span> Play correction audio</button><button onClick={() => speak(activeCorrectionAudio, 0.62)}>Play slower</button></div>}<div>{activeCorrection.options.map((option) => <button key={option} onClick={() => answerCorrection(option)}>{option}</button>)}</div>{correctionResult && <p className={correctionResult.startsWith("Correct") ? "correct" : ""}>{correctionResult}<small>{activeCorrection.explanation}</small></p>}</div></> : levelCorrections.length ? <div className="correction-waiting"><span>✓</span><div><strong>{levelCorrections[0].correctStreak >= 1 ? "First check complete" : "No correction is due yet"}</strong><p>{levelCorrections[0].correctStreak >= 1 ? `You answered this correctly once. The final check unlocks ${correctionDueLabel(levelCorrections[0].dueDate).toLowerCase()}; there is nothing else you need to do for it today.` : `This correction unlocks ${correctionDueLabel(levelCorrections[0].dueDate).toLowerCase()}.`}</p><small>Next check · {studyDayLabel(levelCorrections[0].dueDate)}</small></div></div> : <div className="correction-waiting cleared"><span>✓</span><div><strong>Nothing waiting</strong><p>You have completed both checks for every correction in {meta.label}.</p></div></div>}<button className="correction-center-done" onClick={() => setShowCorrectionCenter(false)}>Done</button></div></div>}
 
-      {ready && showDayComplete && !syncConflict && <div className="day-complete-backdrop" role="dialog" aria-modal="true" aria-labelledby="day-complete-title"><div className="day-complete-sheet"><button className="day-complete-close" onClick={() => setShowDayComplete(false)} aria-label="Close day summary">×</button><span className="day-complete-seal" aria-hidden="true">好</span><span className="section-kicker">{meta.label.toUpperCase()} · MISSION {activeMissionIndex + 1} · DAY {missionPhase + 1}/3</span><h2 id="day-complete-title">Today’s learning<br /><em>is complete.</em></h2><p>You finished all seven required exercises and cleared everything due today. Your vocabulary and grammar return slots are already scheduled.</p><div className="day-complete-stats"><div><strong>7 / 7</strong><span>steps complete</span></div><div><strong>{formatTrainingMinutes(displayedTodayTrainingSeconds)}</strong><span>active minutes</span></div><div><strong>Clear</strong><span>due corrections</span></div></div><div className="day-complete-actions"><button className="day-complete-done" onClick={() => setShowDayComplete(false)}>Finish for today</button><button onClick={startOptionalRecallReview}>Optional: retry today’s recall test</button></div><small>Extra recall is always available, but it will not change the automatic return schedule or today’s completion.</small></div></div>}
+      {ready && showDayComplete && !syncConflict && <div className="day-complete-backdrop" role="dialog" aria-modal="true" aria-labelledby="day-complete-title"><div className="day-complete-sheet"><button className="day-complete-close" onClick={() => setShowDayComplete(false)} aria-label="Close day summary">×</button><span className="day-complete-seal" aria-hidden="true">好</span><span className="section-kicker">{meta.label.toUpperCase()} · MISSION {activeMissionIndex + 1} · DAY {missionPhase + 1}/3</span><h2 id="day-complete-title">{catchUpDayComplete ? <>Your catch-up day<br /><em>is complete.</em></> : <>Today’s learning<br /><em>is complete.</em></>}</h2><p>{catchUpDayComplete ? "You finished the older session and cleared everything due. You may now begin one full learning day for today, so a small carry-over never becomes your entire study session." : "You finished all seven required exercises and cleared everything due today. Your vocabulary and grammar return slots are already scheduled."}</p><div className="day-complete-stats"><div><strong>7 / 7</strong><span>steps complete</span></div><div><strong>{formatTrainingMinutes(displayedTodayTrainingSeconds)}</strong><span>active minutes</span></div><div><strong>Clear</strong><span>due corrections</span></div></div><div className="day-complete-actions">{catchUpDayComplete && <button className="day-complete-advance" onClick={startNextLearningDay}>Start next learning day <span>→</span></button>}<button className="day-complete-done" onClick={() => setShowDayComplete(false)}>Finish for today</button><button onClick={startOptionalRecallReview}>Optional: retry today’s recall test</button></div><small>{catchUpDayComplete ? "You can advance once because this lesson began on an earlier calendar day. The new lesson becomes today’s active session." : "Extra recall is always available, but it will not change the automatic return schedule or today’s completion."}</small></div></div>}
 
       {ready && !syncReady && !progress.onboarded && <div className="sync-startup-backdrop" role="status" aria-live="polite"><div className="sync-startup-card"><span className="account-spinner" aria-hidden="true" /><strong>Checking for your saved course…</strong><small>First-time setup will appear only if no account progress is found.</small></div></div>}
 

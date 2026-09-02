@@ -3,6 +3,7 @@ import { access, readFile } from "node:fs/promises";
 import test from "node:test";
 import {
   activate,
+  advanceLearningSession,
   buildDailyGrammarQueue,
   buildDailyQueue,
   completeDailyStep,
@@ -125,8 +126,10 @@ test("uses focused app views instead of one scrolling curriculum page", async ()
   assert.match(source, /className="mobile-nav"/);
   assert.match(source, /lesson-next-bar/);
   assert.match(source, /function finishStudyDay/);
+  assert.match(source, /function startNextLearningDay/);
   assert.match(source, /showDayComplete/);
   assert.match(source, /Finish day →/);
+  assert.match(source, /Start next learning day/);
   assert.match(source, /Today’s learning/);
   assert.match(source, /Optional: retry today’s recall test/);
   assert.match(source, /of 7/);
@@ -640,6 +643,48 @@ test("removes legacy zero-attempt ghost days and restores the latest partial les
   assert.deepEqual(repaired.studyHistory["1"].map((day) => day.date), ["2026-08-23", "2026-08-29", "2026-08-30"]);
 });
 
+test("allows exactly one new learning day after completing an older session", () => {
+  const completeSteps = ["flashcards", "review", "grammar", "listen", "build", "reading", "speak"];
+  const completedCatchUp = {
+    ...makeStarterProgress("2026-08-30"),
+    onboarded: true,
+    daily: completeSteps,
+    dailyDate: "2026-08-30",
+    cadenceDate: "2026-08-30",
+    sessionCompletedDate: "2026-09-02",
+    dailyQueue: [0, 1],
+    dailyQueueDate: "2026-08-30",
+    flashcardPosition: 2,
+    cardPosition: 2,
+    grammarQueue: [0, 1],
+    grammarQueueDate: "2026-08-30",
+    grammarPosition: 2,
+    reviews: {
+      0: { dueAt: new Date(2026, 7, 31).getTime(), intervalDays: 1, repetitions: 1, lapses: 0, lastReviewedAt: 1 },
+      1: { dueAt: new Date(2026, 8, 1).getTime(), intervalDays: 2, repetitions: 2, lapses: 0, lastReviewedAt: 2 },
+    },
+    grammarReviews: {
+      0: { dueAt: new Date(2026, 7, 31).getTime(), intervalDays: 1, repetitions: 1, lapses: 0, lastReviewedAt: 1 },
+      1: { dueAt: new Date(2026, 8, 1).getTime(), intervalDays: 2, repetitions: 2, lapses: 0, lastReviewedAt: 2 },
+    },
+  };
+
+  const advanced = advanceLearningSession(completedCatchUp, 2, 2, "2026-09-02");
+  assert.equal(advanced.dailyDate, "2026-09-02");
+  assert.equal(advanced.cadenceDate, "2026-08-31");
+  assert.equal(advanced.sessionCompletedDate, "");
+  assert.deepEqual(advanced.daily, []);
+  assert.deepEqual(advanced.dailyQueue, [0]);
+  assert.deepEqual(advanced.grammarQueue, [0]);
+  assert.equal(advanced.flashcardPosition, 0);
+  assert.equal(advanced.cardPosition, 0);
+  assert.equal(advanced.grammarPosition, 0);
+  assert.deepEqual(advanced.studyHistory["1"].map((day) => day.date), ["2026-08-30", "2026-09-02"]);
+
+  const completedToday = { ...advanced, daily: completeSteps, sessionCompletedDate: "2026-09-02" };
+  assert.equal(advanceLearningSession(completedToday, 2, 2, "2026-09-02"), completedToday);
+});
+
 test("archives exact study days and preserves repeat counts across dates", () => {
   const studied = recordStudyDay({
     ...makeStarterProgress("2026-08-18"),
@@ -793,8 +838,8 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
     assert.equal(png.readUInt32BE(20), size);
   }
 
-  assert.match(serviceWorker, /shengtu-v42/);
-  assert.match(versionSource, /1\.6\.2/);
+  assert.match(serviceWorker, /shengtu-v43/);
+  assert.match(versionSource, /1\.7\.0/);
   assert.match(serviceWorker, /request\.mode === "navigate"/);
   assert.match(serviceWorker, /url\.pathname\.includes\("\/api\/"\)/);
   assert.match(serviceWorker, /icon-maskable-512\.png/);
@@ -823,7 +868,7 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
   assert.match(layoutSource, /crossOrigin="use-credentials"/);
   assert.match(source, /className="app-version"/);
   assert.match(source, /v\{APP_VERSION\}/);
-  assert.match(versionSource, /APP_VERSION = "1\.6\.2"/);
+  assert.match(versionSource, /APP_VERSION = "1\.7\.0"/);
   assert.match(pagesHtml, /mobile-web-app-capable/);
   assert.match(pagesHtml, /apple-touch-icon\.png/);
   assert.match(pagesHtml, /viewport-fit=cover/);

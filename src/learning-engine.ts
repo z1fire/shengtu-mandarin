@@ -700,6 +700,41 @@ export function switchProgressLevel(progress: Progress, selectedLevel: HskLevel,
   return recordStudyDay(switched);
 }
 
+export function advanceLearningSession(progress: Progress, vocabularySize: number, grammarSize: number, date = localDate()): Progress {
+  const hasDueCorrections = progress.corrections.some((item) => item.level === progress.selectedLevel && item.dueDate <= date);
+  if (
+    !progress.onboarded
+    || !isStudySessionComplete(progress.daily)
+    || progress.dailyDate === date
+    || progress.sessionCompletedDate !== date
+    || hasDueCorrections
+  ) return progress;
+
+  const recorded = recordStudyDay(progress);
+  const cadenceDate = addStudyDays(recorded.cadenceDate, 1);
+  const cadenceNow = studyDateTimestamp(cadenceDate);
+  const nextSession: Progress = {
+    ...recorded,
+    daily: [],
+    dailyDate: date,
+    cadenceDate,
+    sessionCompletedDate: "",
+    dailyQueue: [],
+    dailyQueueDate: date,
+    flashcardPosition: 0,
+    cardPosition: 0,
+    grammarQueue: [],
+    grammarQueueDate: date,
+    grammarPosition: 0,
+    listeningDone: [],
+    builderDone: [],
+    pronunciationDone: [],
+  };
+  nextSession.dailyQueue = buildDailyQueue(nextSession, vocabularySize, cadenceNow);
+  nextSession.grammarQueue = buildDailyGrammarQueue(nextSession, grammarSize, cadenceNow);
+  return recordStudyDay(nextSession);
+}
+
 export function activate(progress: Progress, date = localDate()): Progress {
   if (progress.lastActive === date) return progress;
   const gap = progress.lastActive ? daysBetween(progress.lastActive, date) : 0;

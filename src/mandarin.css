@@ -810,6 +810,7 @@ button { color: inherit; }
 .day-complete-stats span { margin-top: 4px; color: var(--muted); font-size: 8px; font-weight: 850; text-transform: uppercase; }
 .day-complete-actions { display: flex; gap: 12px; align-items: center; }
 .day-complete-actions button { border: 0; padding: 13px 15px; cursor: pointer; font-size: 9px; font-weight: 900; }
+.day-complete-actions .day-complete-advance { background: var(--jade); color: white; box-shadow: 4px 4px 0 var(--ink); }
 .day-complete-actions .day-complete-done { background: var(--coral); color: white; box-shadow: 4px 4px 0 var(--ink); }
 .day-complete-actions button:last-child { border-bottom: 1px solid currentColor; background: transparent; color: var(--muted); padding-inline: 0; }
 .day-complete-sheet > small { display: block; margin-top: 18px; color: var(--muted); font-size: 8px; line-height: 1.5; }
