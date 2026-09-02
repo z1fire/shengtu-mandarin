@@ -793,8 +793,8 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
     assert.equal(png.readUInt32BE(20), size);
   }
 
-  assert.match(serviceWorker, /shengtu-v41/);
-  assert.match(versionSource, /1\.6\.1/);
+  assert.match(serviceWorker, /shengtu-v42/);
+  assert.match(versionSource, /1\.6\.2/);
   assert.match(serviceWorker, /request\.mode === "navigate"/);
   assert.match(serviceWorker, /url\.pathname\.includes\("\/api\/"\)/);
   assert.match(serviceWorker, /icon-maskable-512\.png/);
@@ -823,7 +823,7 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
   assert.match(layoutSource, /crossOrigin="use-credentials"/);
   assert.match(source, /className="app-version"/);
   assert.match(source, /v\{APP_VERSION\}/);
-  assert.match(versionSource, /APP_VERSION = "1\.6\.1"/);
+  assert.match(versionSource, /APP_VERSION = "1\.6\.2"/);
   assert.match(pagesHtml, /mobile-web-app-capable/);
   assert.match(pagesHtml, /apple-touch-icon\.png/);
   assert.match(pagesHtml, /viewport-fit=cover/);
@@ -854,6 +854,8 @@ test("configures authenticated cross-device progress sync with a device-local fa
   assert.match(source, /\/signout-with-chatgpt\?return_to=%2F/);
   assert.match(source, /Open the synced app/);
   assert.match(source, /Two progress copies were found/);
+  assert.match(source, /remoteNeedsWriteback/);
+  assert.match(source, /lastSyncedPayloadRef\.current = remoteNeedsWriteback \? "" : normalizedRemotePayload/);
   assert.match(source, /syncReady && !syncConflict/);
   assert.match(source, /Device-only copy/);
   assert.match(css, /\.account-sheet/);

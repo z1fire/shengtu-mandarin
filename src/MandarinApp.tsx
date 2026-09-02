@@ -719,9 +719,11 @@ export default function MandarinApp() {
               ? (remote.progress as { selectedLevel: HskLevel }).selectedLevel
               : "1";
             const normalized = normalizeProgress(remote.progress, getStudyVocabulary(remoteLevel).length, getLibraryGrammar(remoteLevel, false).length, today);
-            lastSyncedPayloadRef.current = JSON.stringify(recordStudyDay(normalized));
+            const normalizedRemotePayload = JSON.stringify(recordStudyDay(normalized));
+            const remoteNeedsWriteback = JSON.stringify(remote.progress) !== normalizedRemotePayload;
+            lastSyncedPayloadRef.current = remoteNeedsWriteback ? "" : normalizedRemotePayload;
             const localPayload = JSON.stringify(recordStudyDay(localProgress));
-            if (remoteUpdatedAt > localSavedAt && hasLearningActivity(localProgress) && localPayload !== lastSyncedPayloadRef.current) {
+            if (remoteUpdatedAt > localSavedAt && hasLearningActivity(localProgress) && localPayload !== normalizedRemotePayload) {
               setSyncConflict({ local: localProgress, remote: normalized, remoteUpdatedAt });
               setSyncStatus("conflict");
               return;
@@ -911,6 +913,7 @@ export default function MandarinApp() {
       window.localStorage.setItem(LOCAL_SYNC_TIME_KEY, String(syncConflict.remoteUpdatedAt));
       setProgress(syncConflict.remote);
       setOnboardingGoal(syncConflict.remote.dailyNew);
+      lastSyncedPayloadRef.current = "";
       setSyncStatus("synced");
     } else {
       setProgress(syncConflict.local);
