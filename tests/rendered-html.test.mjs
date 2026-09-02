@@ -571,7 +571,7 @@ test("resumes unfinished learning days while keeping real streaks, time, and rew
   assert.equal(justCompletedToday.daily.length, 7);
 
   const legacyMissionProgress = normalizeProgress({ ...unfinished, version: 2, missions: [0, 1], missionSteps: undefined }, 300, 70, "2026-08-19");
-  assert.equal(legacyMissionProgress.version, 12);
+  assert.equal(legacyMissionProgress.version, 13);
   assert.deepEqual(legacyMissionProgress.graduatedLevels, []);
   assert.equal(legacyMissionProgress.trainingSeconds, 0);
   assert.deepEqual(legacyMissionProgress.missionSteps, ["0:0", "0:1", "0:2", "1:0", "1:1", "1:2"]);
@@ -599,6 +599,45 @@ test("resumes unfinished learning days while keeping real streaks, time, and rew
   }, 300, 70, "2026-08-18");
   assert.equal(cadenceMigration.reviews[4].intervalDays, 3);
   assert.equal(cadenceMigration.reviews[4].dueAt, new Date(2026, 7, 18).getTime());
+});
+
+test("removes legacy zero-attempt ghost days and restores the latest partial lesson", () => {
+  const completeSteps = ["flashcards", "review", "grammar", "listen", "build", "reading", "speak"];
+  const ghosted = {
+    ...makeStarterProgress("2026-09-02"),
+    version: 12,
+    onboarded: true,
+    daily: [],
+    dailyDate: "2026-09-02",
+    cadenceDate: "2026-09-02",
+    dailyQueue: Array.from({ length: 56 }, (_, index) => index),
+    dailyQueueDate: "2026-09-02",
+    grammarQueue: [0, 1, 2],
+    grammarQueueDate: "2026-09-02",
+    studyHistory: {
+      "1": [
+        { date: "2026-08-23", vocabularyQueue: [], grammarQueue: [], missionIndex: 0, missionPhase: 0, completedSteps: [], replayCount: 0 },
+        { date: "2026-08-29", vocabularyQueue: [0, 1], grammarQueue: [0], missionIndex: 1, missionPhase: 2, completedSteps: completeSteps, replayCount: 0 },
+        { date: "2026-08-30", vocabularyQueue: [0, 1, 2, 3], grammarQueue: [3, 6], missionIndex: 2, missionPhase: 0, completedSteps: ["flashcards", "review"], replayCount: 0 },
+        { date: "2026-08-31", vocabularyQueue: [0, 1, 2, 3], grammarQueue: [3, 6], missionIndex: 2, missionPhase: 0, completedSteps: [], replayCount: 0 },
+        { date: "2026-09-01", vocabularyQueue: [0, 1, 2, 3, 4], grammarQueue: [3, 6], missionIndex: 2, missionPhase: 0, completedSteps: [], replayCount: 0 },
+        { date: "2026-09-02", vocabularyQueue: [0, 1, 2, 3, 4, 5], grammarQueue: [3, 6], missionIndex: 2, missionPhase: 0, completedSteps: [], replayCount: 0 },
+      ],
+    },
+  };
+
+  const repaired = normalizeProgress(ghosted, 300, 70, "2026-09-02");
+  assert.equal(repaired.version, 13);
+  assert.equal(repaired.dailyDate, "2026-08-30");
+  assert.equal(repaired.cadenceDate, "2026-08-30");
+  assert.equal(repaired.sessionCompletedDate, "");
+  assert.deepEqual(repaired.daily, ["flashcards", "review"]);
+  assert.deepEqual(repaired.dailyQueue, [0, 1, 2, 3]);
+  assert.equal(repaired.flashcardPosition, 4);
+  assert.equal(repaired.cardPosition, 4);
+  assert.deepEqual(repaired.grammarQueue, [3, 6]);
+  assert.equal(repaired.grammarPosition, 0);
+  assert.deepEqual(repaired.studyHistory["1"].map((day) => day.date), ["2026-08-23", "2026-08-29", "2026-08-30"]);
 });
 
 test("archives exact study days and preserves repeat counts across dates", () => {
@@ -754,8 +793,8 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
     assert.equal(png.readUInt32BE(20), size);
   }
 
-  assert.match(serviceWorker, /shengtu-v40/);
-  assert.match(versionSource, /1\.6\.0/);
+  assert.match(serviceWorker, /shengtu-v41/);
+  assert.match(versionSource, /1\.6\.1/);
   assert.match(serviceWorker, /request\.mode === "navigate"/);
   assert.match(serviceWorker, /url\.pathname\.includes\("\/api\/"\)/);
   assert.match(serviceWorker, /icon-maskable-512\.png/);
@@ -784,7 +823,7 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
   assert.match(layoutSource, /crossOrigin="use-credentials"/);
   assert.match(source, /className="app-version"/);
   assert.match(source, /v\{APP_VERSION\}/);
-  assert.match(versionSource, /APP_VERSION = "1\.6\.0"/);
+  assert.match(versionSource, /APP_VERSION = "1\.6\.1"/);
   assert.match(pagesHtml, /mobile-web-app-capable/);
   assert.match(pagesHtml, /apple-touch-icon\.png/);
   assert.match(pagesHtml, /viewport-fit=cover/);

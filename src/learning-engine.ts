@@ -75,7 +75,7 @@ export type LevelArchive = {
 };
 
 export type Progress = {
-  version: 12;
+  version: 13;
   selectedLevel: HskLevel;
   graduatedLevels: HskLevel[];
   levelArchives: Partial<Record<HskLevel, LevelArchive>>;
@@ -169,7 +169,7 @@ function cleanDailySteps(daily: unknown) {
 
 export function makeStarterProgress(date = localDate()): Progress {
   return {
-    version: 12,
+    version: 13,
     selectedLevel: "1",
     graduatedLevels: [],
     levelArchives: {},
@@ -438,6 +438,36 @@ export function normalizeProgress(raw: unknown, vocabularySize: number, grammarS
     const levelEarned = level === (legacy.selectedLevel ?? "1") ? legacy.earned : legacy.levelArchives?.[level]?.earned;
     studyHistory[level] = mergeStudyDays(savedDays, inferStudyDays(levelEarned));
   }
+  const selectedLevel = HSK_LEVELS.includes(legacy.selectedLevel as HskLevel) ? legacy.selectedLevel as HskLevel : "1";
+  const selectedHistory = studyHistory[selectedLevel] ?? [];
+  const repairCandidate = (Number(legacy.version) || 0) < 13
+    && Boolean(legacy.onboarded)
+    && cleanDailySteps(legacy.daily).length === 0
+    ? [...selectedHistory].reverse().find((day) => {
+      const isPartial = day.completedSteps.length > 0 && !isStudySessionComplete(day.completedSteps);
+      const hasLaterGhostDay = selectedHistory.some((later) => later.date > day.date && later.completedSteps.length === 0);
+      return isPartial && hasLaterGhostDay;
+    })
+    : undefined;
+  if (repairCandidate) {
+    studyHistory[selectedLevel] = selectedHistory.filter((day) => !(
+      day.date > repairCandidate.date && day.completedSteps.length === 0
+    ));
+  }
+  const sessionState: Partial<Progress> = repairCandidate ? {
+    ...legacy,
+    daily: repairCandidate.completedSteps,
+    dailyDate: repairCandidate.date,
+    cadenceDate: repairCandidate.date,
+    sessionCompletedDate: "",
+    dailyQueue: repairCandidate.vocabularyQueue,
+    dailyQueueDate: repairCandidate.date,
+    flashcardPosition: repairCandidate.completedSteps.includes("flashcards") ? repairCandidate.vocabularyQueue.length : 0,
+    cardPosition: repairCandidate.completedSteps.includes("review") ? repairCandidate.vocabularyQueue.length : 0,
+    grammarQueue: repairCandidate.grammarQueue,
+    grammarQueueDate: repairCandidate.date,
+    grammarPosition: repairCandidate.completedSteps.includes("grammar") ? repairCandidate.grammarQueue.length : 0,
+  } : legacy;
   for (const index of legacy.mastered ?? []) {
     if (!reviews[index]) {
       reviews[index] = {
@@ -449,31 +479,31 @@ export function normalizeProgress(raw: unknown, vocabularySize: number, grammarS
       };
     }
   }
-  const restoredLegacyDaily = cleanDailySteps(legacy.daily);
+  const restoredLegacyDaily = cleanDailySteps(sessionState.daily);
   const legacySessionComplete = isStudySessionComplete(restoredLegacyDaily);
-  const inferredCompletedDate = isStudyDate(legacy.sessionCompletedDate)
-    ? legacy.sessionCompletedDate
-    : (Number(legacy.version) || 0) < 12 && legacySessionComplete && isStudyDate(legacy.dailyDate) ? legacy.dailyDate : "";
+  const inferredCompletedDate = isStudyDate(sessionState.sessionCompletedDate)
+    ? sessionState.sessionCompletedDate
+    : (Number(legacy.version) || 0) < 12 && legacySessionComplete && isStudyDate(sessionState.dailyDate) ? sessionState.dailyDate : "";
   const legacySessionFinished = legacySessionComplete && isStudyDate(inferredCompletedDate);
-  const sameCalendarSession = legacy.dailyDate === date;
+  const sameCalendarSession = sessionState.dailyDate === date;
   const completedOnThisCalendarDay = legacySessionFinished && inferredCompletedDate === date;
-  const unfinishedOpenSession = Boolean(legacy.onboarded && isStudyDate(legacy.dailyDate) && !legacySessionFinished);
+  const unfinishedOpenSession = Boolean(legacy.onboarded && isStudyDate(sessionState.dailyDate) && !legacySessionFinished);
   const keepExistingSession = sameCalendarSession || completedOnThisCalendarDay || unfinishedOpenSession;
-  const priorCadenceDate = isStudyDate(legacy.cadenceDate)
-    ? legacy.cadenceDate
-    : isStudyDate(legacy.dailyDate) ? legacy.dailyDate : date;
+  const priorCadenceDate = isStudyDate(sessionState.cadenceDate)
+    ? sessionState.cadenceDate
+    : isStudyDate(sessionState.dailyDate) ? sessionState.dailyDate : date;
   const cadenceDate = keepExistingSession
     ? priorCadenceDate
-    : legacy.onboarded && isStudyDate(legacy.dailyDate) ? addStudyDays(priorCadenceDate, 1) : priorCadenceDate;
-  const dailyDate = keepExistingSession && isStudyDate(legacy.dailyDate) ? legacy.dailyDate : date;
+    : legacy.onboarded && isStudyDate(sessionState.dailyDate) ? addStudyDays(priorCadenceDate, 1) : priorCadenceDate;
+  const dailyDate = keepExistingSession && isStudyDate(sessionState.dailyDate) ? sessionState.dailyDate : date;
   const restoredDaily = keepExistingSession ? restoredLegacyDaily : [];
   const sessionCompletedDate = keepExistingSession && legacySessionFinished ? inferredCompletedDate : "";
   const cadenceNow = studyDateTimestamp(cadenceDate);
   const progress: Progress = {
     ...starter,
     ...legacy,
-    version: 12,
-    selectedLevel: HSK_LEVELS.includes(legacy.selectedLevel as HskLevel) ? legacy.selectedLevel as HskLevel : "1",
+    version: 13,
+    selectedLevel,
     graduatedLevels: Array.isArray(legacy.graduatedLevels)
       ? [...new Set(legacy.graduatedLevels.filter((level): level is HskLevel => HSK_LEVELS.includes(level as HskLevel)))]
       : [],
@@ -493,9 +523,9 @@ export function normalizeProgress(raw: unknown, vocabularySize: number, grammarS
     dailyDate,
     cadenceDate,
     sessionCompletedDate,
-    listeningDone: keepExistingSession ? legacy.listeningDone ?? [] : [],
-    builderDone: keepExistingSession ? legacy.builderDone ?? [] : [],
-    pronunciationDone: keepExistingSession ? legacy.pronunciationDone ?? [] : [],
+    listeningDone: keepExistingSession ? sessionState.listeningDone ?? [] : [],
+    builderDone: keepExistingSession ? sessionState.builderDone ?? [] : [],
+    pronunciationDone: keepExistingSession ? sessionState.pronunciationDone ?? [] : [],
     lastActive: legacy.lastActive ?? legacy.lastVisit ?? "",
     dailyNew: [5, 8, 10].includes(Number(legacy.dailyNew)) ? Number(legacy.dailyNew) : 8,
     earned: Array.isArray(legacy.earned) ? legacy.earned.slice(-1800) : [],
@@ -506,30 +536,30 @@ export function normalizeProgress(raw: unknown, vocabularySize: number, grammarS
       : [],
     pinyinConfidence: legacy.pinyinConfidence && typeof legacy.pinyinConfidence === "object" ? legacy.pinyinConfidence : {},
   };
-  if (!keepExistingSession || !legacy.dailyQueueDate || !Array.isArray(legacy.dailyQueue)) {
+  if (!keepExistingSession || !sessionState.dailyQueueDate || !Array.isArray(sessionState.dailyQueue)) {
     progress.dailyQueue = buildDailyQueue(progress, vocabularySize, cadenceNow);
     progress.dailyQueueDate = dailyDate;
     progress.flashcardPosition = 0;
     progress.cardPosition = 0;
   } else {
-    const uniqueVocabularyQueue = uniqueQueueState(legacy.dailyQueue, legacy.cardPosition, vocabularySize);
+    const uniqueVocabularyQueue = uniqueQueueState(sessionState.dailyQueue, sessionState.cardPosition, vocabularySize);
     progress.dailyQueue = uniqueVocabularyQueue.queue;
     progress.cardPosition = uniqueVocabularyQueue.position;
     progress.flashcardPosition = restoredDaily.includes("flashcards")
       ? progress.dailyQueue.length
-      : Math.min(Math.max(0, Number(legacy.flashcardPosition) || 0), progress.dailyQueue.length);
+      : Math.min(Math.max(0, Number(sessionState.flashcardPosition) || 0), progress.dailyQueue.length);
     progress.dailyQueueDate = dailyDate;
   }
-  if (!keepExistingSession || !legacy.grammarQueueDate || !Array.isArray(legacy.grammarQueue)) {
+  if (!keepExistingSession || !sessionState.grammarQueueDate || !Array.isArray(sessionState.grammarQueue)) {
     progress.grammarQueue = buildDailyGrammarQueue(progress, grammarSize, cadenceNow);
     progress.grammarQueueDate = dailyDate;
     progress.grammarPosition = 0;
   } else {
-    progress.grammarQueue = legacy.grammarQueue.filter((index) => Number.isInteger(index) && index >= 0 && index < grammarSize);
-    progress.grammarPosition = Math.min(Number(legacy.grammarPosition) || 0, progress.grammarQueue.length);
+    progress.grammarQueue = sessionState.grammarQueue.filter((index) => Number.isInteger(index) && index >= 0 && index < grammarSize);
+    progress.grammarPosition = Math.min(Number(sessionState.grammarPosition) || 0, progress.grammarQueue.length);
     progress.grammarQueueDate = dailyDate;
   }
-  if (legacy.dailyDate && Array.isArray(legacy.dailyQueue)) {
+  if (!repairCandidate && legacy.dailyDate && Array.isArray(legacy.dailyQueue)) {
     const legacySession = {
       ...progress,
       daily: Array.isArray(legacy.daily) ? legacy.daily : [],
