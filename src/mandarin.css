@@ -793,6 +793,8 @@ button { color: inherit; }
 .lesson-finish-bar > div span { color: var(--yellow); }
 .lesson-finish-bar .finish-day-button:not(:disabled) { background: var(--coral); color: white; }
 .mission-day-note.complete { border-left-color: var(--jade); background: #e7f2ed; }
+.mission-day-note.resuming { border-left-color: var(--coral); background: rgba(225, 99, 79, .12); }
+.mission-day-note.resuming strong { color: var(--coral); }
 .day-finished-button { background: var(--jade) !important; box-shadow: 5px 5px 0 var(--ink) !important; }
 .day-complete-backdrop { position: fixed; inset: 0; z-index: 435; display: grid; place-items: center; padding: 24px; background: rgba(12,18,16,.9); overflow-y: auto; }
 .day-complete-sheet { width: min(690px, 100%); position: relative; padding: 42px; border: 1px solid var(--ink); background: var(--paper); box-shadow: 13px 13px 0 var(--yellow); overflow: hidden; }

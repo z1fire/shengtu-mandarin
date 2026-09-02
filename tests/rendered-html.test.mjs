@@ -147,7 +147,7 @@ test("uses focused app views instead of one scrolling curriculum page", async ()
   assert.match(source, /repeatingCurrentRecall \? currentRecallReplayQueue : progress\.dailyQueue/);
   assert.match(source, /Extra recall shuffled/);
   assert.match(source, /Retry recall test/);
-  assert.match(source, /Return dates, XP, and today’s completion stay unchanged/);
+  assert.match(source, /Return slots, XP, and today’s completion stay unchanged/);
   assert.match(source, /AUTOMATIC RECALL CADENCE/);
   assert.match(source, /CHOOSE FROM MEMORY/);
   assert.match(source, /FULL-CARD STUDY/);
@@ -349,7 +349,7 @@ test("provides complete pinyin with no Chinese-character leakage for every missi
   }
 });
 
-test("builds the daily queue and advances vocabulary on a fixed calendar cadence", () => {
+test("builds the daily queue and advances vocabulary on a fixed learning-day cadence", () => {
   const progress = { ...makeStarterProgress("2026-08-20"), dailyNew: 8 };
   assert.equal(buildDailyQueue(progress, 300, 0).length, 8);
   const day1 = new Date(2026, 7, 20, 15).getTime();
@@ -495,7 +495,7 @@ test("eventually introduces every word and grammar target when daily queues are 
   assert.equal(Object.keys(progress.grammarReviews).length, 25);
 });
 
-test("resets daily work, calculates real streaks, and prevents repeat rewards", () => {
+test("resumes unfinished learning days while keeping real streaks, time, and rewards", () => {
   const starter = makeStarterProgress("2026-08-18");
   const firstDay = activate(starter, "2026-08-18");
   const nextDay = activate(firstDay, "2026-08-19");
@@ -516,18 +516,67 @@ test("resets daily work, calculates real streaks, and prevents repeat rewards", 
   assert.equal(nextTrackedDay.trainingTodaySeconds, 30);
   assert.equal(nextTrackedDay.trainingDate, "2026-08-19");
 
-  const stale = { ...once, daily: ["review"], dailyDate: "2026-08-18", listeningDone: ["l01"] };
-  const normalized = normalizeProgress(stale, 300, 70, "2026-08-19");
-  assert.deepEqual(normalized.daily, []);
-  assert.deepEqual(normalized.listeningDone, []);
+  const unfinished = {
+    ...once,
+    onboarded: true,
+    daily: ["flashcards", "review"],
+    dailyDate: "2026-08-18",
+    cadenceDate: "2026-08-18",
+    dailyQueue: [2, 4, 8],
+    dailyQueueDate: "2026-08-18",
+    flashcardPosition: 3,
+    cardPosition: 2,
+    grammarQueue: [1],
+    grammarQueueDate: "2026-08-18",
+    listeningDone: ["l01"],
+  };
+  const normalized = normalizeProgress(unfinished, 300, 70, "2026-08-25");
+  assert.deepEqual(normalized.daily, ["flashcards", "review"]);
+  assert.equal(normalized.dailyDate, "2026-08-18");
+  assert.equal(normalized.cadenceDate, "2026-08-18");
+  assert.deepEqual(normalized.dailyQueue, [2, 4, 8]);
+  assert.equal(normalized.cardPosition, 2);
+  assert.deepEqual(normalized.listeningDone, ["l01"]);
 
-  const legacyMissionProgress = normalizeProgress({ ...stale, version: 2, missions: [0, 1], missionSteps: undefined }, 300, 70, "2026-08-19");
-  assert.equal(legacyMissionProgress.version, 11);
+  const completed = {
+    ...makeStarterProgress("2026-08-18"),
+    onboarded: true,
+    daily: ["flashcards", "review", "grammar", "listen", "build", "reading", "speak"],
+    dailyDate: "2026-08-18",
+    cadenceDate: "2026-08-18",
+    sessionCompletedDate: "2026-08-18",
+    dailyQueue: [0],
+    dailyQueueDate: "2026-08-18",
+    grammarQueue: [0],
+    grammarQueueDate: "2026-08-18",
+    reviews: {
+      0: { dueAt: new Date("2026-08-19T00:00:00").getTime(), intervalDays: 1, repetitions: 1, lapses: 0, lastReviewedAt: 1 },
+      1: { dueAt: new Date("2026-08-20T00:00:00").getTime(), intervalDays: 2, repetitions: 2, lapses: 0, lastReviewedAt: 2 },
+      2: { dueAt: new Date("2026-08-21T00:00:00").getTime(), intervalDays: 3, repetitions: 3, lapses: 0, lastReviewedAt: 3 },
+    },
+  };
+  const afterCalendarGap = normalizeProgress(completed, 3, 70, "2026-08-25");
+  assert.equal(afterCalendarGap.dailyDate, "2026-08-25");
+  assert.equal(afterCalendarGap.cadenceDate, "2026-08-19");
+  assert.deepEqual(afterCalendarGap.daily, []);
+  assert.deepEqual(afterCalendarGap.dailyQueue, [0]);
+
+  const justCompletedToday = normalizeProgress({
+    ...completed,
+    dailyDate: "2026-08-18",
+    sessionCompletedDate: "2026-08-25",
+  }, 3, 70, "2026-08-25");
+  assert.equal(justCompletedToday.dailyDate, "2026-08-18");
+  assert.equal(justCompletedToday.cadenceDate, "2026-08-18");
+  assert.equal(justCompletedToday.daily.length, 7);
+
+  const legacyMissionProgress = normalizeProgress({ ...unfinished, version: 2, missions: [0, 1], missionSteps: undefined }, 300, 70, "2026-08-19");
+  assert.equal(legacyMissionProgress.version, 12);
   assert.deepEqual(legacyMissionProgress.graduatedLevels, []);
   assert.equal(legacyMissionProgress.trainingSeconds, 0);
   assert.deepEqual(legacyMissionProgress.missionSteps, ["0:0", "0:1", "0:2", "1:0", "1:1", "1:2"]);
   assert.equal(legacyMissionProgress.missionSessionCount, 6);
-  assert.equal(legacyMissionProgress.grammarQueue.at(-1), 0);
+  assert.equal(legacyMissionProgress.grammarQueue.at(-1), 1);
 
   const splitVocabularyMigration = normalizeProgress({
     ...makeStarterProgress("2026-08-18"),
@@ -705,8 +754,8 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
     assert.equal(png.readUInt32BE(20), size);
   }
 
-  assert.match(serviceWorker, /shengtu-v39/);
-  assert.match(versionSource, /1\.5\.1/);
+  assert.match(serviceWorker, /shengtu-v40/);
+  assert.match(versionSource, /1\.6\.0/);
   assert.match(serviceWorker, /request\.mode === "navigate"/);
   assert.match(serviceWorker, /url\.pathname\.includes\("\/api\/"\)/);
   assert.match(serviceWorker, /icon-maskable-512\.png/);
@@ -735,7 +784,7 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
   assert.match(layoutSource, /crossOrigin="use-credentials"/);
   assert.match(source, /className="app-version"/);
   assert.match(source, /v\{APP_VERSION\}/);
-  assert.match(versionSource, /APP_VERSION = "1\.5\.1"/);
+  assert.match(versionSource, /APP_VERSION = "1\.6\.0"/);
   assert.match(pagesHtml, /mobile-web-app-capable/);
   assert.match(pagesHtml, /apple-touch-icon\.png/);
   assert.match(pagesHtml, /viewport-fit=cover/);
