@@ -56,6 +56,10 @@ import {
   buildMissionDictation,
   buildRecallChallenge,
 } from "../src/learning-experience.ts";
+import {
+  VOCABULARY_AUDIO_ALIAS_COUNT,
+  vocabularySpeechText,
+} from "../src/vocabulary-pronunciation.ts";
 
 async function render() {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
@@ -67,6 +71,20 @@ async function render() {
     { waitUntil() {}, passThroughOnException() {} },
   );
 }
+
+test("uses the displayed pinyin to disambiguate vocabulary audio", async () => {
+  assert.equal(vocabularySpeechText({ hanzi: "还", pinyin: "hái" }), "孩");
+  assert.equal(vocabularySpeechText({ hanzi: "还", pinyin: "huán" }), "环");
+  assert.equal(vocabularySpeechText({ hanzi: "苹果", pinyin: "píngguǒ" }), "苹果");
+  assert.ok(VOCABULARY_AUDIO_ALIAS_COUNT >= 350);
+  const source = await readFile(new URL("../src/MandarinApp.tsx", import.meta.url), "utf8");
+  assert.match(source, /function speakVocabulary/);
+  assert.match(source, /audioTarget=\{audioTarget\}/);
+  assert.match(source, /audioTarget && audioTarget !== target \? similarityScore\(audioTarget, transcript\)/);
+  assert.match(source, /examAudioWord \? speakVocabulary\(examAudioWord\)/);
+  assert.doesNotMatch(source, /speak\(activeWord\.hanzi\)/);
+  assert.doesNotMatch(source, /speak\(word\.hanzi\)/);
+});
 
 test("server-renders the finished Mandarin course", async () => {
   const response = await render();
@@ -838,8 +856,8 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
     assert.equal(png.readUInt32BE(20), size);
   }
 
-  assert.match(serviceWorker, /shengtu-v43/);
-  assert.match(versionSource, /1\.7\.0/);
+  assert.match(serviceWorker, /shengtu-v44/);
+  assert.match(versionSource, /1\.7\.1/);
   assert.match(serviceWorker, /request\.mode === "navigate"/);
   assert.match(serviceWorker, /url\.pathname\.includes\("\/api\/"\)/);
   assert.match(serviceWorker, /icon-maskable-512\.png/);
@@ -868,7 +886,7 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
   assert.match(layoutSource, /crossOrigin="use-credentials"/);
   assert.match(source, /className="app-version"/);
   assert.match(source, /v\{APP_VERSION\}/);
-  assert.match(versionSource, /APP_VERSION = "1\.7\.0"/);
+  assert.match(versionSource, /APP_VERSION = "1\.7\.1"/);
   assert.match(pagesHtml, /mobile-web-app-capable/);
   assert.match(pagesHtml, /apple-touch-icon\.png/);
   assert.match(pagesHtml, /viewport-fit=cover/);
