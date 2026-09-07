@@ -112,10 +112,14 @@ def build_character_rank(vocabulary: dict[str, list[tuple[str, str]]]) -> dict[s
     return rank
 
 
-def build_safe_syllable_aliases(readings: dict[str, set[str]], character_rank: dict[str, int]) -> dict[str, str]:
+def build_safe_syllable_aliases(
+    readings: dict[str, set[str]],
+    character_rank: dict[str, int],
+    common_characters: set[str],
+) -> dict[str, str]:
     candidates: dict[str, list[str]] = defaultdict(list)
     for character, character_readings in readings.items():
-        if len(character) == 1 and "\u3400" <= character <= "\u9fff" and len(character_readings) == 1:
+        if character in common_characters and len(character_readings) == 1:
             candidates[next(iter(character_readings))].append(character)
     return {
         reading: min(characters, key=lambda character: (character_rank.get(character, 1_000_000), ord(character)))
@@ -126,7 +130,18 @@ def build_safe_syllable_aliases(readings: dict[str, set[str]], character_rank: d
 def audit_vocabulary() -> tuple[dict[str, str], dict[str, int], list[tuple[str, str, str]]]:
     vocabulary = load_hsk_vocabulary()
     readings = load_cedict_readings()
-    syllable_aliases = build_safe_syllable_aliases(readings, build_character_rank(vocabulary))
+    character_rank = build_character_rank(vocabulary)
+    # Device voices can misread obscure dictionary characters even when their
+    # dictionary pinyin is unambiguous. Only use characters taught by HSK 1–6
+    # as invisible aliases; otherwise the familiar original word is safer.
+    common_characters = {
+        character
+        for level in LEVEL_ORDER[:6]
+        for hanzi, _ in vocabulary[level]
+        for character in hanzi
+        if character in character_rank
+    }
+    syllable_aliases = build_safe_syllable_aliases(readings, character_rank, common_characters)
     audio_aliases: dict[str, str] = {}
     counts: dict[str, int] = {}
     unresolved: list[tuple[str, str, str]] = []
@@ -188,6 +203,8 @@ def main() -> None:
             raise SystemExit("Pronunciation alias module is stale; run the audit with --write")
         if audio_aliases.get("还|hái") != "孩":
             raise SystemExit("Regression: 还 hái must use the unambiguous 孩 audio alias")
+        if "大|dà" in audio_aliases:
+            raise SystemExit("Regression: common 大 dà must not be replaced by an obscure audio alias")
 
     for level in LEVEL_ORDER:
         print(f"HSK {level}: {counts[level]} potentially ambiguous headwords")

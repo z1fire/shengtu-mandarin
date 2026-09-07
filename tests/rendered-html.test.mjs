@@ -75,8 +75,9 @@ async function render() {
 test("uses the displayed pinyin to disambiguate vocabulary audio", async () => {
   assert.equal(vocabularySpeechText({ hanzi: "还", pinyin: "hái" }), "孩");
   assert.equal(vocabularySpeechText({ hanzi: "还", pinyin: "huán" }), "环");
+  assert.equal(vocabularySpeechText({ hanzi: "大", pinyin: "dà" }), "大");
   assert.equal(vocabularySpeechText({ hanzi: "苹果", pinyin: "píngguǒ" }), "苹果");
-  assert.ok(VOCABULARY_AUDIO_ALIAS_COUNT >= 350);
+  assert.ok(VOCABULARY_AUDIO_ALIAS_COUNT >= 200);
   const source = await readFile(new URL("../src/MandarinApp.tsx", import.meta.url), "utf8");
   assert.match(source, /function speakVocabulary/);
   assert.match(source, /audioTarget=\{audioTarget\}/);
@@ -856,8 +857,8 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
     assert.equal(png.readUInt32BE(20), size);
   }
 
-  assert.match(serviceWorker, /shengtu-v44/);
-  assert.match(versionSource, /1\.7\.1/);
+  assert.match(serviceWorker, /shengtu-v45/);
+  assert.match(versionSource, /1\.7\.2/);
   assert.match(serviceWorker, /request\.mode === "navigate"/);
   assert.match(serviceWorker, /url\.pathname\.includes\("\/api\/"\)/);
   assert.match(serviceWorker, /icon-maskable-512\.png/);
@@ -886,7 +887,7 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
   assert.match(layoutSource, /crossOrigin="use-credentials"/);
   assert.match(source, /className="app-version"/);
   assert.match(source, /v\{APP_VERSION\}/);
-  assert.match(versionSource, /APP_VERSION = "1\.7\.1"/);
+  assert.match(versionSource, /APP_VERSION = "1\.7\.2"/);
   assert.match(pagesHtml, /mobile-web-app-capable/);
   assert.match(pagesHtml, /apple-touch-icon\.png/);
   assert.match(pagesHtml, /viewport-fit=cover/);
