@@ -6,6 +6,7 @@ import {
   advanceLearningSession,
   buildDailyGrammarQueue,
   buildDailyQueue,
+  buildRandomizedVocabularyQueues,
   completeDailyStep,
   earnOnce,
   makeStarterProgress,
@@ -164,9 +165,9 @@ test("uses focused app views instead of one scrolling curriculum page", async ()
   assert.match(source, /function shuffleUnseenRecallQueue/);
   assert.match(source, /function nextQueuePermutation/);
   assert.match(source, /recallReplayOrdersRef/);
-  assert.match(source, /orderRegistry\.signatures = new Set\(\[queueSignature\(progress\.dailyQueue\)\]\)/);
+  assert.match(source, /queueSignature\(progress\.dailyQueue\), queueSignature\(progress\.recallQueue\)/);
   assert.match(source, /setCurrentRecallReplayQueue\(replayQueue\)/);
-  assert.match(source, /repeatingCurrentRecall \? currentRecallReplayQueue : progress\.dailyQueue/);
+  assert.match(source, /repeatingCurrentRecall \? currentRecallReplayQueue : progress\.recallQueue/);
   assert.match(source, /Extra recall shuffled/);
   assert.match(source, /Retry recall test/);
   assert.match(source, /Return slots, XP, and today’s completion stay unchanged/);
@@ -176,6 +177,9 @@ test("uses focused app views instead of one scrolling curriculum page", async ()
   assert.match(source, /Learn first\. Test second\./);
   assert.match(source, /Finish this flashcard pass/);
   assert.match(source, /function reviewFlashcardsAgain/);
+  assert.match(source, /mixer-blueprint/);
+  assert.match(source, /YOUR WORKING SENTENCE/);
+  assert.match(source, /correctionResultFor === activeCorrection\.id/);
   assert.match(source, /Review flashcards again/);
   assert.match(source, /recall progress and cadence are unchanged/);
   assert.match(source, /I don’t recall/);
@@ -318,6 +322,16 @@ test("builds a vocabulary pattern mixer for every HSK grammar target", () => {
   }
   const identity = buildGrammarMixerFrame(getLibraryGrammar("1", false)[0], "subject + 是 + noun", getCumulativeVocabulary("1"));
   assert.deepEqual(mixerExpectedTokens(identity, initialMixerSelections(identity)), ["我", "是", "学生"]);
+  const hsk1Grammar = getLibraryGrammar("1", false);
+  const words = getCumulativeVocabulary("1");
+  const sentenceFor = (formula) => {
+    const frame = buildGrammarMixerFrame(hsk1Grammar.find((point) => point.formula === formula), "subject + 是 + noun", words);
+    return mixerExpectedTokens(frame, initialMixerSelections(frame)).join("");
+  };
+  assert.equal(sentenceFor("pronoun + family noun"), "我妈妈是医生");
+  assert.equal(sentenceFor("几 + measure word + noun"), "我有几本书");
+  assert.equal(sentenceFor("给 + person + verb/object"), "我给妈妈一本书");
+  assert.equal(sentenceFor("第 + number + noun"), "这是第一课");
 });
 
 test("keeps grammar mixer vocabulary logically compatible in both directions", () => {
@@ -399,6 +413,11 @@ test("builds the daily queue and advances vocabulary on a fixed learning-day cad
   assert.deepEqual(repairedCompleteQueue.queue, [0, 1, 2]);
   assert.equal(repairedCompleteQueue.position, 3);
 
+  const randomized = buildRandomizedVocabularyQueues([0, 1, 2, 3, 4], () => 0);
+  assert.deepEqual([...randomized.flashcardQueue].sort((a, b) => a - b), [0, 1, 2, 3, 4]);
+  assert.deepEqual([...randomized.recallQueue].sort((a, b) => a - b), [0, 1, 2, 3, 4]);
+  assert.notDeepEqual(randomized.flashcardQueue, randomized.recallQueue);
+
   const restored = normalizeProgress({
     ...progress,
     onboarded: true,
@@ -428,6 +447,28 @@ test("objectively scores practice and resolves misses over two correct days", ()
   assert.equal(progress.skillStats.vocabulary.correct, 0);
   assert.equal(dueCorrections(progress, "1", "2026-08-20").length, 1);
 
+  let orderedCorrections = queueCorrection(progress, {
+    id: "vocabulary:1:5",
+    level: "1",
+    skill: "vocabulary",
+    prompt: "to eat",
+    answer: "吃",
+    options: ["吃", "喝", "看"],
+    explanation: "吃 means to eat.",
+    dueDate: "2026-08-20",
+  });
+  orderedCorrections = queueCorrection(orderedCorrections, {
+    id: "vocabulary:1:4",
+    level: "1",
+    skill: "vocabulary",
+    prompt: "to drink",
+    answer: "喝",
+    options: ["吃", "喝", "看"],
+    explanation: "喝 means to drink.",
+    dueDate: "2026-08-20",
+  });
+  assert.equal(orderedCorrections.corrections[0].id, "vocabulary:1:4", "a repeated miss must not advance to the next correction");
+
   progress = resolveCorrection(progress, "vocabulary:1:4", "2026-08-20");
   assert.equal(dueCorrections(progress, "1", "2026-08-20").length, 0);
   assert.equal(dueCorrections(progress, "1", "2026-08-21").length, 1);
@@ -442,6 +483,8 @@ test("objectively scores practice and resolves misses over two correct days", ()
 
 test("builds recall, dictation, reading, and logical four-line conversations for every level", () => {
   const allOpeners = new Set();
+  const readingTargets = new Set();
+  const readingAnswerPositions = new Set();
   for (const level of levelOrder) {
     const words = getStudyVocabulary(level);
     const missions = getCourseMissions(level);
@@ -453,9 +496,15 @@ test("builds recall, dictation, reading, and logical four-line conversations for
     const dictation = buildMissionDictation(missions, 0);
     assert.match(dictation.masked, /＿＿/);
     assert.ok(dictation.options.includes(dictation.answer));
-    const reading = buildGradedReading(missions, 0, 2);
-    assert.equal(reading.lines.length, 2);
-    assert.ok(reading.options.includes(reading.answer));
+    for (let missionIndex = 0; missionIndex < missions.length; missionIndex += 1) {
+      for (const phase of [0, 1, 2]) {
+        const reading = buildGradedReading(missions, missionIndex, phase);
+        assert.equal(reading.lines.length, 2);
+        assert.ok(reading.options.includes(reading.answer));
+        readingTargets.add(reading.question.match(/speaker ([AB])/)?.[1]);
+        readingAnswerPositions.add(reading.options.indexOf(reading.answer));
+      }
+    }
     for (const mission of missions) {
       for (const phase of [0, 1, 2]) {
         const conversation = buildMissionConversation(mission, phase);
@@ -470,6 +519,8 @@ test("builds recall, dictation, reading, and logical four-line conversations for
     }
   }
   assert.ok(allOpeners.size >= 12);
+  assert.deepEqual(readingTargets, new Set(["A", "B"]));
+  assert.deepEqual(readingAnswerPositions, new Set([0, 1, 2]));
 
   const hsk1 = getCourseMissions("1");
   const hsk2 = getCourseMissions("2");
@@ -593,7 +644,7 @@ test("resumes unfinished learning days while keeping real streaks, time, and rew
   assert.equal(justCompletedToday.daily.length, 7);
 
   const legacyMissionProgress = normalizeProgress({ ...unfinished, version: 2, missions: [0, 1], missionSteps: undefined }, 300, 70, "2026-08-19");
-  assert.equal(legacyMissionProgress.version, 13);
+  assert.equal(legacyMissionProgress.version, 14);
   assert.deepEqual(legacyMissionProgress.graduatedLevels, []);
   assert.equal(legacyMissionProgress.trainingSeconds, 0);
   assert.deepEqual(legacyMissionProgress.missionSteps, ["0:0", "0:1", "0:2", "1:0", "1:1", "1:2"]);
@@ -649,7 +700,7 @@ test("removes legacy zero-attempt ghost days and restores the latest partial les
   };
 
   const repaired = normalizeProgress(ghosted, 300, 70, "2026-09-02");
-  assert.equal(repaired.version, 13);
+  assert.equal(repaired.version, 14);
   assert.equal(repaired.dailyDate, "2026-08-30");
   assert.equal(repaired.cadenceDate, "2026-08-30");
   assert.equal(repaired.sessionCompletedDate, "");
@@ -857,8 +908,8 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
     assert.equal(png.readUInt32BE(20), size);
   }
 
-  assert.match(serviceWorker, /shengtu-v45/);
-  assert.match(versionSource, /1\.7\.2/);
+  assert.match(serviceWorker, /shengtu-v46/);
+  assert.match(versionSource, /1\.8\.0/);
   assert.match(serviceWorker, /request\.mode === "navigate"/);
   assert.match(serviceWorker, /url\.pathname\.includes\("\/api\/"\)/);
   assert.match(serviceWorker, /icon-maskable-512\.png/);
@@ -887,7 +938,7 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
   assert.match(layoutSource, /crossOrigin="use-credentials"/);
   assert.match(source, /className="app-version"/);
   assert.match(source, /v\{APP_VERSION\}/);
-  assert.match(versionSource, /APP_VERSION = "1\.7\.2"/);
+  assert.match(versionSource, /APP_VERSION = "1\.8\.0"/);
   assert.match(pagesHtml, /mobile-web-app-capable/);
   assert.match(pagesHtml, /apple-touch-icon\.png/);
   assert.match(pagesHtml, /viewport-fit=cover/);
@@ -919,6 +970,8 @@ test("configures authenticated cross-device progress sync with a device-local fa
   assert.match(source, /Open the synced app/);
   assert.match(source, /Two progress copies were found/);
   assert.match(source, /remoteNeedsWriteback/);
+  assert.match(source, /setProgress\(\(current\) => \{\s*const next = recordActiveStudySeconds\(current, seconds, recordedAt\)/);
+  assert.doesNotMatch(source, /recordActiveStudySeconds\(currentProgressRef\.current/);
   assert.match(source, /lastSyncedPayloadRef\.current = remoteNeedsWriteback \? "" : normalizedRemotePayload/);
   assert.match(source, /syncReady && !syncConflict/);
   assert.match(source, /Device-only copy/);

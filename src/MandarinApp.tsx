@@ -27,6 +27,7 @@ import {
   advanceLearningSession,
   buildDailyQueue,
   buildDailyGrammarQueue,
+  buildRandomizedVocabularyQueues,
   completeDailyStep,
   dueCorrections,
   earnOnce,
@@ -82,6 +83,7 @@ type BeforeInstallPromptEvent = Event & {
 type ReplaySession = {
   day: StudyDay;
   vocabularyQueue: number[];
+  recallQueue: number[];
   flashcardPosition: number;
   cardPosition: number;
   grammarQueue: number[];
@@ -441,6 +443,46 @@ function scrambleMixerTiles(tiles: MixerTile[]) {
   return scrambled;
 }
 
+function mixerSlotGuidance(kind: MixerSlotPart["kind"]) {
+  const guidance: Record<MixerSlotPart["kind"], string> = {
+    subject: "Who or what the sentence is about",
+    noun: "The person or thing that completes the idea",
+    verb: "The action or state",
+    adjective: "The quality or condition",
+    place: "Where the situation happens",
+    time: "When the situation happens",
+    number: "The quantity or numbered position",
+    measure: "The classifier required before this noun",
+    modal: "Ability, permission, intention, or likelihood",
+    question: "The information you are asking for",
+    direction: "The location or direction relationship",
+    generic: "A replaceable meaning slot",
+  };
+  return guidance[kind];
+}
+
+function fixedGrammarGuidance(text: string) {
+  const meanings: Record<string, string> = {
+    "是": "links the subject to an identity",
+    "是不是": "asks whether an identity is correct",
+    "不": "negates a present, habitual, or descriptive idea",
+    "没有": "negates possession or a completed event",
+    "有": "expresses having or existence",
+    "在": "marks location or where an action happens",
+    "的": "links an owner or description to a noun",
+    "了": "marks a completed action or new situation",
+    "吗": "turns the statement into a yes/no question",
+    "呢": "returns or continues the question",
+    "也": "adds “also” before the predicate",
+    "都": "puts everyone or everything in the same scope",
+    "很": "connects a subject naturally to an adjective",
+    "太": "marks an excessive or strong degree",
+    "请": "makes the request polite",
+    "吧": "softens a suggestion or proposal",
+  };
+  return meanings[text] ?? "fixed grammar marker — keep it in this position";
+}
+
 function GrammarPatternMixer({ point, fallbackFormula, words, onSpeakingAttempt }: { point: GrammarPoint; fallbackFormula: string; words: LevelVocabularyWord[]; onSpeakingAttempt?: (correct: boolean) => void }) {
   const frame = useMemo(() => buildGrammarMixerFrame(point, fallbackFormula, words), [fallbackFormula, point, words]);
   const defaults = initialMixerSelections(frame);
@@ -455,6 +497,7 @@ function GrammarPatternMixer({ point, fallbackFormula, words, onSpeakingAttempt 
   const slots = frame.parts.filter((part): part is MixerSlotPart => part.type === "slot")
     .filter((part, index, items) => items.findIndex((item) => item.id === part.id) === index);
   const sentence = activeExpected.map((tile) => tile.text).join("");
+  const selectedSentence = mixerExpectedTokens(frame, selections).join("");
 
   function selectWord(slot: MixerSlotPart, optionIndex: number) {
     const update = updateMixerSelection(frame, selections, slot.id, optionIndex);
@@ -505,7 +548,9 @@ function GrammarPatternMixer({ point, fallbackFormula, words, onSpeakingAttempt 
   return <div className="grammar-pattern-mixer">
     <div className="mixer-heading"><span>MIX &amp; MATCH PATTERN LAB</span><strong>Build with vocabulary that makes sense</strong><p>{frame.usesMissionPattern ? "This target is a form inventory, so the lab uses today’s compositional mission pattern. Change any word and the linked choices adjust to keep the meaning natural." : "Choose vocabulary for each replaceable slot. Change any word and linked choices—such as a verb and its object, or a measure word and its noun—adjust to keep the meaning natural."}</p></div>
     <code>{frame.sourceFormula}</code>
+    <div className="mixer-blueprint"><div><strong>Read the blueprint from left to right</strong><span>White slots change. Yellow grammar pieces stay fixed.</span></div><div className="mixer-blueprint-track">{frame.parts.map((part, index) => <div key={`${part.id}-${index}`} className={part.type === "fixed" ? "fixed" : "slot"}><span>{part.type === "fixed" ? "KEEP" : "CHOOSE"}</span><b>{part.type === "fixed" ? part.text : part.label}</b><small>{part.type === "fixed" ? fixedGrammarGuidance(part.text) : mixerSlotGuidance(part.kind)}</small></div>)}</div></div>
     <div className="mixer-selectors">{slots.map((slot) => <label key={slot.id}><span>{slot.label}</span><select value={selections[slot.id] ?? 0} onChange={(event) => selectWord(slot, Number(event.target.value))} aria-label={`Choose vocabulary for ${slot.label}`}>{slot.options.map((word, index) => <option key={`${word.level}-${word.sequence}-${word.hanzi}`} value={index}>{word.hanzi} · {word.pinyin} · {word.meaning}</option>)}</select></label>)}</div>
+    <div className="mixer-live-model"><span>YOUR WORKING SENTENCE</span><strong lang="zh-CN">{selectedSentence}。</strong><div>{slots.map((slot) => { const word = slot.options[selections[slot.id] ?? 0]; return word ? <small key={slot.id}><b>{word.hanzi}</b> {word.pinyin} · {word.meaning}</small> : null; })}</div><p>Choose the meaning you want first. Then keep the fixed pieces in place and arrange every tile in the blueprint order.</p></div>
     <div className="mixer-logic-note" role="status"><span>✓</span>{logicNote}</div>
     <button className="mixer-mix-button" onClick={mixSelectedWords}>{needsMix ? "Mix my new choices →" : "Reshuffle this sentence ↻"}</button>
     <div className="mixer-sentence-line" aria-label="Your grammar sentence">{built.length ? built.map((tile, index) => <button key={tile.id} onClick={() => removeMixerTile(index)}>{tile.text}</button>) : <span>Tap the scrambled pieces below to build the sentence.</span>}</div>
@@ -652,13 +697,13 @@ export default function MandarinApp() {
   const [syncEnabled, setSyncEnabled] = useState(false);
   const [syncConflict, setSyncConflict] = useState<SyncConflict | null>(null);
   const [correctionResult, setCorrectionResult] = useState("");
+  const [correctionResultFor, setCorrectionResultFor] = useState("");
   const [pendingTrainingSeconds, setPendingTrainingSeconds] = useState(0);
   const importRef = useRef<HTMLInputElement>(null);
   const wasReplaying = useRef(false);
   const replayCompletionKey = useRef("");
   const cloudUpdatedAtRef = useRef(0);
   const lastSyncedPayloadRef = useRef("");
-  const currentProgressRef = useRef(progress);
   const pendingTrainingMsRef = useRef(0);
   const trainingEligibleRef = useRef(false);
   const studyCardRef = useRef<HTMLDivElement>(null);
@@ -669,10 +714,6 @@ export default function MandarinApp() {
       studyCardRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
     });
   }, []);
-
-  useEffect(() => {
-    currentProgressRef.current = progress;
-  }, [progress]);
 
   useEffect(() => {
     trainingEligibleRef.current = ready
@@ -822,10 +863,11 @@ export default function MandarinApp() {
       pendingTrainingMsRef.current -= seconds * 1000;
       setPendingTrainingSeconds(Math.floor(pendingTrainingMsRef.current / 1000));
       const recordedAt = localDate();
-      const next = recordActiveStudySeconds(currentProgressRef.current, seconds, recordedAt);
-      currentProgressRef.current = next;
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(recordStudyDay(next)));
-      setProgress(next);
+      setProgress((current) => {
+        const next = recordActiveStudySeconds(current, seconds, recordedAt);
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(recordStudyDay(next)));
+        return next;
+      });
     };
 
     const collectActiveTime = () => {
@@ -1000,7 +1042,9 @@ export default function MandarinApp() {
   const repeatingCurrentRecall = !replaySession && currentRecallReplayPosition !== null;
   const recallIsExtraPractice = Boolean(replaySession) || repeatingCurrentRecall;
   const sessionDaily = replaySession?.completedSteps ?? progress.daily;
-  const sessionVocabularyQueue = replaySession?.vocabularyQueue ?? (repeatingCurrentRecall ? currentRecallReplayQueue : progress.dailyQueue);
+  const sessionFlashcardQueue = replaySession?.vocabularyQueue ?? progress.dailyQueue;
+  const sessionRecallQueue = replaySession?.recallQueue ?? (repeatingCurrentRecall ? currentRecallReplayQueue : progress.recallQueue);
+  const sessionVocabularyQueue = practice === "flashcards" ? sessionFlashcardQueue : sessionRecallQueue;
   const sessionFlashcardPosition = replaySession?.flashcardPosition ?? progress.flashcardPosition;
   const sessionCardPosition = replaySession?.cardPosition ?? currentRecallReplayPosition ?? progress.cardPosition;
   const sessionGrammarQueue = replaySession?.grammarQueue ?? progress.grammarQueue;
@@ -1261,6 +1305,8 @@ export default function MandarinApp() {
   function answerCorrection(option: string) {
     if (!activeCorrection) return;
     const correct = option === activeCorrection.answer;
+    const answeredCorrectionId = activeCorrection.id;
+    setCorrectionResultFor(answeredCorrectionId);
     setCorrectionResult(correct
       ? activeCorrection.correctStreak >= 1 ? "Correct again · this miss is now cleared." : "Correct · this miss will return once tomorrow."
       : "Not yet · review the explanation and retry.");
@@ -1289,12 +1335,14 @@ export default function MandarinApp() {
     if (correct) {
       window.setTimeout(() => {
         setCorrectionResult("");
+        setCorrectionResultFor("");
       }, 700);
     }
   }
 
   function startStudyDayReplay(day: StudyDay) {
     const vocabularyQueue = day.vocabularyQueue.filter((index) => index >= 0 && index < vocabulary.length);
+    const replayVocabularyQueues = buildRandomizedVocabularyQueues(vocabularyQueue);
     const grammarQueue = day.grammarQueue.filter((index) => index >= 0 && index < levelGrammar.length);
     const startingMode: PracticeMode = vocabularyQueue.length ? "flashcards" : grammarQueue.length ? "grammar" : "listening";
     const completedSteps = [
@@ -1303,7 +1351,7 @@ export default function MandarinApp() {
     ];
     replayCompletionKey.current = "";
     setCurrentRecallReplayPosition(null);
-    setReplaySession({ day, vocabularyQueue, flashcardPosition: 0, cardPosition: 0, grammarQueue, grammarPosition: 0, completedSteps });
+    setReplaySession({ day, vocabularyQueue: replayVocabularyQueues.flashcardQueue, recallQueue: replayVocabularyQueues.recallQueue, flashcardPosition: 0, cardPosition: 0, grammarQueue, grammarPosition: 0, completedSteps });
     setShowStudyHistory(false);
     setCardRevealed(false);
     setDailyGrammarStage("learn");
@@ -1440,9 +1488,11 @@ export default function MandarinApp() {
     setProgress((current) => {
       const configured = { ...current, onboarded: true, dailyNew: onboardingGoal, cadenceDate: today, sessionCompletedDate: "" };
       const cadenceNow = studyDateTimestamp(configured.cadenceDate);
+      const queues = buildRandomizedVocabularyQueues(buildDailyQueue(configured, vocabulary.length, cadenceNow));
       return recordStudyDay({
         ...configured,
-        dailyQueue: buildDailyQueue(configured, vocabulary.length, cadenceNow),
+        dailyQueue: queues.flashcardQueue,
+        recallQueue: queues.recallQueue,
         dailyQueueDate: today,
         flashcardPosition: 0,
         cardPosition: 0,
@@ -1460,11 +1510,12 @@ export default function MandarinApp() {
     const orderRegistry = recallReplayOrdersRef.current;
     if (orderRegistry.date !== replayDate) {
       orderRegistry.date = replayDate;
-      orderRegistry.signatures = new Set([queueSignature(progress.dailyQueue)]);
+      orderRegistry.signatures = new Set([queueSignature(progress.dailyQueue), queueSignature(progress.recallQueue)]);
     } else if (!orderRegistry.signatures.size) {
       orderRegistry.signatures.add(queueSignature(progress.dailyQueue));
+      orderRegistry.signatures.add(queueSignature(progress.recallQueue));
     }
-    const replayQueue = shuffleUnseenRecallQueue(progress.dailyQueue, orderRegistry.signatures);
+    const replayQueue = shuffleUnseenRecallQueue(progress.recallQueue, orderRegistry.signatures);
     orderRegistry.signatures.add(queueSignature(replayQueue));
     return replayQueue;
   }
@@ -1540,9 +1591,17 @@ export default function MandarinApp() {
   function reviewFlashcardsAgain() {
     if (!sessionVocabularyQueue.length) return;
     if (replaySession) {
-      setReplaySession((current) => current ? { ...current, flashcardPosition: 0 } : current);
+      setReplaySession((current) => current ? {
+        ...current,
+        vocabularyQueue: shuffleUnseenRecallQueue(current.vocabularyQueue, new Set([queueSignature(current.vocabularyQueue)])),
+        flashcardPosition: 0,
+      } : current);
     } else {
-      setProgress((current) => ({ ...current, flashcardPosition: 0 }));
+      setProgress((current) => ({
+        ...current,
+        dailyQueue: shuffleUnseenRecallQueue(current.dailyQueue, new Set([queueSignature(current.dailyQueue)])),
+        flashcardPosition: 0,
+      }));
     }
     setCardRevealed(false);
     setCardPinyinOverride(null);
@@ -1600,7 +1659,7 @@ export default function MandarinApp() {
           : current.mastered.filter((index) => index !== activeWordIndex),
       };
       next = earnOnce(next, `${today}:review:${activeWordIndex}`, 5, today);
-      if (next.cardPosition >= next.dailyQueue.length) next = completeDailyStep(next, "review", 5, today);
+      if (next.cardPosition >= next.recallQueue.length) next = completeDailyStep(next, "review", 5, today);
       return next;
     });
     setCardRevealed(false);
@@ -2342,6 +2401,7 @@ export default function MandarinApp() {
                 <h4 className="grammar-stage-title">Understand the pattern</h4>
                 <code>{dailyGrammar.formula}</code>
                 <div className="grammar-notice"><strong>What to notice</strong><p>This target teaches {grammarConcept(dailyGrammar)}. Read the structure from left to right: keep the fixed Chinese markers in place and substitute your own words into the descriptive slots.</p></div>
+                <div className="grammar-use-map"><span><b>WHEN TO USE IT</b>{dailyGrammar.title}</span><span><b>HOW TO BUILD IT</b>Decide the meaning, choose words for the labeled slots, then keep every fixed Mandarin marker exactly where the blueprint puts it.</span><span><b>HOW TO PROVE IT</b>Build a new logical sentence below, hear it, and say the complete sentence aloud.</span></div>
                 {dailyGrammar.example ? <button className="grammar-model" onClick={() => speak(dailyGrammar.example)}><span>▶</span><strong>{dailyGrammar.example}</strong>{progress.showPinyin && <small>{dailyGrammar.pinyin}</small>}<em>{dailyGrammar.translation}</em></button> : <div className="formula-explainer"><strong>Pattern-only target</strong><p>Say the fixed Chinese pieces aloud. Then cover this card and identify the complete structure from similar alternatives.</p></div>}
                 <GrammarPatternMixer key={`daily-${selectedLevel}-${dailyGrammarIndex}-${activeMissionIndex}`} point={dailyGrammar} fallbackFormula={activeMission.grammarFormula} words={cumulativeVocabulary} onSpeakingAttempt={(correct) => setProgress((current) => recordSkillAttempt(current, "speaking", correct, today))} />
                 <div className="grammar-study-steps"><span><b>1</b> Read the pattern</span><span><b>2</b> {dailyGrammar.example ? "Listen and shadow" : "Say the fixed pieces"}</span><span><b>3</b> Recall without looking</span></div>
@@ -2383,7 +2443,7 @@ export default function MandarinApp() {
             <div className="sound-gym-toggle"><button onClick={() => setShowSoundGym((value) => !value)}>{showSoundGym ? "Close sound gym" : "Open optional sound gym"}</button><span>Keep all {pronunciationDrills.length} pronunciation drills available for extra practice.</span></div>{showSoundGym && <div className="speaking-lab pronunciation-lab sound-gym"><div className="lab-instructions"><span className="micro-label">OPTIONAL TONE & SOUND GYM · {pronunciationIndex + 1} / {pronunciationDrills.length}</span><h3>Train the sound, not just the word.</h3><p>{activePronunciation.cue}</p><div className="tone-map" aria-label="Mandarin tone contours"><span>1 ˉ<small>high</small></span><span>2 ˊ<small>rise</small></span><span>3 ˇ<small>dip</small></span><span>4 ˋ<small>fall</small></span><span>·<small>light</small></span></div></div><div><div className="pronunciation-picker">{pronunciationDrills.map((drill, index) => <button key={drill.id} className={index === pronunciationIndex ? "active" : ""} onClick={() => { setPronunciationIndex(index); setSpeechScore(null); setSpeechText("Listen, shadow, then record the line."); }}>{drill.focus}</button>)}</div><div className="speech-console"><button className="speaker-orb" onClick={() => speak(activePronunciation.hanzi, 0.7)} aria-label="Play phrase">声<span>▶ MODEL</span></button><strong>{activePronunciation.hanzi}</strong>{progress.showPinyin && <p>{activePronunciation.pinyin}</p>}<button className={`record-button ${isListening ? "recording" : ""}`} onClick={startSpeechCheck}><span>●</span>{isListening ? "Listening…" : "Record my line"}</button><div className="speech-feedback">{speechText}</div>{speechScore !== null && <div className="speech-meter"><i style={{ width: `${speechScore}%` }} /></div>}<div className="self-checks"><button onClick={() => completePronunciation("Pronunciation drill recorded · +12 XP")}>Tone contour felt accurate</button><button onClick={() => { setSpeechText("Replay slowly and exaggerate the contour once, then repeat naturally."); speak(activePronunciation.hanzi, 0.58); }}>Needs another round</button></div><small className="speech-honesty">Browser recognition checks the words, not pitch. Use the tone cue and an honest self-check.</small></div></div></div>}
           </div>}
         </div>
-        {practice === "speaking" && completedMissionSession && <div className="correction-lab"><div><span className="micro-label">AUTOMATIC CORRECTION LOOP</span><h3>{activeCorrection ? `${activeCorrections.length} miss${activeCorrections.length === 1 ? "" : "es"} ready to repair` : "Today’s misses are repaired."}</h3><p>{activeCorrection ? "Answer correctly now and once more tomorrow. This extra practice never changes the fixed vocabulary cadence." : "Anything you miss later will appear here automatically."}</p></div>{activeCorrection && <div className="correction-card"><span>{skillLabels[activeCorrection.skill]}</span><strong>{activeCorrection.prompt}</strong>{activeCorrectionAudio && <div className="correction-audio-actions"><button onClick={() => activeCorrectionAudioWord ? speakVocabulary(activeCorrectionAudioWord) : speak(activeCorrectionAudio)}><span>▶</span> Play correction audio</button><button onClick={() => activeCorrectionAudioWord ? speakVocabulary(activeCorrectionAudioWord, 0.62) : speak(activeCorrectionAudio, 0.62)}>Play slower</button></div>}<div>{activeCorrection.options.map((option) => <button key={option} onClick={() => answerCorrection(option)}>{option}</button>)}</div>{correctionResult && <p className={correctionResult.startsWith("Correct") ? "correct" : ""}>{correctionResult}<small>{activeCorrection.explanation}</small></p>}</div>}</div>}
+        {practice === "speaking" && completedMissionSession && <div className="correction-lab"><div><span className="micro-label">AUTOMATIC CORRECTION LOOP</span><h3>{activeCorrection ? `${activeCorrections.length} miss${activeCorrections.length === 1 ? "" : "es"} ready to repair` : "Today’s misses are repaired."}</h3><p>{activeCorrection ? "Answer correctly now and once more tomorrow. This extra practice never changes the fixed vocabulary cadence." : "Anything you miss later will appear here automatically."}</p></div>{activeCorrection && <div className="correction-card"><span>{skillLabels[activeCorrection.skill]}</span><strong>{activeCorrection.prompt}</strong>{activeCorrectionAudio && <div className="correction-audio-actions"><button onClick={() => activeCorrectionAudioWord ? speakVocabulary(activeCorrectionAudioWord) : speak(activeCorrectionAudio)}><span>▶</span> Play correction audio</button><button onClick={() => activeCorrectionAudioWord ? speakVocabulary(activeCorrectionAudioWord, 0.62) : speak(activeCorrectionAudio, 0.62)}>Play slower</button></div>}<div>{activeCorrection.options.map((option) => <button key={option} onClick={() => answerCorrection(option)}>{option}</button>)}</div>{correctionResultFor === activeCorrection.id && correctionResult && <p className={correctionResult.startsWith("Correct") ? "correct" : ""}>{correctionResult}<small>{activeCorrection.explanation}</small></p>}</div>}</div>}
         <div className={`lesson-next-bar ${practice === "speaking" ? "lesson-finish-bar" : ""}`}><button onClick={() => navigate("today")}>{practice === "speaking" && completedMissionSession ? "Return to plan" : "Save & return to plan"}</button>{practice === "speaking" ? <><div><span>{replaySession ? "REPLAY" : activeCorrections.length > 0 && completedMissionSession ? "FINAL CHECK" : "FINISH TODAY"}</span><strong>{!completedMissionSession ? "Complete the mission above" : replaySession ? "Replay complete" : activeCorrections.length > 0 ? `${activeCorrections.length} correction${activeCorrections.length === 1 ? "" : "s"} ready` : "All required work complete"}</strong></div><button className="next-step-button finish-day-button" disabled={!completedMissionSession} onClick={() => replaySession ? navigate("today") : finishStudyDay()}>{!completedMissionSession ? "Finish mission first" : replaySession ? "Finish replay →" : activeCorrections.length > 0 ? "Clear corrections →" : "Finish day →"}</button></> : <><div><span>{(practice === "flashcards" || practice === "recall") && !currentPracticeComplete ? "FINISH THIS STEP" : "UP NEXT"}</span><strong>{(practice === "flashcards" || practice === "recall") && !currentPracticeComplete ? practiceLabels[practice] : practiceLabels[nextPractice]}</strong></div><button className="next-step-button" disabled={(practice === "flashcards" || practice === "recall") && !currentPracticeComplete} onClick={() => setPractice(nextPractice)}>{(practice === "flashcards" || practice === "recall") && !currentPracticeComplete ? "Complete cards above" : "Continue →"}</button></>}</div>
       </section>
       )}
@@ -2509,7 +2569,7 @@ export default function MandarinApp() {
 
       {ready && syncConflict && (() => { const local = progressCopySummary(syncConflict.local); const remote = progressCopySummary(syncConflict.remote); return <div className="sync-conflict-backdrop" role="dialog" aria-modal="true" aria-labelledby="sync-conflict-title"><div className="sync-conflict-sheet"><span className="section-kicker">SYNC PROTECTION</span><h2 id="sync-conflict-title">Two progress copies were found.</h2><p>Shēngtú paused before overwriting anything. Compare both copies, then choose the one you want to continue with.</p><div className="sync-copy-grid"><article><span>THIS DEVICE</span><strong>{local.steps} completed steps</strong><small>{local.xp} XP · {local.minutes} minutes · {local.words} cycled words</small><button onClick={() => resolveSyncConflict("device")}>Keep this device</button></article><article><span>CLOUD</span><strong>{remote.steps} completed steps</strong><small>{remote.xp} XP · {remote.minutes} minutes · {remote.words} cycled words</small><button onClick={() => resolveSyncConflict("cloud")}>Use cloud copy</button></article></div><small className="sync-conflict-note">If you use the cloud copy, the device copy is retained locally as a recovery backup. If you keep this device, the current cloud copy becomes a server recovery snapshot.</small></div></div>; })()}
 
-      {ready && showCorrectionCenter && !syncConflict && <div className="correction-center-backdrop" role="dialog" aria-modal="true" aria-labelledby="correction-center-title"><div className="correction-center-sheet"><div className="correction-center-head"><div><span className="section-kicker">AUTOMATIC CORRECTION LOOP · {meta.label.toUpperCase()}</span><h2 id="correction-center-title">{activeCorrection ? `${activeCorrections.length} correction${activeCorrections.length === 1 ? "" : "s"} ready now.` : levelCorrections.length ? "Your next check is scheduled." : "All corrections are clear."}</h2></div><button onClick={() => setShowCorrectionCenter(false)} aria-label="Close correction center">×</button></div>{activeCorrection ? <><p className="correction-center-explainer">A miss clears after you answer it correctly now and correctly once more on the next day. This does not change your vocabulary cadence.</p><div className="correction-card"><span>{skillLabels[activeCorrection.skill]}</span><strong>{activeCorrection.prompt}</strong>{activeCorrectionAudio && <div className="correction-audio-actions"><button onClick={() => activeCorrectionAudioWord ? speakVocabulary(activeCorrectionAudioWord) : speak(activeCorrectionAudio)}><span>▶</span> Play correction audio</button><button onClick={() => activeCorrectionAudioWord ? speakVocabulary(activeCorrectionAudioWord, 0.62) : speak(activeCorrectionAudio, 0.62)}>Play slower</button></div>}<div>{activeCorrection.options.map((option) => <button key={option} onClick={() => answerCorrection(option)}>{option}</button>)}</div>{correctionResult && <p className={correctionResult.startsWith("Correct") ? "correct" : ""}>{correctionResult}<small>{activeCorrection.explanation}</small></p>}</div></> : levelCorrections.length ? <div className="correction-waiting"><span>✓</span><div><strong>{levelCorrections[0].correctStreak >= 1 ? "First check complete" : "No correction is due yet"}</strong><p>{levelCorrections[0].correctStreak >= 1 ? `You answered this correctly once. The final check unlocks ${correctionDueLabel(levelCorrections[0].dueDate).toLowerCase()}; there is nothing else you need to do for it today.` : `This correction unlocks ${correctionDueLabel(levelCorrections[0].dueDate).toLowerCase()}.`}</p><small>Next check · {studyDayLabel(levelCorrections[0].dueDate)}</small></div></div> : <div className="correction-waiting cleared"><span>✓</span><div><strong>Nothing waiting</strong><p>You have completed both checks for every correction in {meta.label}.</p></div></div>}<button className="correction-center-done" onClick={() => setShowCorrectionCenter(false)}>Done</button></div></div>}
+      {ready && showCorrectionCenter && !syncConflict && <div className="correction-center-backdrop" role="dialog" aria-modal="true" aria-labelledby="correction-center-title"><div className="correction-center-sheet"><div className="correction-center-head"><div><span className="section-kicker">AUTOMATIC CORRECTION LOOP · {meta.label.toUpperCase()}</span><h2 id="correction-center-title">{activeCorrection ? `${activeCorrections.length} correction${activeCorrections.length === 1 ? "" : "s"} ready now.` : levelCorrections.length ? "Your next check is scheduled." : "All corrections are clear."}</h2></div><button onClick={() => setShowCorrectionCenter(false)} aria-label="Close correction center">×</button></div>{activeCorrection ? <><p className="correction-center-explainer">A miss clears after you answer it correctly now and correctly once more on the next day. This does not change your vocabulary cadence.</p><div className="correction-card"><span>{skillLabels[activeCorrection.skill]}</span><strong>{activeCorrection.prompt}</strong>{activeCorrectionAudio && <div className="correction-audio-actions"><button onClick={() => activeCorrectionAudioWord ? speakVocabulary(activeCorrectionAudioWord) : speak(activeCorrectionAudio)}><span>▶</span> Play correction audio</button><button onClick={() => activeCorrectionAudioWord ? speakVocabulary(activeCorrectionAudioWord, 0.62) : speak(activeCorrectionAudio, 0.62)}>Play slower</button></div>}<div>{activeCorrection.options.map((option) => <button key={option} onClick={() => answerCorrection(option)}>{option}</button>)}</div>{correctionResultFor === activeCorrection.id && correctionResult && <p className={correctionResult.startsWith("Correct") ? "correct" : ""}>{correctionResult}<small>{activeCorrection.explanation}</small></p>}</div></> : levelCorrections.length ? <div className="correction-waiting"><span>✓</span><div><strong>{levelCorrections[0].correctStreak >= 1 ? "First check complete" : "No correction is due yet"}</strong><p>{levelCorrections[0].correctStreak >= 1 ? `You answered this correctly once. The final check unlocks ${correctionDueLabel(levelCorrections[0].dueDate).toLowerCase()}; there is nothing else you need to do for it today.` : `This correction unlocks ${correctionDueLabel(levelCorrections[0].dueDate).toLowerCase()}.`}</p><small>Next check · {studyDayLabel(levelCorrections[0].dueDate)}</small></div></div> : <div className="correction-waiting cleared"><span>✓</span><div><strong>Nothing waiting</strong><p>You have completed both checks for every correction in {meta.label}.</p></div></div>}<button className="correction-center-done" onClick={() => setShowCorrectionCenter(false)}>Done</button></div></div>}
 
       {ready && showDayComplete && !syncConflict && <div className="day-complete-backdrop" role="dialog" aria-modal="true" aria-labelledby="day-complete-title"><div className="day-complete-sheet"><button className="day-complete-close" onClick={() => setShowDayComplete(false)} aria-label="Close day summary">×</button><span className="day-complete-seal" aria-hidden="true">好</span><span className="section-kicker">{meta.label.toUpperCase()} · MISSION {activeMissionIndex + 1} · DAY {missionPhase + 1}/3</span><h2 id="day-complete-title">{catchUpDayComplete ? <>Your catch-up day<br /><em>is complete.</em></> : <>Today’s learning<br /><em>is complete.</em></>}</h2><p>{catchUpDayComplete ? "You finished the older session and cleared everything due. You may now begin one full learning day for today, so a small carry-over never becomes your entire study session." : "You finished all seven required exercises and cleared everything due today. Your vocabulary and grammar return slots are already scheduled."}</p><div className="day-complete-stats"><div><strong>7 / 7</strong><span>steps complete</span></div><div><strong>{formatTrainingMinutes(displayedTodayTrainingSeconds)}</strong><span>active minutes</span></div><div><strong>Clear</strong><span>due corrections</span></div></div><div className="day-complete-actions">{catchUpDayComplete && <button className="day-complete-advance" onClick={startNextLearningDay}>Start next learning day <span>→</span></button>}<button className="day-complete-done" onClick={() => setShowDayComplete(false)}>Finish for today</button><button onClick={startOptionalRecallReview}>Optional: retry today’s recall test</button></div><small>{catchUpDayComplete ? "You can advance once because this lesson began on an earlier calendar day. The new lesson becomes today’s active session." : "Extra recall is always available, but it will not change the automatic return schedule or today’s completion."}</small></div></div>}
 

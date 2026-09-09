@@ -62,6 +62,7 @@ export type LevelArchive = {
   grammarReviews: Record<string, ReviewState>;
   earned: string[];
   dailyQueue: number[];
+  recallQueue: number[];
   dailyQueueDate: string;
   flashcardPosition: number;
   cardPosition: number;
@@ -75,7 +76,7 @@ export type LevelArchive = {
 };
 
 export type Progress = {
-  version: 13;
+  version: 14;
   selectedLevel: HskLevel;
   graduatedLevels: HskLevel[];
   levelArchives: Partial<Record<HskLevel, LevelArchive>>;
@@ -105,6 +106,7 @@ export type Progress = {
   showPinyin: boolean;
   onboarded: boolean;
   dailyQueue: number[];
+  recallQueue: number[];
   dailyQueueDate: string;
   flashcardPosition: number;
   cardPosition: number;
@@ -169,7 +171,7 @@ function cleanDailySteps(daily: unknown) {
 
 export function makeStarterProgress(date = localDate()): Progress {
   return {
-    version: 13,
+    version: 14,
     selectedLevel: "1",
     graduatedLevels: [],
     levelArchives: {},
@@ -198,6 +200,7 @@ export function makeStarterProgress(date = localDate()): Progress {
     showPinyin: true,
     onboarded: false,
     dailyQueue: [],
+    recallQueue: [],
     dailyQueueDate: "",
     flashcardPosition: 0,
     cardPosition: 0,
@@ -229,6 +232,25 @@ export function uniqueQueueState(value: unknown, position: unknown, itemCount: n
   const queue = cleanIndexList(raw);
   const nextPosition = queue.findIndex((index) => !completed.has(index));
   return { queue, position: nextPosition < 0 ? queue.length : nextPosition };
+}
+
+function shuffleQueue(items: number[], random: () => number) {
+  const queue = [...items];
+  for (let index = queue.length - 1; index > 0; index -= 1) {
+    const swap = Math.floor(random() * (index + 1));
+    [queue[index], queue[swap]] = [queue[swap], queue[index]];
+  }
+  return queue;
+}
+
+export function buildRandomizedVocabularyQueues(items: number[], random: () => number = Math.random) {
+  const scheduled = cleanIndexList(items);
+  const flashcardQueue = shuffleQueue(scheduled, random);
+  let recallQueue = shuffleQueue(scheduled, random);
+  if (recallQueue.length > 1 && recallQueue.every((item, index) => item === flashcardQueue[index])) {
+    recallQueue = [...recallQueue.slice(1), recallQueue[0]];
+  }
+  return { flashcardQueue, recallQueue };
 }
 
 function cleanStudyDay(value: unknown): StudyDay | null {
@@ -502,7 +524,7 @@ export function normalizeProgress(raw: unknown, vocabularySize: number, grammarS
   const progress: Progress = {
     ...starter,
     ...legacy,
-    version: 13,
+    version: 14,
     selectedLevel,
     graduatedLevels: Array.isArray(legacy.graduatedLevels)
       ? [...new Set(legacy.graduatedLevels.filter((level): level is HskLevel => HSK_LEVELS.includes(level as HskLevel)))]
@@ -537,17 +559,27 @@ export function normalizeProgress(raw: unknown, vocabularySize: number, grammarS
     pinyinConfidence: legacy.pinyinConfidence && typeof legacy.pinyinConfidence === "object" ? legacy.pinyinConfidence : {},
   };
   if (!keepExistingSession || !sessionState.dailyQueueDate || !Array.isArray(sessionState.dailyQueue)) {
-    progress.dailyQueue = buildDailyQueue(progress, vocabularySize, cadenceNow);
+    const queues = buildRandomizedVocabularyQueues(buildDailyQueue(progress, vocabularySize, cadenceNow));
+    progress.dailyQueue = queues.flashcardQueue;
+    progress.recallQueue = queues.recallQueue;
     progress.dailyQueueDate = dailyDate;
     progress.flashcardPosition = 0;
     progress.cardPosition = 0;
   } else {
-    const uniqueVocabularyQueue = uniqueQueueState(sessionState.dailyQueue, sessionState.cardPosition, vocabularySize);
-    progress.dailyQueue = uniqueVocabularyQueue.queue;
-    progress.cardPosition = uniqueVocabularyQueue.position;
+    const flashcardState = uniqueQueueState(sessionState.dailyQueue, sessionState.flashcardPosition, vocabularySize);
+    const fallbackRecallQueue = Number(sessionState.cardPosition) > 0
+      ? sessionState.dailyQueue
+      : buildRandomizedVocabularyQueues(flashcardState.queue).recallQueue;
+    const savedRecallQueue = Array.isArray(sessionState.recallQueue) && sessionState.recallQueue.length
+      ? sessionState.recallQueue
+      : fallbackRecallQueue;
+    const recallState = uniqueQueueState(savedRecallQueue, sessionState.cardPosition, vocabularySize);
+    progress.dailyQueue = flashcardState.queue;
+    progress.recallQueue = recallState.queue;
+    progress.cardPosition = recallState.position;
     progress.flashcardPosition = restoredDaily.includes("flashcards")
       ? progress.dailyQueue.length
-      : Math.min(Math.max(0, Number(sessionState.flashcardPosition) || 0), progress.dailyQueue.length);
+      : flashcardState.position;
     progress.dailyQueueDate = dailyDate;
   }
   if (!keepExistingSession || !sessionState.grammarQueueDate || !Array.isArray(sessionState.grammarQueue)) {
@@ -590,6 +622,7 @@ function captureLevel(progress: Progress): LevelArchive {
     grammarReviews: progress.grammarReviews,
     earned: progress.earned,
     dailyQueue: progress.dailyQueue,
+    recallQueue: progress.recallQueue,
     dailyQueueDate: progress.dailyQueueDate,
     flashcardPosition: progress.flashcardPosition,
     cardPosition: progress.cardPosition,
@@ -618,6 +651,7 @@ function emptyLevel(date: string): LevelArchive {
     grammarReviews: {},
     earned: [],
     dailyQueue: [],
+    recallQueue: [],
     dailyQueueDate: "",
     flashcardPosition: 0,
     cardPosition: 0,
@@ -669,20 +703,30 @@ export function switchProgressLevel(progress: Progress, selectedLevel: HskLevel,
   let switched: Progress = { ...recorded, ...active, selectedLevel, levelArchives };
   const cadenceNow = studyDateTimestamp(cadenceDate);
   if (!keepExistingSession || !active.dailyQueueDate || !Array.isArray(active.dailyQueue)) {
+    const queues = buildRandomizedVocabularyQueues(buildDailyQueue(switched, vocabularySize, cadenceNow));
     switched = {
       ...switched,
-      dailyQueue: buildDailyQueue(switched, vocabularySize, cadenceNow),
+      dailyQueue: queues.flashcardQueue,
+      recallQueue: queues.recallQueue,
       dailyQueueDate: dailyDate,
       flashcardPosition: 0,
       cardPosition: 0,
     };
   } else {
-    const uniqueVocabularyQueue = uniqueQueueState(active.dailyQueue, active.cardPosition, vocabularySize);
-    switched.dailyQueue = uniqueVocabularyQueue.queue;
-    switched.cardPosition = uniqueVocabularyQueue.position;
+    const flashcardState = uniqueQueueState(active.dailyQueue, active.flashcardPosition, vocabularySize);
+    const fallbackRecallQueue = Number(active.cardPosition) > 0
+      ? active.dailyQueue
+      : buildRandomizedVocabularyQueues(flashcardState.queue).recallQueue;
+    const savedRecallQueue = Array.isArray(active.recallQueue) && active.recallQueue.length
+      ? active.recallQueue
+      : fallbackRecallQueue;
+    const recallState = uniqueQueueState(savedRecallQueue, active.cardPosition, vocabularySize);
+    switched.dailyQueue = flashcardState.queue;
+    switched.recallQueue = recallState.queue;
+    switched.cardPosition = recallState.position;
     switched.flashcardPosition = switched.daily.includes("flashcards")
       ? switched.dailyQueue.length
-      : Math.min(Math.max(0, Number(active.flashcardPosition) || 0), switched.dailyQueue.length);
+      : flashcardState.position;
     switched.dailyQueueDate = dailyDate;
   }
   if (!keepExistingSession || !active.grammarQueueDate || !Array.isArray(active.grammarQueue)) {
@@ -720,6 +764,7 @@ export function advanceLearningSession(progress: Progress, vocabularySize: numbe
     cadenceDate,
     sessionCompletedDate: "",
     dailyQueue: [],
+    recallQueue: [],
     dailyQueueDate: date,
     flashcardPosition: 0,
     cardPosition: 0,
@@ -730,7 +775,9 @@ export function advanceLearningSession(progress: Progress, vocabularySize: numbe
     builderDone: [],
     pronunciationDone: [],
   };
-  nextSession.dailyQueue = buildDailyQueue(nextSession, vocabularySize, cadenceNow);
+  const queues = buildRandomizedVocabularyQueues(buildDailyQueue(nextSession, vocabularySize, cadenceNow));
+  nextSession.dailyQueue = queues.flashcardQueue;
+  nextSession.recallQueue = queues.recallQueue;
   nextSession.grammarQueue = buildDailyGrammarQueue(nextSession, grammarSize, cadenceNow);
   return recordStudyDay(nextSession);
 }
@@ -842,7 +889,9 @@ export function queueCorrection(progress: Progress, item: Omit<CorrectionItem, "
   };
   return {
     ...progress,
-    corrections: [...progress.corrections.filter((candidate) => candidate.id !== item.id), correction].slice(-200),
+    corrections: existing
+      ? progress.corrections.map((candidate) => candidate.id === item.id ? correction : candidate).slice(-200)
+      : [...progress.corrections, correction].slice(-200),
   };
 }
 

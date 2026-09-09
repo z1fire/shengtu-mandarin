@@ -302,20 +302,27 @@ export function buildMissionDictation(missions: CourseMission[], activeIndex: nu
 export function buildGradedReading(missions: CourseMission[], activeIndex: number, phase: number): GradedReading {
   const mission = missions[activeIndex];
   const prior = missions[(activeIndex + missions.length - 1) % missions.length];
-  const support = phase === 0
-    ? { hanzi: "好的。", pinyin: "Hǎo de.", translation: "Okay." }
-    : phase === 1
-      ? { hanzi: "好的，谢谢。", pinyin: "Hǎo de, xièxie.", translation: "Okay, thank you." }
-      : { hanzi: "好的，我知道了。谢谢！", pinyin: "Hǎo de, wǒ zhīdào le. Xièxie!", translation: "Okay, I understand. Thank you!" };
+  const supportLines = [
+    { hanzi: "好的。", pinyin: "Hǎo de.", translation: "Okay." },
+    { hanzi: "好的，谢谢。", pinyin: "Hǎo de, xièxie.", translation: "Okay, thank you." },
+    { hanzi: "好的，我知道了。谢谢！", pinyin: "Hǎo de, wǒ zhīdào le. Xièxie!", translation: "Okay, I understand. Thank you!" },
+  ];
+  const support = supportLines[phase] ?? supportLines[0];
+  const lines = [
+    { speaker: "A", hanzi: mission.phrase, pinyin: mission.pinyin, translation: mission.translation },
+    { speaker: "B", ...support },
+  ];
+  const targetIndex = (activeIndex + phase) % 2;
+  const target = lines[targetIndex];
+  const distractors = targetIndex === 0
+    ? [prior.translation, missions[(activeIndex + 4) % missions.length].translation]
+    : supportLines.filter((_, index) => index !== phase).map((line) => line.translation);
   return {
     title: `${mission.title} · mini dialogue`,
-    lines: [
-      { speaker: "A", hanzi: mission.phrase, pinyin: mission.pinyin, translation: mission.translation },
-      { speaker: "B", ...support },
-    ],
-    question: "What is speaker A communicating?",
-    answer: mission.translation,
-    options: rotateOptions(uniqueOptions(mission.translation, [prior.translation, missions[(activeIndex + 4) % missions.length].translation]), activeIndex + phase),
+    lines,
+    question: `What is speaker ${target.speaker} communicating?`,
+    answer: target.translation,
+    options: rotateOptions(uniqueOptions(target.translation, distractors), activeIndex + phase + targetIndex),
   };
 }
 
