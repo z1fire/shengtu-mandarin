@@ -24,9 +24,12 @@ export type ReadingLine = {
 export type GradedReading = {
   title: string;
   lines: ReadingLine[];
-  question: string;
-  answer: string;
-  options: string[];
+  questions: {
+    lineIndex: number;
+    question: string;
+    answer: string;
+    options: string[];
+  }[];
 };
 
 export type ConversationTurn = ReadingLine & {
@@ -312,17 +315,20 @@ export function buildGradedReading(missions: CourseMission[], activeIndex: numbe
     { speaker: "A", hanzi: mission.phrase, pinyin: mission.pinyin, translation: mission.translation },
     { speaker: "B", ...support },
   ];
-  const targetIndex = (activeIndex + phase) % 2;
-  const target = lines[targetIndex];
-  const distractors = targetIndex === 0
-    ? [prior.translation, missions[(activeIndex + 4) % missions.length].translation]
-    : supportLines.filter((_, index) => index !== phase).map((line) => line.translation);
   return {
     title: `${mission.title} · mini dialogue`,
     lines,
-    question: `What is speaker ${target.speaker} communicating?`,
-    answer: target.translation,
-    options: rotateOptions(uniqueOptions(target.translation, distractors), activeIndex + phase + targetIndex),
+    questions: lines.map((line, lineIndex) => {
+      const distractors = lineIndex === 0
+        ? [prior.translation, missions[(activeIndex + 4) % missions.length].translation]
+        : supportLines.filter((_, index) => index !== phase).map((candidate) => candidate.translation);
+      return {
+        lineIndex,
+        question: `What does sentence ${lineIndex + 1} (speaker ${line.speaker}) mean?`,
+        answer: line.translation,
+        options: rotateOptions(uniqueOptions(line.translation, distractors), activeIndex + phase + lineIndex),
+      };
+    }),
   };
 }
 

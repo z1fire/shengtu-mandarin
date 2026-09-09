@@ -655,6 +655,8 @@ export default function MandarinApp() {
   const [missionListenResult, setMissionListenResult] = useState("");
   const [missionDictationResult, setMissionDictationResult] = useState("");
   const [readingResult, setReadingResult] = useState("");
+  const [readingLineIndex, setReadingLineIndex] = useState(0);
+  const [readingLinesPassed, setReadingLinesPassed] = useState<boolean[]>([]);
   const [listenOrder] = useState(() => shuffle(listeningQuestions.map((_, index) => index)));
   const [listenPosition, setListenPosition] = useState(0);
   const activeListening = listeningQuestions[listenOrder[listenPosition] ?? 0];
@@ -1150,6 +1152,8 @@ export default function MandarinApp() {
       setMissionListenResult("");
       setMissionDictationResult("");
       setReadingResult("");
+      setReadingLineIndex(0);
+      setReadingLinesPassed([]);
       setDailyGrammarStage("learn");
       setDailyGrammarResult("");
       setDailyGrammarAnswered(false);
@@ -1358,6 +1362,9 @@ export default function MandarinApp() {
     setDailyGrammarResult("");
     setDailyGrammarAnswered(false);
     setMissionListenResult("");
+    setReadingResult("");
+    setReadingLineIndex(0);
+    setReadingLinesPassed([]);
     setMissionWordBank(shuffle(missions[Math.min(missions.length - 1, day.missionIndex)].tokens));
     setMissionBuilt([]);
     setMissionBuildResult("");
@@ -2040,20 +2047,29 @@ export default function MandarinApp() {
     setToast("Mission line built · +10 XP");
   }
 
-  function answerReading(option: string) {
-    const correct = option === gradedReading.answer;
-    setReadingResult(correct ? "Correct · you understood the exchange in context." : "Not yet · reread speaker A and use the surrounding reply.");
+  function answerReading(lineIndex: number, option: string) {
+    const question = gradedReading.questions[lineIndex];
+    const line = gradedReading.lines[lineIndex];
+    if (!question || !line || readingLinesPassed[lineIndex]) return;
+    const correct = option === question.answer;
+    const nextPassed = gradedReading.lines.map((_, index) => readingLinesPassed[index] || index === lineIndex);
+    const allPassed = nextPassed.every(Boolean);
+    setReadingResult(correct
+      ? allPassed ? "Correct · you understood both sentences in the dialogue." : `Correct · sentence ${lineIndex + 1} understood. Review it, then continue.`
+      : `Not yet · reread sentence ${lineIndex + 1} and use the other line for context.`);
     registerObjectiveAttempt("reading", correct, {
-      id: `reading:${selectedLevel}:${activeMissionIndex}:${missionPhase}`,
+      id: `reading:${selectedLevel}:${activeMissionIndex}:${missionPhase}:${lineIndex}`,
       level: selectedLevel,
       skill: "reading",
-      prompt: gradedReading.lines.map((line) => line.hanzi).join(" "),
-      answer: gradedReading.answer,
-      options: gradedReading.options,
-      explanation: `${gradedReading.lines[0].hanzi} means ${gradedReading.answer}`,
+      prompt: line.hanzi,
+      answer: question.answer,
+      options: question.options,
+      explanation: `${line.hanzi} means “${line.translation}”`,
       dueDate: today,
     });
     if (!correct) return;
+    setReadingLinesPassed(nextPassed);
+    if (!allPassed) return;
     if (replaySession) {
       completeReplayStep("reading");
       setToast("Reading replay complete");
@@ -2065,6 +2081,13 @@ export default function MandarinApp() {
       return next;
     });
     setToast("Reading understood · +10 XP");
+  }
+
+  function continueReading() {
+    const nextLine = gradedReading.lines.findIndex((_, index) => !readingLinesPassed[index]);
+    if (nextLine < 0) return;
+    setReadingLineIndex(nextLine);
+    setReadingResult("");
   }
 
   function passMissionSpeechLine(message: string) {
@@ -2428,7 +2451,7 @@ export default function MandarinApp() {
 
           {practice === "builder" && <div className="required-practice-wrap"><div className="builder-lab mission-builder"><div className="lab-instructions"><span className="micro-label">BUILD THE MISSION · DAY {missionPhase + 1} / 3</span><h3>Assemble the line you will perform.</h3><p>{activeMission.translation} Put the Mandarin into its natural order. Tap a placed piece to move it back.</p></div><div className="builder-board"><div className="sentence-line">{missionBuilt.length ? missionBuilt.map((token, index) => <button key={`${token}-${index}`} onClick={() => removeMissionToken(token, index)}>{token}</button>) : <span>Tap the pieces below to build the mission line…</span>}</div><div className="word-bank">{missionWordBank.map((token, index) => <button key={`${token}-${index}`} onClick={() => addMissionToken(token, index)}>{token}</button>)}</div><div className="builder-actions"><button onClick={resetMissionBuilder}>Reset</button><button className="check-button" onClick={checkMissionBuilder} disabled={!missionBuilt.length}>Check mission line</button></div>{missionBuildResult && <div className={`result-note ${missionBuildResult.startsWith("Correct") ? "correct" : ""}`}>{missionBuildResult}</div>}</div></div><details className="extra-practice"><summary>Extra sentence reps <span>16-challenge practice bank</span></summary><div className="builder-lab"><div className="lab-instructions"><span className="micro-label">OPTIONAL SENTENCE LAB · {buildIndex + 1} / {sentenceChallenges.length}</span><h3>Build another thought.</h3><p>{activeSentence.translation} This practice bank awards extra XP without changing today’s required mission.</p></div><div className="builder-board"><div className="sentence-line">{built.length ? built.map((token, index) => <button key={`${token}-${index}`} onClick={() => removeToken(token, index)}>{token}</button>) : <span>Tap words below to build the sentence…</span>}</div><div className="word-bank">{wordBank.map((token, index) => <button key={`${token}-${index}`} onClick={() => addToken(token, index)}>{token}</button>)}</div><div className="builder-actions"><button onClick={() => resetBuilder()}>Reset</button><button className="check-button" onClick={checkBuilder} disabled={!built.length}>Check sentence</button></div>{buildResult && <div className={`result-note ${buildResult.startsWith("Correct") ? "correct" : ""}`}>{buildResult}<button onClick={() => resetBuilder(true)}>Next →</button></div>}</div></div></details></div>}
 
-          {practice === "reading" && <div className="graded-reader"><div className="reader-intro"><span className="micro-label">GRADED READING · KNOWN MISSION LANGUAGE</span><h3>{gradedReading.title}</h3><p>Read the exchange first without translation. Tap a line only when you need support.</p></div><div className="reader-page">{gradedReading.lines.map((line, index) => <details key={`${line.speaker}-${index}`}><summary><span>{line.speaker}</span><strong lang="zh-CN">{line.hanzi}</strong><button onClick={(event) => { event.preventDefault(); speak(line.hanzi); }} aria-label={`Play line ${index + 1}`}>▶</button></summary><p>{progress.showPinyin && <span>{line.pinyin}</span>}<em>{line.translation}</em></p></details>)}<div className="reader-question"><strong>{gradedReading.question}</strong>{gradedReading.options.map((option) => <button key={option} onClick={() => answerReading(option)} disabled={readingResult.startsWith("Correct")}>{option}</button>)}{readingResult && <div className={`result-note ${readingResult.startsWith("Correct") ? "correct" : ""}`}>{readingResult}</div>}</div></div></div>}
+          {practice === "reading" && <div className="graded-reader"><div className="reader-intro"><span className="micro-label">GRADED READING · TWO-SENTENCE COMPREHENSION</span><h3>{gradedReading.title}</h3><p>Read the exchange for context. Then prove what each sentence means, one at a time. Translation and pinyin appear only after you answer correctly.</p><div className="reader-progress" aria-label={`${readingLinesPassed.filter(Boolean).length} of ${gradedReading.lines.length} sentences understood`}>{gradedReading.lines.map((_, index) => <span key={index} className={readingLinesPassed[index] ? "complete" : index === readingLineIndex ? "active" : ""}>{readingLinesPassed[index] ? "✓" : index + 1}</span>)}</div></div><div className="reader-page">{gradedReading.lines.map((line, index) => { const question = gradedReading.questions[index]; const passed = Boolean(readingLinesPassed[index]); const active = index === readingLineIndex; return <article key={`${line.speaker}-${index}`} className={`reader-line ${passed ? "passed" : ""} ${active ? "active" : ""}`}><div className="reader-line-prompt"><span>{line.speaker}</span><strong lang="zh-CN">{line.hanzi}</strong><button onClick={() => speak(line.hanzi)} aria-label={`Play sentence ${index + 1}`}>▶</button></div>{passed && <div className="reader-line-answer">{progress.showPinyin && <span>{line.pinyin}</span>}<em>{line.translation}</em></div>}{active && !passed && <div className="reader-question"><strong>{question.question}</strong>{question.options.map((option) => <button key={option} onClick={() => answerReading(index, option)}>{option}</button>)}{readingResult && <div className="result-note">{readingResult}</div>}</div>}{active && passed && !gradedReading.lines.every((_, lineIndex) => readingLinesPassed[lineIndex]) && <button className="reader-continue" onClick={continueReading}>Continue to sentence {index + 2} →</button>}{!active && !passed && <small className="reader-locked">Answer the sentence above first.</small>}</article>; })}{gradedReading.lines.every((_, index) => readingLinesPassed[index]) && <div className="reader-complete"><strong>✓ Both sentences understood</strong><span>You read the whole exchange instead of recognizing only one line.</span></div>}</div></div>}
 
           {practice === "speaking" && <div className="conversation-stage"><div className="conversation-heading"><span className="micro-label">FOUR-LINE ROLE-PLAY · DAY {missionPhase + 1} / 3</span><h3>{missionPhase === 2 ? "Perform the complete exchange without reading." : "Practice the conversation from both sides."}</h3><p>Tap any turn to hear it. All four logically connected turns are required in today’s speaking checkpoint.</p></div>{missionConversation.map((turn, index) => <button key={`${turn.speaker}-${index}`} className={turn.learner ? "learner" : "partner"} onClick={() => speak(turn.hanzi, 0.72)}><span>{turn.speaker} · ▶</span><strong lang="zh-CN">{turn.hanzi}</strong>{progress.showPinyin && <small>{turn.pinyin}</small>}<em>{turn.translation}</em></button>)}</div>}
 

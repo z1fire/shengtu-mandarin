@@ -180,6 +180,9 @@ test("uses focused app views instead of one scrolling curriculum page", async ()
   assert.match(source, /mixer-blueprint/);
   assert.match(source, /YOUR WORKING SENTENCE/);
   assert.match(source, /correctionResultFor === activeCorrection\.id/);
+  assert.match(source, /TWO-SENTENCE COMPREHENSION/);
+  assert.match(source, /answerReading\(index, option\)/);
+  assert.match(source, /Both sentences understood/);
   assert.match(source, /Review flashcards again/);
   assert.match(source, /recall progress and cadence are unchanged/);
   assert.match(source, /I don’t recall/);
@@ -500,9 +503,14 @@ test("builds recall, dictation, reading, and logical four-line conversations for
       for (const phase of [0, 1, 2]) {
         const reading = buildGradedReading(missions, missionIndex, phase);
         assert.equal(reading.lines.length, 2);
-        assert.ok(reading.options.includes(reading.answer));
-        readingTargets.add(reading.question.match(/speaker ([AB])/)?.[1]);
-        readingAnswerPositions.add(reading.options.indexOf(reading.answer));
+        assert.equal(reading.questions.length, reading.lines.length);
+        reading.questions.forEach((question, lineIndex) => {
+          assert.equal(question.lineIndex, lineIndex);
+          assert.equal(question.answer, reading.lines[lineIndex].translation);
+          assert.ok(question.options.includes(question.answer));
+          readingTargets.add(question.question.match(/speaker ([AB])/)?.[1]);
+          readingAnswerPositions.add(question.options.indexOf(question.answer));
+        });
       }
     }
     for (const mission of missions) {
@@ -908,8 +916,8 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
     assert.equal(png.readUInt32BE(20), size);
   }
 
-  assert.match(serviceWorker, /shengtu-v46/);
-  assert.match(versionSource, /1\.8\.0/);
+  assert.match(serviceWorker, /shengtu-v47/);
+  assert.match(versionSource, /1\.8\.1/);
   assert.match(serviceWorker, /request\.mode === "navigate"/);
   assert.match(serviceWorker, /url\.pathname\.includes\("\/api\/"\)/);
   assert.match(serviceWorker, /icon-maskable-512\.png/);
@@ -938,7 +946,7 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
   assert.match(layoutSource, /crossOrigin="use-credentials"/);
   assert.match(source, /className="app-version"/);
   assert.match(source, /v\{APP_VERSION\}/);
-  assert.match(versionSource, /APP_VERSION = "1\.8\.0"/);
+  assert.match(versionSource, /APP_VERSION = "1\.8\.1"/);
   assert.match(pagesHtml, /mobile-web-app-capable/);
   assert.match(pagesHtml, /apple-touch-icon\.png/);
   assert.match(pagesHtml, /viewport-fit=cover/);
