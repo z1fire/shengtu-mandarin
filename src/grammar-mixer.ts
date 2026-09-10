@@ -1,5 +1,6 @@
 import type { GrammarPoint } from "./hsk-data.ts";
 import type { LevelVocabularyWord } from "./level-content.ts";
+import { getGrammarLesson } from "./grammar-lessons.ts";
 
 export type MixerSlotKind = "subject" | "noun" | "verb" | "adjective" | "place" | "time" | "number" | "measure" | "modal" | "question" | "direction" | "generic";
 
@@ -30,7 +31,7 @@ const preferredWords: Record<MixerSlotKind, string[]> = {
   adjective: ["好", "大", "小", "热", "冷", "忙", "漂亮", "高兴"],
   place: ["学校", "家", "桌子", "医院", "商店", "中国", "大学"],
   time: ["今天", "明天", "昨天", "上午", "中午", "晚上"],
-  number: ["一", "两", "三", "四", "五", "十"],
+  number: ["一", "两", "三", "四", "五", "六", "七", "八", "九", "十"],
   measure: ["个", "本", "杯", "件", "只"],
   modal: ["会", "能", "可以", "想", "要"],
   question: ["什么", "哪里", "谁", "怎么", "哪", "几", "多少"],
@@ -78,33 +79,6 @@ const placeActions: Record<string, string[]> = {
   "中国": ["学习", "工作"],
 };
 
-const completePracticeFrames: Record<string, string> = {
-  "不 + habitual / 没有 + completed": "subject + 不 + verb",
-  "statement + 吗？": "subject + 是 + noun + 吗",
-  "verb + 不 + verb": "subject + verb 1 + 不 + verb 1",
-  "new situation + 了": "subject + adjective + 了",
-  "pronoun + family noun": "pronoun + family noun + 是 + noun",
-  "person pronoun/noun + 们": "subject + 们 + 都 + 是 + noun",
-  "哪个 + noun": "subject + 喜欢 + 哪个 + noun",
-  "哪些 + noun": "哪些 + noun + 是 + owner + 的",
-  "几 + measure word + noun": "subject + 有 + 几 + measure word + noun",
-  "多少 + noun": "subject + 有 + 多少 + noun",
-  "怎么 + verb": "这个 + noun + 怎么 + verb",
-  "谁 in the unknown slot": "subject + 是 + 谁",
-  "什么 in the unknown slot": "subject + 想 + verb + 什么",
-  "多 + adjective": "你 + 多 + adjective",
-  "statement, 是吗？": "subject + 是 + noun + 是吗",
-  "year + month + day": "number + 年 + number + 月 + number + 日",
-  "time + 前 / 后": "下课 + 后 + subject + verb",
-  "来 toward speaker / 去 away": "subject + 来 + place",
-  "到 + place": "subject + 到 + place + 了",
-  "noun + 里 / 外": "noun + 在 + place + 里",
-  "noun + 前 / 后": "subject + 在 + place + 前",
-  "会 + learned action": "subject + 会 + verb",
-  "给 + person + verb/object": "subject + 给 + person + number + measure word + noun",
-  "第 + number + noun": "这 + 是 + 第 + number + 课",
-};
-
 function slotKind(label: string): MixerSlotKind {
   const value = label.toLowerCase().replace(/\s+/g, " ").trim();
   if (/measure/.test(value)) return "measure";
@@ -112,7 +86,7 @@ function slotKind(label: string): MixerSlotKind {
   if (/adjective|degree|symptom/.test(value)) return "adjective";
   if (/direction/.test(value)) return "direction";
   if (/place|destination/.test(value)) return "place";
-  if (/year|month|day|hour|number/.test(value)) return "number";
+  if (/year|month|day|hour|minute|number/.test(value)) return "number";
   if (/time/.test(value)) return "time";
   if (/modal/.test(value)) return "modal";
   if (/subject|owner|person|pronoun|agent|plural|^a$|^b$/.test(value)) return "subject";
@@ -129,7 +103,19 @@ function contextualPreference(formula: string, slotId: string, kind: MixerSlotKi
   if (/喜欢 \+ 哪个/.test(normalizedFormula) && kind === "noun") return ["老师", "学生", "朋友", "苹果"];
   if (/哪些 \+ noun/.test(normalizedFormula) && kind === "noun") return ["书", "衣服", "苹果"];
   if (/多少 \+ noun/.test(normalizedFormula) && kind === "noun") return ["钱", "书", "朋友"];
-  if (/这个 \+ noun \+ 怎么/.test(normalizedFormula) && kind === "noun") return ["学生", "老师", "朋友"];
+  if (/这个 \+ noun \+ 怎么/.test(normalizedFormula) && kind === "noun") return ["汉字", "书"];
+  if (/这个 \+ noun \+ 怎么 \+ verb/.test(normalizedFormula) && kind === "verb") return ["写", "读", "看", "说"];
+  if (/天气 \+ adjective/.test(normalizedFormula) && kind === "adjective") return ["好", "热", "冷"];
+  if (/非常 \+ adjective/.test(normalizedFormula) && kind === "adjective") return ["高兴", "忙", "漂亮", "好"];
+  if (/多 \+ adjective/.test(normalizedFormula) && kind === "adjective") return ["大", "高"];
+  if (/会 \+ verb/.test(normalizedFormula) && kind === "verb") return ["写", "读", "说", "看"];
+  if (/modal \+ verb/.test(normalizedFormula) && kind === "verb") return ["写", "读", "说", "看"];
+  if (/可以 \+ verb/.test(normalizedFormula) && kind === "verb") return ["写", "读", "说", "看"];
+  if (/verb \+ 一下/.test(normalizedFormula) && kind === "verb") return ["看", "听", "说", "写"];
+  if (/month \+ 月 \+ day/.test(normalizedFormula) && slotId === "month") return ["五", "八", "三", "一"];
+  if (/month \+ 月 \+ day/.test(normalizedFormula) && slotId === "day") return ["八", "十", "五", "一"];
+  if (/hour \+ 点/.test(normalizedFormula) && slotId === "hour") return ["八", "九", "七", "一"];
+  if (/minute \+ 分/.test(normalizedFormula) && slotId === "minute") return ["十", "五", "三", "一"];
   if (/给 \+ person/.test(normalizedFormula) && slotId === "person") return ["妈妈", "老师", "朋友", "爸爸"];
   if (/是 \+ noun/.test(normalizedFormula) && slotId === "noun") return identityRoles;
   if (/subject \+ (是|是不是) \+ noun/.test(normalizedFormula) && kind === "noun") return identityRoles;
@@ -155,7 +141,7 @@ function mixerWords(kind: MixerSlotKind, words: LevelVocabularyWord[], prioritiz
 function placeholderLabel(part: string) {
   const value = part.trim();
   if (!/[a-z]/i.test(value)) return null;
-  if (/^(subject|owner|person|pronoun|agent|plural subject|noun|object|family noun|topic|verb|verb \d+|action|habitual|completed|predicate|event|proposal|statement|content|method|result|new situation|adjective|degree|symptom|place|destination|direction|time|year|month|day|hour|number|measure|measure word|modal|question word|a|b)$/i.test(value)) return value;
+  if (/^(subject|owner|person|pronoun|agent|plural subject|noun|object|family noun|topic|verb|verb \d+|action|habitual|completed|predicate|event|proposal|statement|content|method|result|new situation|adjective|degree|symptom|place|destination|direction|time|year|month|day|hour|minute|number|measure|measure word|modal|question word|a|b)$/i.test(value)) return value;
   return null;
 }
 
@@ -171,7 +157,7 @@ function parseFormula(formula: string, words: LevelVocabularyWord[]) {
   const prepared = activeFormula
     .replace(/[？?。]/g, "")
     .replace(/……|…/g, " + content + ")
-    .replace(/[，,]/g, " + ");
+    .replace(/[，,]/g, " + ， + ");
   const rawParts = prepared.split(/\s*\+\s*/).map((part) => part.trim()).filter(Boolean);
   const parts: MixerFrame["parts"] = [];
   let fixedIndex = 0;
@@ -202,7 +188,7 @@ function parseFormula(formula: string, words: LevelVocabularyWord[]) {
 }
 
 export function buildGrammarMixerFrame(point: GrammarPoint, fallbackFormula: string, words: LevelVocabularyWord[]): MixerFrame {
-  const practiceFormula = completePracticeFrames[point.formula] ?? point.formula;
+  const practiceFormula = getGrammarLesson(point).completeFrame ?? point.formula;
   const targetParts = parseFormula(practiceFormula, words);
   if (targetParts.some((part) => part.type === "slot")) {
     return { parts: targetParts, sourceFormula: practiceFormula, usesMissionPattern: false };
@@ -241,24 +227,24 @@ export function initialMixerSelections(frame: MixerFrame) {
   // Start each lab with a natural model sentence while keeping every slot
   // independently changeable for the learner's own combinations.
   if (frame.sourceFormula === "subject + 有 + object") select("object", "书");
-  if (frame.sourceFormula === "verb + 了 + object") {
+  if (frame.sourceFormula === "subject + verb + 了 + object") {
     select("verb", "吃");
     select("object", "苹果");
   }
-  if (frame.sourceFormula === "place + 有 + number + measure word + noun") {
+  if (frame.sourceFormula === "place + 里 + 有 + number + measure word + noun") {
     select("place", "学校");
     select("number", "一");
     select("measure word", "个");
     select("noun", "学生");
   }
-  if (frame.sourceFormula === "noun + 在 + place + 上 / 下 / 里 / 外") {
+  if (frame.sourceFormula === "noun + 在 + place + 上") {
     select("noun", "书");
     select("place", "桌子");
   }
-  if (frame.sourceFormula === "verb 1 + place + verb 2") {
-    select("verb 1", "去");
+  if (frame.sourceFormula === "subject + 去 + place + verb + object") {
     select("place", "学校");
-    select("verb 2", "学习");
+    select("verb", "学习");
+    select("object", "汉字");
   }
   if (frame.sourceFormula === "new situation + 了") select("new situation", "热");
   if (frame.sourceFormula === "pronoun + family noun") select("family noun", "妈妈");
@@ -271,9 +257,13 @@ export function initialMixerSelections(frame: MixerFrame) {
     select("measure word", "本");
     select("noun", "书");
   }
+  if (frame.sourceFormula === "subject + 有 + number + measure word + noun") {
+    select("measure word", "本");
+    select("noun", "书");
+  }
   if (frame.sourceFormula === "你 + 多 + adjective") select("adjective", "大");
-  if (frame.sourceFormula === "subject + 来 + place") select("subject", "你");
-  if (frame.sourceFormula === "先 + verb 1, 再 + verb 2") {
+  if (frame.sourceFormula === "subject + 来 + 我家 + 吧") select("subject", "你");
+  if (frame.sourceFormula === "subject + 先 + verb 1 + ， + 再 + verb 2") {
     select("verb 1", "吃");
     select("verb 2", "学习");
   }
@@ -282,6 +272,52 @@ export function initialMixerSelections(frame: MixerFrame) {
     select("number", "一");
     select("measure word", "本");
     select("noun", "书");
+  }
+
+  if (frame.sourceFormula === "subject + 想 + 不 + 想 + verb + object") select("subject", "你");
+  if (frame.sourceFormula === "subject + 是 + noun + 吗" || frame.sourceFormula === "subject + 是不是 + noun") select("subject", "你");
+  if (frame.sourceFormula === "subject + 想 + verb + question word" || frame.sourceFormula === "subject + 想 + verb + 什么") select("subject", "你");
+  if (frame.sourceFormula === "subject + 喜欢 + 哪个 + noun") select("subject", "你");
+  if (frame.sourceFormula === "subject + 有 + 几 + measure word + noun") select("subject", "你");
+  if (frame.sourceFormula === "subject + 是 + noun + ， + 是吗") select("subject", "他");
+  if (frame.sourceFormula === "请 + verb + object" || frame.sourceFormula === "不要 + verb + object") {
+    select("verb", "看");
+    select("object", "书");
+  }
+  if (frame.sourceFormula === "这个 + noun + 怎么 + verb") {
+    select("noun", "汉字");
+    select("verb", "写");
+  }
+  if (frame.sourceFormula === "这 + measure word + noun + 多少 + 钱") {
+    select("measure word", "本");
+    select("noun", "书");
+  }
+  if (frame.sourceFormula === "哪些 + noun + 是 + owner + 的") select("owner", "你");
+  if (frame.sourceFormula === "这个 + noun + 怎么样") select("noun", "书");
+  if (frame.sourceFormula === "您 + 是 + noun + 吗") select("noun", "老师");
+  if (frame.sourceFormula === "今天 + 是 + month + 月 + day + 日") {
+    select("month", "五");
+    select("day", "八");
+  }
+  if (frame.sourceFormula === "现在 + 是 + hour + 点 + minute + 分") {
+    select("hour", "九");
+    select("minute", "十");
+  }
+  if (frame.sourceFormula === "subject + hour + 点半 + verb") {
+    select("subject", "我");
+    select("hour", "八");
+  }
+  if (frame.sourceFormula === "subject + 会 + verb + object" || frame.sourceFormula === "subject + modal + verb + object") {
+    select("verb", "写");
+    select("object", "汉字");
+  }
+  if (frame.sourceFormula === "subject + 非常 + adjective") select("adjective", "高兴");
+
+  // Run the same compatibility rules used after learner changes so the
+  // opening model never starts with a mismatched verb/object, classifier/noun,
+  // or located noun/place pair.
+  for (const slot of uniqueSlots(frame)) {
+    Object.assign(selections, updateMixerSelection(frame, selections, slot.id, selections[slot.id] ?? 0).selections);
   }
 
   return selections;

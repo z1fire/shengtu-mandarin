@@ -51,6 +51,7 @@ import {
   mixerExpectedTokens,
   updateMixerSelection,
 } from "../src/grammar-mixer.ts";
+import { getGrammarLesson } from "../src/grammar-lessons.ts";
 import {
   buildGradedReading,
   buildMissionConversation,
@@ -137,7 +138,7 @@ test("uses focused app views instead of one scrolling curriculum page", async ()
   assert.match(source, /grammarChoicePool/);
   assert.match(source, /function GrammarPatternMixer/);
   assert.match(source, /MIX &amp; MATCH PATTERN LAB/);
-  assert.match(source, /Build with vocabulary/);
+  assert.match(source, /Build one complete, meaningful sentence/);
   assert.match(source, /Hear my sentence/);
   assert.doesNotMatch(source, /Try again\. Match the target to:|Try again\. Build:/);
   assert.match(source, /promptLengthClass/);
@@ -178,7 +179,7 @@ test("uses focused app views instead of one scrolling curriculum page", async ()
   assert.match(source, /Finish this flashcard pass/);
   assert.match(source, /function reviewFlashcardsAgain/);
   assert.match(source, /mixer-blueprint/);
-  assert.match(source, /YOUR WORKING SENTENCE/);
+  assert.match(source, /YOUR COMPLETE WORKING/);
   assert.match(source, /correctionResultFor === activeCorrection\.id/);
   assert.match(source, /TWO-SENTENCE COMPREHENSION/);
   assert.match(source, /answerReading\(index, option\)/);
@@ -332,9 +333,43 @@ test("builds a vocabulary pattern mixer for every HSK grammar target", () => {
     return mixerExpectedTokens(frame, initialMixerSelections(frame)).join("");
   };
   assert.equal(sentenceFor("pronoun + family noun"), "我妈妈是医生");
-  assert.equal(sentenceFor("几 + measure word + noun"), "我有几本书");
+  assert.equal(sentenceFor("几 + measure word + noun"), "你有几本书");
   assert.equal(sentenceFor("给 + person + verb/object"), "我给妈妈一本书");
   assert.equal(sentenceFor("第 + number + noun"), "这是第一课");
+});
+
+test("teaches every HSK 1 grammar target with a specific rule and complete practice frame", () => {
+  const points = getLibraryGrammar("1", false);
+  const words = getCumulativeVocabulary("1");
+  const fallback = getCourseMissions("1")[0].grammarFormula;
+
+  assert.equal(points.length, 70);
+  for (const point of points) {
+    const lesson = getGrammarLesson(point);
+    assert.ok(lesson.purpose.length > 24, `${point.title} needs a specific purpose`);
+    assert.ok(lesson.rule.length > 24, `${point.title} needs an explicit rule`);
+    assert.ok(lesson.caution.length > 20, `${point.title} needs a common-error warning`);
+    assert.ok(lesson.completeFrame, `${point.title} needs a complete practice frame`);
+    assert.ok(["complete sentence", "question", "phrase used inside a sentence"].includes(lesson.unit));
+    const frame = buildGrammarMixerFrame(point, fallback, words);
+    assert.equal(frame.usesMissionPattern, false, `${point.title} should practice its own target`);
+    assert.doesNotMatch(mixerExpectedTokens(frame, initialMixerSelections(frame)).join(""), /subject|owner|person|noun|object|verb|adjective|place|hour|minute/i);
+  }
+
+  const sentenceForTitle = (title) => {
+    const point = points.find((candidate) => candidate.title === title);
+    const frame = buildGrammarMixerFrame(point, fallback, words);
+    return mixerExpectedTokens(frame, initialMixerSelections(frame)).join("");
+  };
+  assert.equal(getGrammarLesson(points.find((point) => point.title === "Connect with 的")).unit, "phrase used inside a sentence");
+  assert.equal(getGrammarLesson(points.find((point) => point.title === "Ask with 吗")).unit, "question");
+  assert.equal(sentenceForTitle("Connect with 的"), "这是我的书");
+  assert.equal(sentenceForTitle("Numbers need measure words"), "我有一本书");
+  assert.equal(sentenceForTitle("Ask an open amount with 多少"), "这本书多少钱");
+  assert.equal(sentenceForTitle("Ask how with 怎么"), "这个汉字怎么写");
+  assert.equal(sentenceForTitle("Clock time with 点 and 分"), "现在是九点十分");
+  assert.equal(sentenceForTitle("Do this, then that"), "我先吃饭，再学习");
+  assert.equal(sentenceForTitle("Soften an action with 一下"), "请看一下");
 });
 
 test("keeps grammar mixer vocabulary logically compatible in both directions", () => {
@@ -916,8 +951,8 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
     assert.equal(png.readUInt32BE(20), size);
   }
 
-  assert.match(serviceWorker, /shengtu-v47/);
-  assert.match(versionSource, /1\.8\.1/);
+  assert.match(serviceWorker, /shengtu-v48/);
+  assert.match(versionSource, /1\.9\.0/);
   assert.match(serviceWorker, /request\.mode === "navigate"/);
   assert.match(serviceWorker, /url\.pathname\.includes\("\/api\/"\)/);
   assert.match(serviceWorker, /icon-maskable-512\.png/);
@@ -946,7 +981,7 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
   assert.match(layoutSource, /crossOrigin="use-credentials"/);
   assert.match(source, /className="app-version"/);
   assert.match(source, /v\{APP_VERSION\}/);
-  assert.match(versionSource, /APP_VERSION = "1\.8\.1"/);
+  assert.match(versionSource, /APP_VERSION = "1\.9\.0"/);
   assert.match(pagesHtml, /mobile-web-app-capable/);
   assert.match(pagesHtml, /apple-touch-icon\.png/);
   assert.match(pagesHtml, /viewport-fit=cover/);
