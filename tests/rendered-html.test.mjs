@@ -261,6 +261,9 @@ test("uses focused app views instead of one scrolling curriculum page", async ()
   assert.ok(advanceSource.indexOf("currentRecallReplayPosition !== null") < advanceSource.indexOf("scheduleCadenceReview"));
   assert.match(css, /\.mobile-nav\s*\{[^}]*display:\s*none/s);
   assert.match(css, /@media \(max-width:\s*850px\)[\s\S]*\.mobile-nav\s*\{[^}]*display:\s*grid/s);
+  assert.match(css, /\.flashcard-lab > \*, \.grammar-lesson > \*[^}]*min-width:\s*0;[^}]*max-width:\s*100%/s);
+  assert.match(css, /@media \(max-width:\s*850px\)[\s\S]*\.grammar-lesson[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)/s);
+  assert.match(css, /\.mixer-blueprint-track\s*\{[^}]*max-width:\s*100%;[^}]*overflow-x:\s*auto/s);
   assert.match(css, /\.history-sheet/);
   assert.match(css, /\.replay-banner/);
 });
@@ -951,8 +954,8 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
     assert.equal(png.readUInt32BE(20), size);
   }
 
-  assert.match(serviceWorker, /shengtu-v48/);
-  assert.match(versionSource, /1\.9\.0/);
+  assert.match(serviceWorker, /shengtu-v49/);
+  assert.match(versionSource, /1\.9\.1/);
   assert.match(serviceWorker, /request\.mode === "navigate"/);
   assert.match(serviceWorker, /url\.pathname\.includes\("\/api\/"\)/);
   assert.match(serviceWorker, /icon-maskable-512\.png/);
@@ -981,7 +984,7 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
   assert.match(layoutSource, /crossOrigin="use-credentials"/);
   assert.match(source, /className="app-version"/);
   assert.match(source, /v\{APP_VERSION\}/);
-  assert.match(versionSource, /APP_VERSION = "1\.9\.0"/);
+  assert.match(versionSource, /APP_VERSION = "1\.9\.1"/);
   assert.match(pagesHtml, /mobile-web-app-capable/);
   assert.match(pagesHtml, /apple-touch-icon\.png/);
   assert.match(pagesHtml, /viewport-fit=cover/);

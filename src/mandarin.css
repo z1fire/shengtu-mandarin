@@ -150,6 +150,7 @@ button { color: inherit; }
 .practice-tabs button:disabled { cursor: not-allowed; opacity: .42; }
 .practice-stage { min-height: 490px; border: 1px solid var(--line); background: var(--paper); }
 .flashcard-lab, .grammar-lesson, .listening-lab, .builder-lab, .speaking-lab { min-height: 488px; display: grid; grid-template-columns: .72fr 1.28fr; gap: 70px; align-items: center; padding: 58px 7%; }
+.flashcard-lab > *, .grammar-lesson > *, .listening-lab > *, .builder-lab > *, .speaking-lab > * { min-width: 0; max-width: 100%; }
 .lab-instructions h3 { margin: 10px 0 14px; font-family: Georgia, serif; font-size: 38px; letter-spacing: -.03em; }
 .lab-instructions p { color: var(--muted); line-height: 1.65; max-width: 390px; }
 .cadence-preview { max-width: 350px; margin-top: 22px; padding: 13px 15px; display: grid; grid-template-columns: 1fr auto; gap: 3px 14px; border-left: 4px solid var(--yellow); background: var(--white); }
@@ -281,11 +282,11 @@ button { color: inherit; }
 .mixer-frame-label { margin-bottom: 12px; padding: 10px 11px; background: var(--ink); color: white; }
 .mixer-frame-label > span { display: block; margin-bottom: 5px; color: var(--yellow); font-size: 8px; font-weight: 900; letter-spacing: .1em; }
 .mixer-frame-label > code { color: white; white-space: normal; font: 12px ui-monospace, monospace; }
-.mixer-blueprint { margin: 0 0 12px; padding: 11px; border: 1px solid #d9d1a2; background: #fff; }
+.mixer-blueprint { min-width: 0; max-width: 100%; margin: 0 0 12px; padding: 11px; border: 1px solid #d9d1a2; background: #fff; }
 .mixer-blueprint > div:first-child { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 9px; }
 .mixer-blueprint > div:first-child strong { font-size: 10px; }
 .mixer-blueprint > div:first-child span { color: var(--muted); font-size: 8px; text-align: right; }
-.mixer-blueprint-track { display: flex; align-items: stretch; gap: 5px; overflow-x: auto; padding-bottom: 3px; }
+.mixer-blueprint-track { min-width: 0; max-width: 100%; display: flex; align-items: stretch; gap: 5px; overflow-x: auto; padding-bottom: 3px; }
 .mixer-blueprint-track > div { min-width: 105px; flex: 1 0 105px; padding: 8px; border: 1px solid var(--line); background: #f6f3eb; }
 .mixer-blueprint-track > div.fixed { border-color: #c6a21f; background: #fff2b8; }
 .mixer-blueprint-track span { display: block; color: var(--coral); font-size: 7px; font-weight: 900; letter-spacing: .08em; }
@@ -294,7 +295,7 @@ button { color: inherit; }
 .mixer-selectors { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .mixer-selectors label { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .mixer-selectors label > span { color: var(--jade); font-size: 8px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
-.mixer-selectors select { width: 100%; min-height: 38px; border: 1px solid var(--line); background: white; color: var(--ink); padding: 7px 9px; font-size: 10px; }
+.mixer-selectors select { width: 100%; min-width: 0; max-width: 100%; min-height: 38px; border: 1px solid var(--line); background: white; color: var(--ink); padding: 7px 9px; font-size: 10px; }
 .mixer-live-model { margin-top: 9px; padding: 11px; border: 1px solid var(--ink); background: var(--ink); color: white; }
 .mixer-live-model > span { color: var(--yellow); font-size: 7px; font-weight: 900; letter-spacing: .1em; }
 .mixer-live-model > strong { display: block; margin: 5px 0 8px; font: 22px "Noto Sans SC", "Microsoft YaHei", sans-serif; }
@@ -992,7 +993,7 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
   .practice-section, .vocabulary-section { padding-left: 30px; padding-right: 30px; }
   .two-column-heading, .path-heading, .vocabulary-heading, .grammar-heading, .progress-heading { align-items: flex-start; flex-direction: column; gap: 24px; }
   .two-column-heading > p, .grammar-heading > p { width: auto; max-width: 600px; }
-  .flashcard-lab, .grammar-lesson, .listening-lab, .builder-lab, .speaking-lab { grid-template-columns: 1fr; gap: 35px; padding: 40px; }
+  .flashcard-lab, .grammar-lesson, .listening-lab, .builder-lab, .speaking-lab { grid-template-columns: minmax(0, 1fr); gap: 35px; padding: 40px; }
   .mission-checkpoint { grid-template-columns: 1fr; gap: 30px; padding: 40px; }
   .sound-gym-toggle, .sound-gym { grid-column: 1; }
   .study-card { grid-column: 1; justify-self: stretch; width: 100%; }
@@ -1101,6 +1102,8 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 3px solid 
   .checkpoint-readiness { grid-template-columns: 1fr; }
   .sound-gym-toggle { align-items: flex-start; flex-direction: column; }
   .grammar-teach-card, .builder-board { padding: 18px; }
+  .grammar-teach-card, .grammar-pattern-type, .grammar-use-map, .grammar-pattern-mixer, .grammar-notice, .formula-explainer { min-width: 0; max-width: 100%; }
+  .grammar-notice p, .formula-explainer p, .grammar-pattern-type p, .grammar-use-map span, .mixer-heading p { overflow-wrap: anywhere; }
   .grammar-study-steps, .grammar-use-map { grid-template-columns: 1fr; }
   .mixer-selectors { grid-template-columns: 1fr; }
   .mixer-blueprint > div:first-child { align-items: flex-start; flex-direction: column; }
