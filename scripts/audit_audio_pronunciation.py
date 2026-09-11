@@ -188,6 +188,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--write", action="store_true", help="Regenerate src/vocabulary-pronunciation.ts")
     parser.add_argument("--check", action="store_true", help="Verify the generated module is current")
+    parser.add_argument("--verbose", action="store_true", help="List unresolved readings and neutral-tone single-character cards")
     args = parser.parse_args()
 
     if not CEDICT_PATH.exists():
@@ -210,6 +211,18 @@ def main() -> None:
         print(f"HSK {level}: {counts[level]} potentially ambiguous headwords")
     print(f"Exact pinyin-matched aliases: {len(audio_aliases)}")
     print(f"Contextual/default readings retained: {len(unresolved)}")
+    if args.verbose:
+        vocabulary = load_hsk_vocabulary()
+        levels = {(hanzi, pinyin): level for level, entries in vocabulary.items() for hanzi, pinyin in entries}
+        print("\nUnresolved polyphonic headwords:")
+        for hanzi, pinyin, alternatives in unresolved:
+            print(f"HSK {levels.get((hanzi, pinyin), '?')} | {hanzi} | {pinyin} | {alternatives}")
+        tone_marks = set("āáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ")
+        print("\nNeutral-tone single-character cards:")
+        for level, entries in vocabulary.items():
+            for hanzi, pinyin in entries:
+                if len(hanzi) == 1 and not any(character in tone_marks for character in pinyin):
+                    print(f"HSK {level} | {hanzi} | {pinyin}")
 
 
 if __name__ == "__main__":

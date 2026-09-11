@@ -1,0 +1,20 @@
+Shēngtú recorded pronunciation audio
+====================================
+
+These isolated Mandarin pronunciation clips come from the Shtooka Project via
+Wikimedia Commons. The included files are the original Ogg recordings or
+Wikimedia's MP3 transcodes and have not otherwise been modified.
+
+Zh-a.ogg, Zh-de.ogg, Zh-la.ogg, Zh-le.ogg, Zh-ma.ogg, Zh-men.ogg,
+Zh-ne.ogg, and Zh-zhe.ogg
+  Speakers/authors: Wei Gao and Vion Nicolas
+  License: Creative Commons Attribution 2.0 France (CC BY 2.0 FR)
+  Sources: https://commons.wikimedia.org/wiki/Category:Chinese_pronunciation_(Shtooka)
+  License: https://creativecommons.org/licenses/by/2.0/fr/deed.en
+
+Zh-ba.ogg
+  Speaker/author: Yue Tan
+  License: Creative Commons Attribution-ShareAlike 3.0 United States
+           (CC BY-SA 3.0 US)
+  Source: https://commons.wikimedia.org/wiki/File:Zh-ba.ogg
+  License: https://creativecommons.org/licenses/by-sa/3.0/us/deed.en

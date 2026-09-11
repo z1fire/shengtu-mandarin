@@ -62,7 +62,10 @@ import {
   VOCABULARY_AUDIO_ALIAS_COUNT,
   vocabularySpeechText,
 } from "../src/vocabulary-pronunciation.ts";
-import { recordedVocabularyAudioPath } from "../src/recorded-pronunciation.ts";
+import {
+  RECORDED_VOCABULARY_AUDIO_COUNT,
+  recordedVocabularyAudioPath,
+} from "../src/recorded-pronunciation.ts";
 
 async function render() {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
@@ -81,7 +84,23 @@ test("uses the displayed pinyin to disambiguate vocabulary audio", async () => {
   assert.equal(vocabularySpeechText({ hanzi: "大", pinyin: "dà" }), "大");
   assert.equal(vocabularySpeechText({ hanzi: "苹果", pinyin: "píngguǒ" }), "苹果");
   assert.equal(recordedVocabularyAudioPath({ hanzi: "了", pinyin: "le" }), "./audio/zh-le.mp3");
+  assert.equal(recordedVocabularyAudioPath({ hanzi: "的", pinyin: "de" }), "./audio/zh-de.mp3");
+  assert.equal(recordedVocabularyAudioPath({ hanzi: "得", pinyin: "de" }), "./audio/zh-de.mp3");
+  assert.equal(recordedVocabularyAudioPath({ hanzi: "嘛", pinyin: "ma" }), "./audio/zh-ma.mp3");
+  assert.equal(recordedVocabularyAudioPath({ hanzi: "着", pinyin: "zhe" }), "./audio/zh-zhe.mp3");
   assert.equal(recordedVocabularyAudioPath({ hanzi: "大", pinyin: "dà" }), null);
+  assert.equal(recordedVocabularyAudioPath({ hanzi: "过", pinyin: "guo" }), null);
+  assert.equal(RECORDED_VOCABULARY_AUDIO_COUNT, 12);
+  for (const word of [
+    { hanzi: "吧", pinyin: "ba" },
+    { hanzi: "的", pinyin: "de" },
+    { hanzi: "了", pinyin: "le" },
+    { hanzi: "吗", pinyin: "ma" },
+    { hanzi: "们", pinyin: "men" },
+    { hanzi: "呢", pinyin: "ne" },
+  ]) {
+    assert.ok(recordedVocabularyAudioPath(word), `HSK 1 neutral-tone audio missing for ${word.hanzi}`);
+  }
   assert.ok(VOCABULARY_AUDIO_ALIAS_COUNT >= 200);
   const source = await readFile(new URL("../src/MandarinApp.tsx", import.meta.url), "utf8");
   assert.match(source, /function speakVocabulary/);
@@ -921,8 +940,12 @@ test("static Pages build has absolute social metadata and offline assets", async
     access(new URL("../docs/icons/icon-512.png", import.meta.url)),
     access(new URL("../docs/icons/icon-maskable-512.png", import.meta.url)),
     access(new URL("../docs/icons/apple-touch-icon.png", import.meta.url)),
-    access(new URL("../docs/audio/zh-le.mp3", import.meta.url)),
-    access(new URL("../dist/client/audio/zh-le.mp3", import.meta.url)),
+    ...["zh-a.ogg", "zh-ba.mp3", "zh-de.mp3", "zh-la.ogg", "zh-le.mp3", "zh-ma.mp3", "zh-men.mp3", "zh-ne.mp3", "zh-zhe.mp3"].flatMap((file) => [
+      access(new URL(`../docs/audio/${file}`, import.meta.url)),
+      access(new URL(`../dist/client/audio/${file}`, import.meta.url)),
+    ]),
+    access(new URL("../docs/audio/ATTRIBUTION.txt", import.meta.url)),
+    access(new URL("../dist/client/audio/ATTRIBUTION.txt", import.meta.url)),
   ]);
 });
 
@@ -962,11 +985,15 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
     assert.equal(png.readUInt32BE(20), size);
   }
 
-  assert.match(serviceWorker, /shengtu-v50/);
-  assert.match(versionSource, /1\.9\.2/);
-  assert.match(serviceWorker, /audio\/zh-le\.mp3/);
-  const recordedLe = await readFile(new URL("../public/audio/zh-le.mp3", import.meta.url));
-  assert.equal(recordedLe.subarray(0, 3).toString("ascii"), "ID3");
+  assert.match(serviceWorker, /shengtu-v51/);
+  assert.match(versionSource, /1\.9\.3/);
+  for (const file of ["zh-a.ogg", "zh-ba.mp3", "zh-de.mp3", "zh-la.ogg", "zh-le.mp3", "zh-ma.mp3", "zh-men.mp3", "zh-ne.mp3", "zh-zhe.mp3"]) {
+    assert.match(serviceWorker, new RegExp(`audio/${file.replace(".", "\\.")}`));
+    const audio = await readFile(new URL(`../public/audio/${file}`, import.meta.url));
+    const expectedHeader = file.endsWith(".ogg") ? "OggS" : "ID3";
+    assert.equal(audio.subarray(0, expectedHeader.length).toString("ascii"), expectedHeader, `${file} must be valid audio`);
+  }
+  assert.match(serviceWorker, /audio\/ATTRIBUTION\.txt/);
   assert.match(serviceWorker, /request\.mode === "navigate"/);
   assert.match(serviceWorker, /url\.pathname\.includes\("\/api\/"\)/);
   assert.match(serviceWorker, /icon-maskable-512\.png/);
@@ -995,7 +1022,7 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
   assert.match(layoutSource, /crossOrigin="use-credentials"/);
   assert.match(source, /className="app-version"/);
   assert.match(source, /v\{APP_VERSION\}/);
-  assert.match(versionSource, /APP_VERSION = "1\.9\.2"/);
+  assert.match(versionSource, /APP_VERSION = "1\.9\.3"/);
   assert.match(pagesHtml, /mobile-web-app-capable/);
   assert.match(pagesHtml, /apple-touch-icon\.png/);
   assert.match(pagesHtml, /viewport-fit=cover/);
