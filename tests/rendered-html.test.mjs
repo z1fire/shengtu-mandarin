@@ -62,6 +62,7 @@ import {
   VOCABULARY_AUDIO_ALIAS_COUNT,
   vocabularySpeechText,
 } from "../src/vocabulary-pronunciation.ts";
+import { recordedVocabularyAudioPath } from "../src/recorded-pronunciation.ts";
 
 async function render() {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
@@ -79,9 +80,14 @@ test("uses the displayed pinyin to disambiguate vocabulary audio", async () => {
   assert.equal(vocabularySpeechText({ hanzi: "还", pinyin: "huán" }), "环");
   assert.equal(vocabularySpeechText({ hanzi: "大", pinyin: "dà" }), "大");
   assert.equal(vocabularySpeechText({ hanzi: "苹果", pinyin: "píngguǒ" }), "苹果");
+  assert.equal(recordedVocabularyAudioPath({ hanzi: "了", pinyin: "le" }), "./audio/zh-le.mp3");
+  assert.equal(recordedVocabularyAudioPath({ hanzi: "大", pinyin: "dà" }), null);
   assert.ok(VOCABULARY_AUDIO_ALIAS_COUNT >= 200);
   const source = await readFile(new URL("../src/MandarinApp.tsx", import.meta.url), "utf8");
   assert.match(source, /function speakVocabulary/);
+  assert.match(source, /recordedVocabularyAudioPath\(word\)/);
+  assert.match(source, /new Audio\(new URL\(recordedAudioPath, document\.baseURI\)/);
+  assert.match(source, /playModel=\{practicingExample \? undefined : \(rate\) => speakVocabulary\(word, rate\)\}/);
   assert.match(source, /audioTarget=\{audioTarget\}/);
   assert.match(source, /audioTarget && audioTarget !== target \? similarityScore\(audioTarget, transcript\)/);
   assert.match(source, /examAudioWord \? speakVocabulary\(examAudioWord\)/);
@@ -915,6 +921,8 @@ test("static Pages build has absolute social metadata and offline assets", async
     access(new URL("../docs/icons/icon-512.png", import.meta.url)),
     access(new URL("../docs/icons/icon-maskable-512.png", import.meta.url)),
     access(new URL("../docs/icons/apple-touch-icon.png", import.meta.url)),
+    access(new URL("../docs/audio/zh-le.mp3", import.meta.url)),
+    access(new URL("../dist/client/audio/zh-le.mp3", import.meta.url)),
   ]);
 });
 
@@ -954,8 +962,11 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
     assert.equal(png.readUInt32BE(20), size);
   }
 
-  assert.match(serviceWorker, /shengtu-v49/);
-  assert.match(versionSource, /1\.9\.1/);
+  assert.match(serviceWorker, /shengtu-v50/);
+  assert.match(versionSource, /1\.9\.2/);
+  assert.match(serviceWorker, /audio\/zh-le\.mp3/);
+  const recordedLe = await readFile(new URL("../public/audio/zh-le.mp3", import.meta.url));
+  assert.equal(recordedLe.subarray(0, 3).toString("ascii"), "ID3");
   assert.match(serviceWorker, /request\.mode === "navigate"/);
   assert.match(serviceWorker, /url\.pathname\.includes\("\/api\/"\)/);
   assert.match(serviceWorker, /icon-maskable-512\.png/);
@@ -984,7 +995,7 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
   assert.match(layoutSource, /crossOrigin="use-credentials"/);
   assert.match(source, /className="app-version"/);
   assert.match(source, /v\{APP_VERSION\}/);
-  assert.match(versionSource, /APP_VERSION = "1\.9\.1"/);
+  assert.match(versionSource, /APP_VERSION = "1\.9\.2"/);
   assert.match(pagesHtml, /mobile-web-app-capable/);
   assert.match(pagesHtml, /apple-touch-icon\.png/);
   assert.match(pagesHtml, /viewport-fit=cover/);

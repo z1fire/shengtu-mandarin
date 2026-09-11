@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { APP_VERSION } from "./app-version";
+import { recordedVocabularyAudioPath } from "./recorded-pronunciation";
 import { vocabularySpeechText } from "./vocabulary-pronunciation";
 import {
   listeningQuestions,
@@ -243,8 +244,18 @@ function shuffleUnseenRecallQueue(items: number[], seenOrders: Set<string>) {
   return shuffle(items);
 }
 
+let activeRecordedVocabularyAudio: HTMLAudioElement | null = null;
+
+function stopRecordedVocabularyAudio() {
+  if (!activeRecordedVocabularyAudio) return;
+  activeRecordedVocabularyAudio.pause();
+  activeRecordedVocabularyAudio.currentTime = 0;
+  activeRecordedVocabularyAudio = null;
+}
+
 function speak(text: string, rate = 0.82) {
   if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
+  stopRecordedVocabularyAudio();
   window.speechSynthesis.cancel();
   const utterance = new SpeechSynthesisUtterance(text);
   utterance.lang = "zh-CN";
@@ -256,6 +267,27 @@ function speak(text: string, rate = 0.82) {
 }
 
 function speakVocabulary(word: Pick<LevelVocabularyWord, "hanzi" | "pinyin">, rate = 0.82) {
+  const recordedAudioPath = recordedVocabularyAudioPath(word);
+  if (recordedAudioPath && typeof window !== "undefined" && typeof Audio !== "undefined") {
+    window.speechSynthesis?.cancel();
+    stopRecordedVocabularyAudio();
+    const audio = new Audio(new URL(recordedAudioPath, document.baseURI).toString());
+    audio.playbackRate = Math.max(0.65, Math.min(1.25, rate / 0.82));
+    activeRecordedVocabularyAudio = audio;
+    let usedFallback = false;
+    const fallback = () => {
+      if (usedFallback) return;
+      usedFallback = true;
+      if (activeRecordedVocabularyAudio === audio) activeRecordedVocabularyAudio = null;
+      speak(vocabularySpeechText(word), rate);
+    };
+    audio.onended = () => {
+      if (activeRecordedVocabularyAudio === audio) activeRecordedVocabularyAudio = null;
+    };
+    audio.onerror = fallback;
+    void audio.play().catch(fallback);
+    return;
+  }
   speak(vocabularySpeechText(word), rate);
 }
 
@@ -282,6 +314,7 @@ function SpeechPractice({
   translation,
   label,
   className = "",
+  playModel,
   onAttempt,
 }: {
   target: string;
@@ -290,6 +323,7 @@ function SpeechPractice({
   translation?: string;
   label: string;
   className?: string;
+  playModel?: (rate: number) => void;
   onAttempt?: (correct: boolean) => void;
 }) {
   const [feedback, setFeedback] = useState("Listen once, shadow twice, then record yourself.");
@@ -300,13 +334,18 @@ function SpeechPractice({
 
   useEffect(() => () => recognitionRef.current?.abort?.(), []);
 
+  function playModelAudio(rate = 0.7) {
+    if (playModel) playModel(rate);
+    else speak(audioTarget ?? target, rate);
+  }
+
   function startRecording() {
     const recognitionWindow = window as unknown as RecognitionWindow;
     const RecognitionCtor = recognitionWindow.SpeechRecognition ?? recognitionWindow.webkitSpeechRecognition;
     if (!RecognitionCtor) {
       setManualFallback(true);
       setFeedback("Automatic checking is unavailable here. Play the model, say it aloud, then use the spoken self-check.");
-      speak(audioTarget ?? target, 0.7);
+      playModelAudio();
       return;
     }
     const recognition = new RecognitionCtor();
@@ -352,7 +391,7 @@ function SpeechPractice({
 
   return <div className={`embedded-speech-practice ${className}`.trim()}>
     <div className="embedded-speech-heading"><span>{label}</span><strong>Listen, shadow, record.</strong></div>
-    <div className="embedded-speech-target"><button onClick={() => speak(audioTarget ?? target, 0.7)} aria-label={`Play model pronunciation for ${target}`}>声<span>▶ MODEL</span></button><div><strong lang="zh-CN">{target}</strong>{pinyin && <span>{pinyin}</span>}{translation && <em>{translation}</em>}</div></div>
+    <div className="embedded-speech-target"><button onClick={() => playModelAudio()} aria-label={`Play model pronunciation for ${target}`}>声<span>▶ MODEL</span></button><div><strong lang="zh-CN">{target}</strong>{pinyin && <span>{pinyin}</span>}{translation && <em>{translation}</em>}</div></div>
     <button className={`record-button ${isRecording ? "recording" : ""}`} onClick={startRecording} disabled={isRecording}><span>●</span>{isRecording ? "Listening…" : "Record my voice"}</button>
     {manualFallback && <button className="manual-complete" onClick={confirmSpokenPractice}>I said it aloud · mark practiced</button>}
     <div className="speech-feedback" role="status">{feedback}</div>
@@ -374,7 +413,7 @@ function RecallSpeechPractice({ word, showPinyin, onAttempt }: { word: LevelVoca
       <button className={!practicingExample ? "active" : ""} onClick={() => setTarget("word")} role="tab" aria-selected={!practicingExample}>Word</button>
       {word.example && <button className={practicingExample ? "active" : ""} onClick={() => setTarget("example")} role="tab" aria-selected={practicingExample}>Example sentence</button>}
     </div>
-    <SpeechPractice key={`${target}-${speechTarget}`} target={speechTarget} audioTarget={audioTarget} pinyin={showPinyin ? pinyin : undefined} translation={translation} label={practicingExample ? "EXAMPLE SENTENCE SPEAKING" : "RECALL PRONUNCIATION CHECK"} className="recall-speech-panel" onAttempt={onAttempt} />
+    <SpeechPractice key={`${target}-${speechTarget}`} target={speechTarget} audioTarget={audioTarget} pinyin={showPinyin ? pinyin : undefined} translation={translation} label={practicingExample ? "EXAMPLE SENTENCE SPEAKING" : "RECALL PRONUNCIATION CHECK"} className="recall-speech-panel" playModel={practicingExample ? undefined : (rate) => speakVocabulary(word, rate)} onAttempt={onAttempt} />
   </div>;
 }
 
@@ -2512,7 +2551,7 @@ export default function MandarinApp() {
           <div className="skill-dashboard"><div className="skill-dashboard-head"><div><span className="section-kicker">OBJECTIVE ACCURACY</span><h3>Know exactly what needs attention.</h3></div><p>{weakestSkill ? `${skillLabels[weakestSkill.skill]} is currently the best place to focus at ${weakestSkill.accuracy}% accuracy.` : "Complete objective checks to build your first accuracy profile."} {progress.corrections.length} correction{progress.corrections.length === 1 ? "" : "s"} remain across all levels.</p></div><div className="skill-score-grid">{skillScores.map((item) => <article key={item.skill}><span>{skillLabels[item.skill]}</span><strong>{item.attempts ? `${item.accuracy}%` : "—"}</strong><div><i style={{ width: `${item.accuracy}%` }} /></div><small>{item.attempts} objective attempt{item.attempts === 1 ? "" : "s"}</small></article>)}</div></div>
           <div className={`backup-note sync-${syncStatus}`}><strong>{syncStatus === "synced" ? "Progress synced across devices." : syncStatus === "conflict" ? "Choose which progress copy to keep." : syncStatus === "saving" || syncStatus === "checking" ? "Checking your cloud progress…" : "Progress is saved on this device."}</strong><span>{syncStatus === "synced" ? "Your signed-in Sites account keeps the newest course state available on your phone and computer." : syncStatus === "conflict" ? "Nothing will be overwritten until you choose the device or cloud copy." : "Cloud sync requires the signed-in Sites version. Export a backup before clearing browser data when using GitHub Pages or offline mode."}</span><button className="account-manage-link" onClick={() => syncConflict ? undefined : setShowAccount(true)}>{syncConflict ? "Decision required" : "View account"}</button></div>
           <div className="level-roadmap"><div><span className="section-kicker">THE COMPLETE PATH</span><h3>All nine HSK levels are ready.</h3><p>Choose any level now. Each one keeps its own cadence, missions, exam history, graduation, and cycled-word count.</p></div><ol>{levelOrder.map((level) => { const item = levelMeta[level]; const current = level === selectedLevel; const graduated = progress.graduatedLevels.includes(level); return <li key={level} className={current ? "current" : graduated ? "graduated" : "available"}><button onClick={() => chooseLevel(level)}><span>{current ? "NOW" : graduated ? "✓ GRADUATED" : "OPEN"}</span><strong>{item.label}</strong><small>{item.stage} · {item.cumulativeWords.toLocaleString()} cumulative words</small></button></li>; })}</ol></div>
-          <div className="app-about"><div><span className="brand-mark">声</span><div><strong>SHĒNGTÚ</strong><p>Hear it. Say it. Own it.</p></div></div><div><span>SOURCES</span><a href="https://www.chinesetest.cn/syllabus" target="_blank" rel="noreferrer">Official HSK 3.0 ↗</a><a href="https://hsk.cn-bj.ufileos.com/3.0/%E6%96%B0%E7%89%88HSK%E8%80%83%E8%AF%95%E5%A4%A7%E7%BA%B2%EF%BC%88%E8%AF%8D%E6%B1%87%E3%80%81%E6%B1%89%E5%AD%97%E3%80%81%E8%AF%AD%E6%B3%95%EF%BC%89.pdf" target="_blank" rel="noreferrer">2025 syllabus PDF ↗</a><a href="https://cc-cedict.org/editor/editor.php?handler=Download" target="_blank" rel="noreferrer">English glosses · CC-CEDICT ↗</a></div><small>Independent learning tool. Not affiliated with Chinese Test International.</small></div>
+          <div className="app-about"><div><span className="brand-mark">声</span><div><strong>SHĒNGTÚ</strong><p>Hear it. Say it. Own it.</p></div></div><div><span>SOURCES</span><a href="https://www.chinesetest.cn/syllabus" target="_blank" rel="noreferrer">Official HSK 3.0 ↗</a><a href="https://hsk.cn-bj.ufileos.com/3.0/%E6%96%B0%E7%89%88HSK%E8%80%83%E8%AF%95%E5%A4%A7%E7%BA%B2%EF%BC%88%E8%AF%8D%E6%B1%87%E3%80%81%E6%B1%89%E5%AD%97%E3%80%81%E8%AF%AD%E6%B3%95%EF%BC%89.pdf" target="_blank" rel="noreferrer">2025 syllabus PDF ↗</a><a href="https://cc-cedict.org/editor/editor.php?handler=Download" target="_blank" rel="noreferrer">English glosses · CC-CEDICT ↗</a><a href="https://commons.wikimedia.org/wiki/File:Zh-le.ogg" target="_blank" rel="noreferrer">“le” audio · Wei Gao &amp; Vion Nicolas · CC BY 2.0 FR ↗</a></div><small>Independent learning tool. Not affiliated with Chinese Test International.</small></div>
         </section>
       )}
       </div>
