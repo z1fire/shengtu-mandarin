@@ -66,6 +66,18 @@ import {
   RECORDED_VOCABULARY_AUDIO_COUNT,
   recordedVocabularyAudioPath,
 } from "../src/recorded-pronunciation.ts";
+import { splitStudyTime } from "../src/study-time.ts";
+
+test("splits cumulative study seconds into hours and remaining whole minutes", () => {
+  assert.deepEqual(splitStudyTime(0), { hours: 0, minutes: 0 });
+  assert.deepEqual(splitStudyTime(59), { hours: 0, minutes: 0 });
+  assert.deepEqual(splitStudyTime(60), { hours: 0, minutes: 1 });
+  assert.deepEqual(splitStudyTime(3599), { hours: 0, minutes: 59 });
+  assert.deepEqual(splitStudyTime(3600), { hours: 1, minutes: 0 });
+  assert.deepEqual(splitStudyTime(45359), { hours: 12, minutes: 35 });
+  assert.deepEqual(splitStudyTime(360000), { hours: 100, minutes: 0 });
+  assert.deepEqual(splitStudyTime(-60), { hours: 0, minutes: 0 });
+});
 
 async function render() {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
@@ -225,6 +237,10 @@ test("uses focused app views instead of one scrolling curriculum page", async ()
   assert.match(source, /listening-bank/);
   assert.match(source, /mission-\(\?:listening\|dictation\)/);
   assert.match(source, /minutes today/);
+  assert.match(source, /total study time/);
+  assert.match(source, /splitStudyTime\(displayedTrainingSeconds\)/);
+  assert.match(source, /className="study-duration"/);
+  assert.doesNotMatch(source, /<p>total minutes<\/p>/);
   assert.match(source, /displayedTodayTrainingSeconds/);
   assert.match(source, /LISTENING LADDER/);
   assert.match(source, /GRADED READING/);
@@ -985,8 +1001,8 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
     assert.equal(png.readUInt32BE(20), size);
   }
 
-  assert.match(serviceWorker, /shengtu-v51/);
-  assert.match(versionSource, /1\.9\.3/);
+  assert.match(serviceWorker, /shengtu-v52/);
+  assert.match(versionSource, /1\.9\.4/);
   for (const file of ["zh-a.ogg", "zh-ba.mp3", "zh-de.mp3", "zh-la.ogg", "zh-le.mp3", "zh-ma.mp3", "zh-men.mp3", "zh-ne.mp3", "zh-zhe.mp3"]) {
     assert.match(serviceWorker, new RegExp(`audio/${file.replace(".", "\\.")}`));
     const audio = await readFile(new URL(`../public/audio/${file}`, import.meta.url));
@@ -1022,7 +1038,7 @@ test("ships an Android-installable PWA with a guided install fallback", async ()
   assert.match(layoutSource, /crossOrigin="use-credentials"/);
   assert.match(source, /className="app-version"/);
   assert.match(source, /v\{APP_VERSION\}/);
-  assert.match(versionSource, /APP_VERSION = "1\.9\.3"/);
+  assert.match(versionSource, /APP_VERSION = "1\.9\.4"/);
   assert.match(pagesHtml, /mobile-web-app-capable/);
   assert.match(pagesHtml, /apple-touch-icon\.png/);
   assert.match(pagesHtml, /viewport-fit=cover/);

@@ -1,4 +1,4 @@
-const CACHE = "shengtu-v51";
+const CACHE = "shengtu-v52";
 const APP_SHELL = [
   "./",
   "./manifest.webmanifest",

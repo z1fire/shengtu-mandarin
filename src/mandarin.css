@@ -502,6 +502,9 @@ button { color: inherit; }
 .stat-card { min-height: 250px; padding: 25px; display: flex; flex-direction: column; color: white; position: relative; overflow: hidden; }
 .stat-card > span { width: 38px; height: 38px; display: grid; place-items: center; border: 1px solid rgba(255,255,255,.45); border-radius: 50%; font-family: "Noto Sans SC", sans-serif; }
 .stat-card > strong { margin-top: auto; font-family: Georgia, serif; font-size: 64px; font-weight: 400; line-height: 1; }
+.stat-card > strong.study-duration { display: flex; flex-wrap: wrap; gap: .2em .35em; font-size: 2.5rem; line-height: 1.15; }
+.study-duration > span { white-space: nowrap; }
+.study-duration abbr { margin-left: .12em; font: 700 .4em Arial, sans-serif; text-decoration: none; }
 .stat-card p { margin: 4px 0 12px; font-weight: 850; }
 .stat-card small { font-size: 9px; opacity: .7; }
 .stat-card.coral { background: var(--coral); }.stat-card.jade { background: var(--jade); }.stat-card.blue { background: var(--blue); }.stat-card.ink { background: var(--ink); }.stat-card.yellow { background: var(--yellow); color: var(--ink); }
